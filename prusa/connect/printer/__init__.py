@@ -1,17 +1,21 @@
-from time import time
-from typing import Optional
+from __future__ import annotations          # noqa
 
-from . import types
+from time import time
+from typing import Optional, List, Any, Callable, Dict
+from logging import getLogger
+
+from . import const
 from .connection import Connection
 
 __version__ = "0.1.0"
+log = getLogger("connect-printer")
 
 
 class Telemetry:
     """Telemetry object must contain Printer state at minimum."""
     timestamp: int
 
-    def __init__(self, state: types.State, timestamp: int = None, **kwargs):
+    def __init__(self, state: const.State, timestamp: int = None, **kwargs):
         """
         timestamp : int
             If not set int(time.time()) is used.
@@ -36,7 +40,7 @@ class Event:
     """
     timestamp: int
 
-    def __init__(self, event: types.Event, source: types.Source,
+    def __init__(self, event: const.Event, source: const.Source,
                  timestamp: int = None, command_id: int = None, **kwargs):
         self.timestamp = timestamp or int(time())    # TODO: int(time()*10)/10
         self.event = event
@@ -56,13 +60,16 @@ class Event:
                          data)
 
 
+CommandArgs = Optional[List[Any]]
+
+
 class Printer:
     command_id: Optional[int] = None
+    handlers: Dict[const.Command, Callable[[Printer, CommandArgs], Any]]
 
-    def __init__(self, type_: types.Printer, version: types.Version,
+    def __init__(self, type_: const.Printer,
                  sn: str, mac: str, firmware: str, ip: str, conn: Connection):
         self.type = type_
-        self.version = version
         self.sn = sn
         self.mac = mac
         self.firmware = firmware
@@ -70,44 +77,76 @@ class Printer:
 
         self.conn = conn
         self.handlers = {
-            types.HighLevelCommand.SEND_INFO: self.send_info
+            const.Command.SEND_INFO: Printer.send_info
         }
 
-    def send_info(prn):
-        ver, sub = prn.version.value
+    @staticmethod
+    def send_info(prn: Printer, args: CommandArgs) -> Any:
+        type_, ver, sub = prn.type.value
         Event(
-            types.Event.INFO, types.Source.CONNECT, int(time()),
+            const.Event.INFO, const.Source.CONNECT, int(time()),
             prn.command_id,
-            type=prn.type.value, version=ver, subversion=sub,
+            type=type_, version=ver, subversion=sub,
             firmware=prn.firmware, ip_address=prn.ip,
             mac=prn.mac, sn=prn.sn)(prn.conn)
         prn.command_id = None
+        raise RuntimeError()    # fuck
 
-    def do_command(self, cmd):
+    def set_command(self, command: const.Command,
+                    handler: Callable[[Printer, CommandArgs], Any]):
+        """Set handler for command."""
+        self.handlers[command] = handler
+
+    def command(self, command: const.Command):
+        """Wrap funtion to handle command.
+
+        .. code:: python
+
+            @printer.command(const.GCODE)
+            def gcode(prn, gcode):
+                ...
+        """
+        def wrapper(handler: Callable[[Printer, Optional[List[Any]]], Any]):
+            self.set_command(command, handler)
+            return handler
+        return wrapper
+
+    def __execute(self, cmd: str, args: Optional[List[Any]] = None):
         handler = None
         try:
-            cmd_ = types.HighLevelCommand(cmd)
+            cmd_ = const.Command(cmd)
             handler = self.handlers[cmd_]
         except ValueError:
-            Event(types.Event.REJECTED, types.Source.WUI, int(time()),
+            Event(const.Event.REJECTED, const.Source.WUI, int(time()),
                   self.command_id, reason="Unknown command")(self.conn)
             self.command_id = None
             return
         except KeyError:
-            Event(types.Event.REJECTED, types.Source.WUI, int(time()),
+            Event(const.Event.REJECTED, const.Source.WUI, int(time()),
                   self.command_id, reason="Not Implemented")(self.conn)
             self.command_id = None
             return
         try:
-            handler(self)
+            handler(self, args)
         except Exception as e:
-            Event(types.Event.REJECTED, types.Source.WUI, int(time()),
+            log.exception("")
+            Event(const.Event.REJECTED, const.Source.WUI, int(time()),
                   self.command_id, reason="Command error",
                   error=str(e))(self.conn)
             self.command_id = None
             return
 
+    def event(self, event: Event):
+        """Send event to Connect."""
+        event(self.conn)
+
     def telemetry(self, telemetry: Telemetry):
+        """Send telemetry to Connect.
+
+        When response from connect is command (HTTP Status: 200 OK), it
+        will parse response and call handler from handler table. See
+        Printer.set_command or Printer.command.
+        """
         res = telemetry(self.conn)
         if res.status_code == 200:
             command_id: Optional[int] = None
@@ -117,13 +156,24 @@ class Printer:
                 pass
 
             if self.command_id and self.command_id != command_id:
-                Event(types.Event.REJECTED, types.Source.CONNECT, int(time()),
+                Event(const.Event.REJECTED, const.Source.CONNECT, int(time()),
                       self.command_id, reason="Another command is running",
                       actual_command_id=self.command_id)(self.conn)
             else:
                 self.command_id = command_id
-                # TODO: HighLVL vs LowLVL command
-                # TODO: args support
-                command = res.json().get("command")
-                self.do_command(command)
-        return res
+                content_type = res.headers.get("content-type")
+                try:
+                    if content_type == "application/json":
+                        data = res.json()
+                        self.__execute(data.get("command", ""),
+                                       data.get("args"))
+                    elif content_type == "text/x.gcode":
+                        self.__execute(const.Command.GCODE.value,
+                                       res.text)
+                    else:
+                        raise ValueError("Invalid content type")
+                except Exception as e:
+                    Event(const.Event.REJECTED, const.Source.CONNECT,
+                          int(time()), self.command_id,
+                          reason=str(e))(self.conn)
+            return res

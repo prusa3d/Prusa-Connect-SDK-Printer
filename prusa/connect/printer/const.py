@@ -13,13 +13,9 @@ class State(Enum):
 
 
 class Printer(Enum):
-    I3 = 1
-    SL = 5
-
-
-class Version(Enum):
-    MK3 = (3, 0)
-    MK3S = (3, 1)
+    I3MK3 = (1, 3, 0)
+    I3MK3S = (1, 3, 1)
+    SL1 = (5, 1, 0)
 
 
 class Event(Enum):
@@ -48,8 +44,9 @@ class Source(Enum):
     HW = "HW"
 
 
-class HighLevelCommand(Enum):
+class Command(Enum):
     SEND_INFO = "SEND_INFO"
+    GCODE = "GCODE"
 
     START_PRINT = "START_PRINT"
     STOP_PRINT = "STOP_PRINT"
