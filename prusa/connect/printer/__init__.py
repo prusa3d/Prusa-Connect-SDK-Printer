@@ -90,15 +90,14 @@ class Printer:
             firmware=prn.firmware, ip_address=prn.ip,
             mac=prn.mac, sn=prn.sn)(prn.conn)
         prn.command_id = None
-        raise RuntimeError()    # fuck
 
-    def set_command(self, command: const.Command,
+    def set_handler(self, command: const.Command,
                     handler: Callable[[Printer, CommandArgs], Any]):
         """Set handler for command."""
         self.handlers[command] = handler
 
-    def command(self, command: const.Command):
-        """Wrap funtion to handle command.
+    def handler(self, command: const.Command):
+        """Wrap function to handle command.
 
         .. code:: python
 
@@ -107,21 +106,24 @@ class Printer:
                 ...
         """
         def wrapper(handler: Callable[[Printer, Optional[List[Any]]], Any]):
-            self.set_command(command, handler)
+            self.set_handler(command, handler)
             return handler
         return wrapper
 
     def __execute(self, cmd: str, args: Optional[List[Any]] = None):
+        log.debug("Try to handle %s command.", cmd)
         handler = None
         try:
             cmd_ = const.Command(cmd)
             handler = self.handlers[cmd_]
         except ValueError:
+            log.error("Unknown printer command %s.", cmd)
             Event(const.Event.REJECTED, const.Source.WUI, int(time()),
                   self.command_id, reason="Unknown command")(self.conn)
             self.command_id = None
             return
         except KeyError:
+            log.error("Not implemented printer command %s.", cmd)
             Event(const.Event.REJECTED, const.Source.WUI, int(time()),
                   self.command_id, reason="Not Implemented")(self.conn)
             self.command_id = None
@@ -145,19 +147,25 @@ class Printer:
 
         When response from connect is command (HTTP Status: 200 OK), it
         will parse response and call handler from handler table. See
-        Printer.set_command or Printer.command.
+        Printer.set_handler or Printer.handler.
         """
         res = telemetry(self.conn)
         if res.status_code == 200:
             command_id: Optional[int] = None
             try:
                 command_id = int(res.headers.get("Command-Id"))
-            except ValueError:
-                pass
+            except (TypeError, ValueError):
+                log.error("Invalid Command-Id header: %s",
+                          res.headers.get("Command-Id"))
+                Event(const.Event.REJECTED, const.Source.CONNECT,
+                      int(time()),
+                      reason="Invalid Command-Id header")(self.conn)
+                return res
 
             if self.command_id and self.command_id != command_id:
+                log.error("Another command is running: %d", self.command_id)
                 Event(const.Event.REJECTED, const.Source.CONNECT, int(time()),
-                      self.command_id, reason="Another command is running",
+                      command_id, reason="Another command is running",
                       actual_command_id=self.command_id)(self.conn)
             else:
                 self.command_id = command_id
@@ -171,8 +179,9 @@ class Printer:
                         self.__execute(const.Command.GCODE.value,
                                        res.text)
                     else:
-                        raise ValueError("Invalid content type")
+                        raise ValueError("Invalid command content type")
                 except Exception as e:
+                    log.exception("")
                     Event(const.Event.REJECTED, const.Source.CONNECT,
                           int(time()), self.command_id,
                           reason=str(e))(self.conn)
