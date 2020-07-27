@@ -1,7 +1,7 @@
 import pytest   # type: ignore
 import requests # noqa
 
-from prusa.connect.printer import Event, types
+from prusa.connect.printer import Event, const
 from prusa.connect.printer.connection import Connection
 
 FINGERPRINT = "__fingerprint__"
@@ -16,5 +16,5 @@ def connection():
 def test_event(requests_mock, connection):
     requests_mock.post(SERVER+"/p/events", status_code=204)
 
-    Event(types.Event.STATE_CHANGED, types.Source.WUI)(connection)
-    Event(types.Event.STATE_CHANGED, types.Source.WUI, data="data")(connection)
+    Event(const.Event.STATE_CHANGED, const.Source.WUI)(connection)
+    Event(const.Event.STATE_CHANGED, const.Source.WUI, data="data")(connection)
