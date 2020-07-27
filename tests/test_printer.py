@@ -32,20 +32,20 @@ class TestPrinter():
         assert (str(requests_mock.request_history[0])
                 == f"POST {SERVER}/p/telemetry")
 
-    def test_set_command(self):
+    def test_set_handler(self):
         printer = Printer(const.Printer.I3MK3,
                           SN, MAC, FIRMWARE, IP, connection)
 
         def send_info(prn: Printer, args: Optional[List[Any]]) -> Any:
             pass
-        printer.set_command(const.Command.SEND_INFO, send_info)
+        printer.set_handler(const.Command.SEND_INFO, send_info)
         assert printer.handlers[const.Command.SEND_INFO] == send_info
 
     def test_decorator(self):
         printer = Printer(const.Printer.I3MK3,
                           SN, MAC, FIRMWARE, IP, connection)
 
-        @printer.command(const.Command.GCODE)
+        @printer.handler(const.Command.GCODE)
         def gcode(prn: Printer, gcode: str) -> None:
             pass
         assert printer.handlers[const.Command.GCODE] == gcode
@@ -62,7 +62,7 @@ class TestPrinter():
 
         printer.test_ok = False
 
-        @printer.command(const.Command.SEND_INFO)
+        @printer.handler(const.Command.SEND_INFO)
         def send_info(prn, args):
             prn.test_ok = True
 
@@ -116,7 +116,7 @@ class TestPrinter():
         printer = Printer(const.Printer.I3MK3,
                           SN, MAC, FIRMWARE, IP, connection)
 
-        @printer.command(const.Command.GCODE)
+        @printer.handler(const.Command.GCODE)
         def gcode(prn: Printer, args: str):
             prn.event(Event(const.Event.ACCEPTED, const.Source.CONNECT,
                       int(time()), prn.command_id))
