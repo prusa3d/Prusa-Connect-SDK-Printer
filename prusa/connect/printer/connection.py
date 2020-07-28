@@ -12,11 +12,11 @@ class Connection:
     def make_headers(self, timestamp: int) -> dict:
         """Return request headers from connection variables."""
         headers = {
-            "Printer-Fingerprint": self.fingerprint,
+            "Fingerprint": self.fingerprint,
             "Timestamp": str(timestamp)
         }
         if self.token:
-            headers['Printer-Token'] = self.token
+            headers['Token'] = self.token
         return headers
 
     def post(self, url: str, headers: dict, data: dict):
