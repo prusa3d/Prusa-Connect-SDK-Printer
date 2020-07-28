@@ -16,7 +16,7 @@ def test_connection_anonym(requests_mock):
 
     conn = Connection(SERVER, FINGERPRINT)
     headers = conn.make_headers(123)
-    assert headers == {"Printer-Fingerprint": FINGERPRINT,
+    assert headers == {"Fingerprint": FINGERPRINT,
                        "Timestamp": "123"}
 
     conn.post("/p/test", headers, {'key': 'val'})
@@ -29,8 +29,8 @@ def test_make_headers(requests_mock):
 
     conn = Connection(SERVER, FINGERPRINT, TOKEN)
     headers = conn.make_headers(123)
-    assert headers == {"Printer-Fingerprint": FINGERPRINT,
-                       "Printer-Token": TOKEN,
+    assert headers == {"Fingerprint": FINGERPRINT,
+                       "Token": TOKEN,
                        "Timestamp": "123"}
     conn.post("/p/test", headers, {'key': 'val'})
     conn.get("/p/test", headers)

@@ -177,3 +177,37 @@ class Printer:
                           int(time()), self.command_id,
                           reason=str(e))(self.conn)
             return res
+
+    def register(self):
+        """Register the printer with Connect and return a registration
+        temporary code, or fail with a RuntimeError."""
+        data = {
+            "mac": self.mac,
+            "sn": self.sn,
+            "type": self.type.value[0],
+            "version": self.type.value[1],
+            "firmware": self.firmware
+        }
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        res = self.conn.post("/p/register", headers=headers, data=data)
+        if res.status_code == 200:
+            return res.headers['Temporary-Code']
+        else:
+            log.debug("Status code: {res.status_code}")
+            raise RuntimeError(res.text)
+
+    def get_token(self, tmp_code):
+        """If the printer has already been added, return printer token."""
+        headers = {
+            "Temporary-Code": tmp_code
+        }
+        res = self.conn.get("/p/register", headers=headers)
+        if res.status_code == 200:
+            return res.headers["Token"]
+        elif res.status_code == 202:
+            return            # printer was not created yet by `/app/printers`
+        else:
+            log.debug("Status code: {res.status_code}")
+            raise RuntimeError(res.text)

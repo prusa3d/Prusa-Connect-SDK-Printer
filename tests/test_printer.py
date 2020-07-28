@@ -127,3 +127,62 @@ class TestPrinter():
                 == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[1].json()
         assert info["event"] == "ACCEPTED", info
+
+    def test_register(self, requests_mock, connection):
+        mock_tmp_code = "f4c8996fb9"
+        printer = Printer(const.Printer.I3MK3,
+                          SN, MAC, FIRMWARE, IP, connection)
+        requests_mock.post(
+            SERVER+"/p/register",
+            headers={ "Temporary-Code": mock_tmp_code },
+            status_code=200)
+
+        tmp_code = printer.register()
+        assert tmp_code == mock_tmp_code
+
+    def test_register_400_no_mac(self, requests_mock, connection):
+        mock_tmp_code = "f4c8996fb9"
+        printer = Printer(const.Printer.I3MK3,
+                          SN, None, FIRMWARE, IP, connection)
+        requests_mock.post(
+            SERVER+"/p/register",
+            status_code=400)
+
+        with pytest.raises(RuntimeError):
+            printer.register()
+
+    def test_get_token(self, requests_mock, connection):
+        tmp_code = "f4c8996fb9"
+        token = "9TKC0M6mH7WNZTk4NbHG"
+        printer = Printer(const.Printer.I3MK3,
+                          SN, MAC, FIRMWARE, IP, connection)
+        requests_mock.get(
+            SERVER+"/p/register",
+            headers={ "Token": token},
+            status_code=200)
+
+        token_ = printer.get_token(tmp_code)
+        assert token == token_
+
+    def test_get_token_202(self, requests_mock, connection):
+        """202 - `tmp_code` is fine but the printer has not yet been added to
+        Connect."""
+        tmp_code = "f4c8996fb9"
+        printer = Printer(const.Printer.I3MK3,
+                          SN, MAC, FIRMWARE, IP, connection)
+        requests_mock.get(
+            SERVER+"/p/register",
+            status_code=202)
+
+        assert printer.get_token(tmp_code) is None
+
+    def test_get_token_invalid_code(self, requests_mock, connection):
+        tmp_code = "invalid_tmp_code"
+        printer = Printer(const.Printer.I3MK3,
+                          SN, MAC, FIRMWARE, IP, connection)
+        requests_mock.get(
+            SERVER+"/p/register",
+            status_code=400)
+
+        with pytest.raises(RuntimeError):
+            printer.get_token(tmp_code)
