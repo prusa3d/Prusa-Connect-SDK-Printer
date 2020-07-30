@@ -1,8 +1,10 @@
 from __future__ import annotations          # noqa
 
+import configparser
+import os
+from logging import getLogger
 from time import time
 from typing import Optional, List, Any, Callable, Dict
-from logging import getLogger
 
 from . import const
 from .connection import Connection
@@ -220,6 +222,25 @@ class Printer:
         else:
             log.debug("Status code: {res.status_code}")
             raise RuntimeError(res.text)
+
+    @staticmethod
+    def from_lan_settings(path, type_, sn, mac, firmware, fingerprint,
+                          protocol="http"):
+        """Return a Printer parametrised with data from lan_settings.ini -
+        `path` and from given parameters: `type_`, `sn`, `mac`, `firmware`
+        and `fingerprint`.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
+        config = configparser.ConfigParser()
+        config.read(path)
+        connect_host = config['connect']['address']
+        connect_port = config['connect']['port']
+        token = config['connect']['token']
+        ip = config['lan_ip4']['address']
+        server = f"{protocol}://{connect_host}:{connect_port}"
+        conn = Connection(server, fingerprint, token)
+        return Printer(type_, sn, mac, firmware, ip, conn)
 
 
 def default_notification_handler(code, msg):
