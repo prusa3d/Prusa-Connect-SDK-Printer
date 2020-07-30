@@ -4,7 +4,8 @@ from time import time
 import pytest   # type: ignore
 import requests # noqa
 
-from prusa.connect.printer import Printer, Telemetry, Event, const
+from prusa.connect.printer import Printer, Telemetry, Event, const, \
+    Notifications
 from prusa.connect.printer.connection import Connection
 
 
@@ -194,7 +195,7 @@ def test_notification_handler():
     def cb(code, msg):
         return (code, msg)
 
-    Printer.set_notification_handler(cb)
+    Notifications.handler = cb
 
-    res = Printer.notification_handler(code, msg)
+    res = Notifications.handler(code, msg)
     assert res == (code, msg)
