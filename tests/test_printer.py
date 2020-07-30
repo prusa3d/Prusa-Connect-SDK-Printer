@@ -134,14 +134,13 @@ class TestPrinter():
                           SN, MAC, FIRMWARE, IP, connection)
         requests_mock.post(
             SERVER+"/p/register",
-            headers={ "Temporary-Code": mock_tmp_code },
+            headers={"Temporary-Code": mock_tmp_code},
             status_code=200)
 
         tmp_code = printer.register()
         assert tmp_code == mock_tmp_code
 
     def test_register_400_no_mac(self, requests_mock, connection):
-        mock_tmp_code = "f4c8996fb9"
         printer = Printer(const.Printer.I3MK3,
                           SN, None, FIRMWARE, IP, connection)
         requests_mock.post(
@@ -158,7 +157,7 @@ class TestPrinter():
                           SN, MAC, FIRMWARE, IP, connection)
         requests_mock.get(
             SERVER+"/p/register",
-            headers={ "Token": token},
+            headers={"Token": token},
             status_code=200)
 
         token_ = printer.get_token(tmp_code)
@@ -186,3 +185,16 @@ class TestPrinter():
 
         with pytest.raises(RuntimeError):
             printer.get_token(tmp_code)
+
+
+def test_notification_handler():
+    code = "SERVICE_UNAVAILABLE"
+    msg = "Service is unavailable at this moment."
+
+    def cb(code, msg):
+        return (code, msg)
+
+    Printer.set_notification_handler(cb)
+
+    res = Printer.notification_handler(code, msg)
+    assert res == (code, msg)
