@@ -220,3 +220,11 @@ class Printer:
         else:
             log.debug("Status code: {res.status_code}")
             raise RuntimeError(res.text)
+
+    @staticmethod
+    def notification_handler(code, message):
+        print(f"{code}: {message}")
+
+    @staticmethod
+    def set_notification_handler(cb: Callable[[str, str], None]):
+        Printer.notification_handler = cb
