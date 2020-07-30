@@ -60,12 +60,18 @@ class Event:
                          data)
 
 
+def default_notification_handler(code, msg):
+    print(f"{code}: {msg}")
+
+
 CommandArgs = Optional[List[Any]]
 
 
 class Printer:
     command_id: Optional[int] = None
     handlers: Dict[const.Command, Callable[[Printer, CommandArgs], Any]]
+    notification_handler: Callable[[str, str], None] = \
+        default_notification_handler
 
     def __init__(self, type_: const.Printer,
                  sn: str, mac: str, firmware: str, ip: str, conn: Connection):
@@ -220,10 +226,6 @@ class Printer:
         else:
             log.debug("Status code: {res.status_code}")
             raise RuntimeError(res.text)
-
-    @staticmethod
-    def notification_handler(code, message):
-        print(f"{code}: {message}")
 
     @staticmethod
     def set_notification_handler(cb: Callable[[str, str], None]):
