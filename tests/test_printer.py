@@ -41,7 +41,9 @@ dns2=0.0.0.0
 [connect]
 address={CONNECT_HOST}
 port={CONNECT_PORT}
-token={TOKEN}""")
+token={TOKEN}
+tls=False
+""")
     tmpf.close()
     return tmpf.name
 
@@ -211,26 +213,18 @@ class TestPrinter():
         with pytest.raises(RuntimeError):
             printer.get_token(tmp_code)
 
-    def test_from_lan_settings(self, lan_settings_ini):
-        printer = Printer.from_lan_settings(lan_settings_ini,
-                                            const.Printer.I3MK3,
-                                            SN, MAC, FIRMWARE,
-                                            FINGERPRINT,
-                                            protocol="https")
-        assert printer.type == const.Printer.I3MK3
-        assert printer.sn == SN
-        assert printer.ip == IP
-        assert printer.mac == MAC
-        assert printer.firmware == FIRMWARE
-        assert printer.conn.fingerprint == FINGERPRINT
-        assert printer.conn.token == TOKEN
-        assert printer.conn.server == f"https://{CONNECT_HOST}:{CONNECT_PORT}"
+    def test_load_lan_settings(self, lan_settings_ini):
+        config = Printer.load_lan_settings(lan_settings_ini)
+        assert config['token'] == TOKEN
+        assert config['protocol'] == "http"
+        assert config['ip'] == IP
+        assert config['connect_host'] == CONNECT_HOST
+        assert config['connect_port'] == CONNECT_PORT
+        assert config['server'] == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 
     def test_from_lan_settings_not_found(self):
         with pytest.raises(FileNotFoundError):
-            Printer.from_lan_settings("some_non-existing_file",
-                                      const.Printer.I3MK3, SN, MAC, FIRMWARE,
-                                      FINGERPRINT)
+            Printer.load_lan_settings("some_non-existing_file")
 
 
 def test_notification_handler():
