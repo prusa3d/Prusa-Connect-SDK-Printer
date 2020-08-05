@@ -48,20 +48,18 @@ tls=False
     return tmpf.name
 
 
-class TestPrinter():
+class TestPrinter:
     def test_init(self, requests_mock, connection):
         requests_mock.post(SERVER+"/p/telemetry", status_code=204)
 
-        printer = Printer(const.Printer.I3MK3S,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3S, SN, connection)
         printer.telemetry(Telemetry(const.State.READY))
 
         assert (str(requests_mock.request_history[0])
                 == f"POST {SERVER}/p/telemetry")
 
     def test_set_handler(self):
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
 
         def send_info(prn: Printer, args: Optional[List[Any]]) -> Any:
             pass
@@ -69,8 +67,7 @@ class TestPrinter():
         assert printer.handlers[const.Command.SEND_INFO] == send_info
 
     def test_decorator(self):
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
 
         @printer.handler(const.Command.GCODE)
         def gcode(prn: Printer, gcode: str) -> None:
@@ -84,8 +81,7 @@ class TestPrinter():
             headers={"Command-Id": "1", "Content-Type": "application/json"},
             status_code=200)
 
-        printer = Printer(const.Printer.I3MK3S,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3S, SN, connection)
 
         printer.test_ok = False
 
@@ -105,8 +101,7 @@ class TestPrinter():
             status_code=200)
         requests_mock.post(SERVER+"/p/events", status_code=204)
 
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         printer.telemetry(Telemetry(const.State.READY))
 
         assert (str(requests_mock.request_history[1])
@@ -122,8 +117,7 @@ class TestPrinter():
             status_code=200)
         requests_mock.post(SERVER+"/p/events", status_code=204)
 
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         printer.telemetry(Telemetry(const.State.READY))
 
         assert (str(requests_mock.request_history[1])
@@ -140,8 +134,7 @@ class TestPrinter():
             status_code=200)
         requests_mock.post(SERVER+"/p/events", status_code=204)
 
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
 
         @printer.handler(const.Command.GCODE)
         def gcode(prn: Printer, args: str):
@@ -157,8 +150,7 @@ class TestPrinter():
 
     def test_register(self, requests_mock, connection):
         mock_tmp_code = "f4c8996fb9"
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         requests_mock.post(
             SERVER+"/p/register",
             headers={"Temporary-Code": mock_tmp_code},
@@ -168,8 +160,7 @@ class TestPrinter():
         assert tmp_code == mock_tmp_code
 
     def test_register_400_no_mac(self, requests_mock, connection):
-        printer = Printer(const.Printer.I3MK3,
-                          SN, None, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         requests_mock.post(
             SERVER+"/p/register",
             status_code=400)
@@ -180,8 +171,7 @@ class TestPrinter():
     def test_get_token(self, requests_mock, connection):
         tmp_code = "f4c8996fb9"
         token = "9TKC0M6mH7WNZTk4NbHG"
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         requests_mock.get(
             SERVER+"/p/register",
             headers={"Token": token},
@@ -194,8 +184,7 @@ class TestPrinter():
         """202 - `tmp_code` is fine but the printer has not yet been added to
         Connect."""
         tmp_code = "f4c8996fb9"
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         requests_mock.get(
             SERVER+"/p/register",
             status_code=202)
@@ -204,8 +193,7 @@ class TestPrinter():
 
     def test_get_token_invalid_code(self, requests_mock, connection):
         tmp_code = "invalid_tmp_code"
-        printer = Printer(const.Printer.I3MK3,
-                          SN, MAC, FIRMWARE, IP, connection)
+        printer = Printer(const.Printer.I3MK3, SN, connection)
         requests_mock.get(
             SERVER+"/p/register",
             status_code=400)
@@ -214,17 +202,16 @@ class TestPrinter():
             printer.get_token(tmp_code)
 
     def test_load_lan_settings(self, lan_settings_ini):
-        config = Printer.load_lan_settings(lan_settings_ini)
-        assert config['token'] == TOKEN
-        assert config['protocol'] == "http"
-        assert config['ip'] == IP
-        assert config['connect_host'] == CONNECT_HOST
-        assert config['connect_port'] == CONNECT_PORT
-        assert config['server'] == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
+        printer = Printer.from_config(lan_settings_ini, FINGERPRINT,
+                                      const.Printer.I3MK3, SN)
+        assert printer.conn.token == TOKEN
+        assert printer.conn.fingerprint == FINGERPRINT
+        assert printer.conn.server == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 
     def test_from_lan_settings_not_found(self):
         with pytest.raises(FileNotFoundError):
-            Printer.load_lan_settings("some_non-existing_file")
+            Printer.from_config("some_non-existing_file", FINGERPRINT,
+                                const.Printer.I3MK3, SN)
 
 
 def test_notification_handler():
