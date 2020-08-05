@@ -224,23 +224,35 @@ class Printer:
             raise RuntimeError(res.text)
 
     @staticmethod
-    def from_lan_settings(path, type_, sn, mac, firmware, fingerprint,
-                          protocol="http"):
-        """Return a Printer parametrised with data from lan_settings.ini -
-        `path` and from given parameters: `type_`, `sn`, `mac`, `firmware`
-        and `fingerprint`.
+    def load_lan_settings(path: str):
+        """Return a dictionary with parsed data from lan_settings.ini.
+
+        Available keys are:
+            * connect_host
+            * connect_port
+            * token
+            * protocol
+            * ip (can be `DHCP`)
+            * server (as http/https url)
         """
         if not os.path.exists(path):
             raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
         config = configparser.ConfigParser()
         config.read(path)
         connect_host = config['connect']['address']
-        connect_port = config['connect']['port']
+        connect_port = config['connect'].getint('port')
         token = config['connect']['token']
         ip = config['lan_ip4']['address']
+        protocol = "http"
+        if config['connect'].getboolean('tls'):
+            protocol = "https"
         server = f"{protocol}://{connect_host}:{connect_port}"
-        conn = Connection(server, fingerprint, token)
-        return Printer(type_, sn, mac, firmware, ip, conn)
+        return dict(connect_host=connect_host,
+                    connect_port=connect_port,
+                    token=token,
+                    protocol=protocol,
+                    ip=ip,
+                    server=server)
 
 
 def default_notification_handler(code, msg):
