@@ -69,18 +69,37 @@ class Printer:
     command_id: Optional[int] = None
     handlers: Dict[const.Command, Callable[[Printer, CommandArgs], Any]]
 
-    def __init__(self, type_: const.Printer,
-                 sn: str, mac: str, firmware: str, ip: str, conn: Connection):
+    def __init__(self, type_: const.Printer, sn: str, conn: Connection):
         self.type = type_
         self.sn = sn
-        self.mac = mac
-        self.firmware = firmware
-        self.ip = ip
+        self.ip = None
+        self.mac = None
+        self.firmware = None
 
         self.conn = conn
         self.handlers = {
             const.Command.SEND_INFO: Printer.send_info
         }
+
+    @classmethod
+    def from_config(cls, path: str, fingerprint: str,
+                    type_: const.Printer, sn: str):
+        """Load lan_settings.ini config from `path` and create from it
+        and from `fingerprint` a Connection and set it on `self`"""
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
+        config = configparser.ConfigParser()
+        config.read(path)
+        connect_host = config['connect']['address']
+        connect_port = config['connect'].getint('port')
+        token = config['connect']['token']
+        protocol = "http"
+        if config['connect'].getboolean('tls'):
+            protocol = "https"
+        server = f"{protocol}://{connect_host}:{connect_port}"
+        conn = Connection(server, fingerprint, token)
+        printer = cls(type_, sn, conn)
+        return printer
 
     @staticmethod
     def send_info(prn: Printer, args: CommandArgs) -> Any:
@@ -222,37 +241,6 @@ class Printer:
         else:
             log.debug("Status code: {res.status_code}")
             raise RuntimeError(res.text)
-
-    @staticmethod
-    def load_lan_settings(path: str):
-        """Return a dictionary with parsed data from lan_settings.ini.
-
-        Available keys are:
-            * connect_host
-            * connect_port
-            * token
-            * protocol
-            * ip (can be `DHCP`)
-            * server (as http/https url)
-        """
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
-        config = configparser.ConfigParser()
-        config.read(path)
-        connect_host = config['connect']['address']
-        connect_port = config['connect'].getint('port')
-        token = config['connect']['token']
-        ip = config['lan_ip4']['address']
-        protocol = "http"
-        if config['connect'].getboolean('tls'):
-            protocol = "https"
-        server = f"{protocol}://{connect_host}:{connect_port}"
-        return dict(connect_host=connect_host,
-                    connect_port=connect_port,
-                    token=token,
-                    protocol=protocol,
-                    ip=ip,
-                    server=server)
 
 
 def default_notification_handler(code, msg):
