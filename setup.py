@@ -1,17 +1,26 @@
 # -*- coding: utf-8 -*-
+import re
+from pathlib import Path
 from setuptools import setup, find_namespace_packages
-
-from prusa.connect.printer import __version__
 
 REQUIRES = []
 with open("requirements.txt", "r") as requires:
     for line in requires:
         REQUIRES.append(line.strip())
 
+def find_version():
+    version_file = Path("prusa/connect/printer/__init__.py").read_text()
+    version_match = re.search(
+        r"^__version__(\s)+=(\s)+\"(?P<version>[\w\.]+?)\"$", version_file, re.M
+    )
+    version = version_match.group("version")
+    if not version:
+        raise RuntimeError("Could not find version in prusa/connect/printer/__init__.py")
+    return version
 
 setup(
     name="prusa.connect.sdk.printer",
-    version=__version__,
+    version=find_version(),
     description="Python printer library for Prusa Connect",
     author="Ondřej Tůma",
     author_email="ondrej.tuma@prusa3d.cz",
