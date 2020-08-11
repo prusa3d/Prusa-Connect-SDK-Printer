@@ -10,7 +10,7 @@ with open("requirements.txt", "r") as requires:
 
 setup(
     name="prusa.connect.sdk.printer",
-    version=pkg_info.version,
+    version=pkg_info.__version__,
     description=pkg_info.description,
     author=pkg_info.author,
     author_email=pkg_info.author_email,
