@@ -9,7 +9,6 @@ from typing import Optional, List, Any, Callable, Dict
 from . import const
 from .connection import Connection
 
-__version__ = "0.1.0"
 log = getLogger("connect-printer")
 
 
