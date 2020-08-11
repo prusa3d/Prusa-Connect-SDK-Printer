@@ -1,4 +1,5 @@
-version = "0.1.0"
+__version__ = "0.1.0"
+
 description = "Python printer library for Prusa Connect"
 author = "Ondřej Tůma"
 author_email = "ondrej.tuma@prusa3d.cz"

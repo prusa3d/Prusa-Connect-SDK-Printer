@@ -8,6 +8,7 @@ from typing import Optional, List, Any, Callable, Dict
 
 from . import const
 from .connection import Connection
+from .pkg_info import __version__               # NOQA: F401
 
 log = getLogger("connect-printer")
 
