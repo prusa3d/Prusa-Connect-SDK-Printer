@@ -1,3 +1,4 @@
+"""Python printer library for Prusa Connect."""
 from __future__ import annotations          # noqa
 
 import configparser
@@ -8,7 +9,17 @@ from typing import Optional, List, Any, Callable, Dict
 
 from . import const
 from .connection import Connection
-from .pkg_info import __version__               # NOQA: F401
+
+__version__ = "0.1.0"
+__date__ = "13 Aug 2020"        # version date
+__copyright__ = "(c) 2020 Prusa 3D"
+__author_name__ = "Ondřej Tůma"
+__author_email__ = "ondrej.tuma@prusa3d.cz"
+__author__ = f"{__author_name__} <{__author_email__}>"
+__description__ = "Python printer library for Prusa Connect"
+
+__credits__ = "Ondřej Tůma, Martin Užák, Jan Pilař"
+__url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 
 log = getLogger("connect-printer")
 
