@@ -21,19 +21,23 @@ __description__ = "Python printer library for Prusa Connect"
 __credits__ = "Ondřej Tůma, Martin Užák, Jan Pilař"
 __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 
+# pylint: disable=invalid-name
+# pylint: disable=too-few-public-methods
+# pylint: disable=too-many-instance-attributes
+
 log = getLogger("connect-printer")
 
 
 class Telemetry:
     """Telemetry object must contain Printer state at minimum."""
-    timestamp: int
+    timestamp: float
 
-    def __init__(self, state: const.State, timestamp: int = None, **kwargs):
+    def __init__(self, state: const.State, timestamp: float = None, **kwargs):
         """
-        timestamp : int
-            If not set int(time.time()) is used.
+        timestamp : float
+            If not set int(time.time()*10)/10 is used.
         """
-        self.timestamp = timestamp or int(time())    # TODO: int(time()*10)/10
+        self.timestamp = timestamp or int(time()*10)/10
         self.__data = kwargs
         self.__data['state'] = state.value
 
@@ -46,16 +50,16 @@ class Telemetry:
 class Event:
     """Event object must contain Event type at minimum.
 
-    timestamp : int
-        If not set int(time.time()) is used.
+    timestamp : float
+        If not set int(time.time()*10)/10 is used.
     command_id : int
         Must be set for answer to Connect command.
     """
-    timestamp: int
+    timestamp: float
 
     def __init__(self, event: const.Event, source: const.Source,
-                 timestamp: int = None, command_id: int = None, **kwargs):
-        self.timestamp = timestamp or int(time())    # TODO: int(time()*10)/10
+                 timestamp: float = None, command_id: int = None, **kwargs):
+        self.timestamp = timestamp or int(time()*10)/10
         self.event = event
         self.source = source
         self.command_id = command_id
@@ -77,6 +81,7 @@ CommandArgs = Optional[List[Any]]
 
 
 class Printer:
+    """Printer representation object."""
     command_id: Optional[int] = None
     handlers: Dict[const.Command, Callable[[Printer, CommandArgs], Any]]
 
@@ -114,6 +119,8 @@ class Printer:
 
     @staticmethod
     def send_info(prn: Printer, args: CommandArgs) -> Any:
+        """Emit INFO event to Connect."""
+        # pylint: disable=unused-argument
         type_, ver, sub = prn.type.value
         Event(
             const.Event.INFO, const.Source.CONNECT, int(time()),
@@ -162,7 +169,7 @@ class Printer:
             return
         try:
             handler(self, args)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log.exception("")
             Event(const.Event.REJECTED, const.Source.WUI, int(time()),
                   self.command_id, reason="Command error",
@@ -212,12 +219,12 @@ class Printer:
                                        res.text)
                     else:
                         raise ValueError("Invalid command content type")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     log.exception("")
                     Event(const.Event.REJECTED, const.Source.CONNECT,
                           int(time()), self.command_id,
                           reason=str(e))(self.conn)
-            return res
+        return res
 
     def register(self):
         """Register the printer with Connect and return a registration
@@ -235,10 +242,11 @@ class Printer:
         res = self.conn.post("/p/register", headers=headers, data=data)
         if res.status_code == 200:
             return res.headers['Temporary-Code']
-        else:
-            log.debug("Status code: {res.status_code}")
-            raise RuntimeError(res.text)
 
+        log.debug("Status code: {res.status_code}")
+        raise RuntimeError(res.text)
+
+    # pylint: disable=inconsistent-return-statements
     def get_token(self, tmp_code):
         """If the printer has already been added, return printer token."""
         headers = {
@@ -247,18 +255,20 @@ class Printer:
         res = self.conn.get("/p/register", headers=headers)
         if res.status_code == 200:
             return res.headers["Token"]
-        elif res.status_code == 202:
+        if res.status_code == 202:
             return            # printer was not created yet by `/app/printers`
-        else:
-            log.debug("Status code: {res.status_code}")
-            raise RuntimeError(res.text)
+
+        log.debug("Status code: {res.status_code}")
+        raise RuntimeError(res.text)
 
 
 def default_notification_handler(code, msg):
+    """Library notification handler call print."""
     print(f"{code}: {msg}")
 
 
 class Notifications:
+    """Notification class."""
     handler: Callable[[str, str], None] = default_notification_handler
 
 

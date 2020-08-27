@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+"""Setup of Prusa Connect SDK for Printer."""
 import re
 
 from setuptools import setup, find_namespace_packages

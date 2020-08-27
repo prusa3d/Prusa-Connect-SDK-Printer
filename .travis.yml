@@ -11,7 +11,7 @@ install:
 
 script:
  - pytest -v --mypy tests
- # - pytest -v --pylint --doctest-rst prusa/connect/printer
+ - pytest -v --mypy --pylint --doctest-rst prusa/connect/printer
 
 before_deploy:
  - python3 setup.py sdist

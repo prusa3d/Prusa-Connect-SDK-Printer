@@ -1,3 +1,4 @@
+"""Constants and enums for Printer."""
 from enum import Enum
 
 
@@ -13,12 +14,14 @@ class State(Enum):
 
 
 class Printer(Enum):
+    """Printer Type"""
     I3MK3 = (1, 3, 0)
     I3MK3S = (1, 3, 1)
     SL1 = (5, 1, 0)
 
 
 class Event(Enum):
+    """Events known by Connect."""
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
     FINISHED = "FINISHED"
@@ -45,6 +48,7 @@ class Source(Enum):
 
 
 class Command(Enum):
+    """Commands which could be send by Connect."""
     SEND_INFO = "SEND_INFO"
     GCODE = "GCODE"
 
