@@ -7,7 +7,7 @@ python:
 
 install:
  - pip3 install -U pytest pytest-pylint pytest-doctestplus requests
-   requests_mock pytest-mypy
+   requests_mock pytest-mypy pytest-mock
 
 script:
  - pytest -v --mypy tests
