@@ -3,29 +3,52 @@
 import os
 import typing
 
-from logging import getLogger
-
-log = getLogger("connect-files")
-
 
 class File:
     """A node of a Filesystem representing either a file or a directory"""
 
-    def __init__(self, name, dir=False, parent=None, **attr):
+    def __init__(self, name: str, dir: bool = False, parent: "File" = None,
+                 **attrs):
+        """Create a File object
+
+        :param name: Filename
+        :param dr: Flag whether this is a directory
+        :param parent: Parent for this File, which itself is a File(dir=True)
+        :param attrs: Any attributes for the file you want to store. File's
+            to_dict() method add `ro`, `m_time` and `size` attributes, if
+            it finds them.
+        """
         self.name = name
         self.dir = dir
         self.parent = parent
-        self.attr = attr
-        self.children = {}
+        self.attrs = attrs
+        self.children: dict = {}
 
-    def add(self, name, type=None, **attr):
+    def add(self, name: str, dir: bool = False, **attrs):
+        """Add a file to this File's children.
+        Note that `self` must be a directory.
+
+        :param name: name of the file
+        :param dir: Is this a directory?
+        :param attrs: arbitrary File attributes
+        :raise ValueError: if self is not a directory
+        :return the added file.
+        """
         if not self.dir:
             raise ValueError("You can add only to directories")
-        node = File(name, type=type, parent=self, **attr)
+        node = File(name, dir=dir, parent=self, **attrs)
         self.children[node.name] = node
         return node
 
     def get(self, parts: typing.Iterable[str]):
+        """
+        Return the node identified by `parts`, which is a collection of
+        names that will be matched on the path to it.
+
+        :param parts: Path identifying a node you are looking fo
+        :return: the found node
+        :raise TypeError if `parts` is string and not a collection of strings
+        """
         if type(parts) is str:
             raise TypeError("`part` must be a collection of strings")
 
@@ -40,30 +63,36 @@ class File:
     def delete(self):
         del self.parent.children[self.name]
 
-    def pprint(self, prefix="", last=True, first=True, file=None):
-        symbol = "└─" if last else "├─"
-        if first:
-            line = "%s %s" % (symbol, self.name)
+    def pprint(self, file=None, _prefix="", _last=True, _first=True):
+        """Pretty print the File as  a tree. `self` should be a directory
+        for this method to make any makes sense.
+
+        :param file: file object to that the tree will be printed
+        """
+        symbol = "└─" if _last else "├─"
+        if _first:
+            line = f"{symbol} {self.name}"
         else:
-            line = "%s %s %s" % (prefix, symbol, self.name)
+            line = f"{_prefix} {symbol} {self.name}"
         print(line, file=file)
-        prefix += "   " if last else " │  "
+        _prefix += "   " if _last else " │  "
         counter = len(self.children)
         for child in self.children.values():
             counter -= 1
-            child.pprint(prefix=prefix,
-                         file=file,
-                         last=counter == 0,
-                         first=False)
+            child.pprint(file=file,
+                         _prefix=_prefix,
+                         _last=counter == 0,
+                         _first=False)
 
     def to_dict(self):
+        """:return `self` in the format for Connect Backend"""
         result = {
             "type": "DIR" if self.dir else "FILE",
             "path": self.name,
         }
         for attr in ("ro", "size", "m_time"):
-            if attr in self.attr:
-                result[attr] = self.attr[attr]
+            if attr in self.attrs:
+                result[attr] = self.attrs[attr]
         children = [child.to_dict() for child in self.children.values()]
         if children:
             result['children'] = children
