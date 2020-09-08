@@ -176,7 +176,7 @@ class Filesystem:
         abs_path = abs_path.strip(self.sep)
         mountpoint, *parts = abs_path.split(self.sep)
         if mountpoint not in self.mounts:
-            raise FileNotFoundError(abs_path)
+            return None
 
         return self.mounts[mountpoint].tree.get(parts)
 
