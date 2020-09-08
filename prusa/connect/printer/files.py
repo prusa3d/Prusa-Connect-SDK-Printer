@@ -107,6 +107,9 @@ class File:
     def __getattr__(self, item):
         return self[item]
 
+    def __str__(self):
+        return self.name
+
 
 class Mount:
     def __init__(self, tree, fs_sync=False):

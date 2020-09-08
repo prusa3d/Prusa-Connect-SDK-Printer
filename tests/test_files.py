@@ -89,6 +89,13 @@ class TestFile:
     def test_contains(self, nodes):
         assert "a" in nodes
 
+    def test_str(self):
+        d = File("directory", dir=True)
+        f = File("filename")
+        assert str(d) == "directory"
+        assert str(f) == "filename"
+
+
 
 class TestFilesystem:
 
