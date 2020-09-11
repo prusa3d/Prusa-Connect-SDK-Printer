@@ -7,7 +7,9 @@ from os import path, access, W_OK, stat, walk
 from blinker import signal  # type: ignore
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import log
+from . import log, Event
+from . import const
+from .connection import Connection
 
 
 # pylint: disable=fixme
@@ -176,12 +178,20 @@ class InvalidMountpointError(ValueError):
 class Filesystem:
     """Collection of Files (which are grouped in to trees). This is like
     the DOS filesystem flat, therefore unlike in UNIX OSes tress cannot
-    be nested in eachother.
+    be nested in each other.
     """
 
-    def __init__(self, sep="/"):
+    def __init__(self, sep: str = "/", connection: Connection = None):
+        """Create a Filesystem (FS).
+
+        :param sep: Separator on the FS
+        :param connection: SDK's Connection object. If set, the FS
+            will notify Connect on mount/umount and the InotifyHandler
+            on changes to the FS.
+        """
         self.sep = sep
-        self.mounts = dict()        # FS-mountpoint:Mount(...)
+        self.mounts: typing.Dict[str, Mount] = {}
+        self.connection = connection
 
     def mount(self, name: str, tree: File, storage_path: str = ""):
         """Mount the a tree under a mountpoint.
@@ -193,8 +203,6 @@ class Filesystem:
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
         """
-        # TODO MEDIUM_INSERTED event
-
         if not name:
             raise InvalidMountpointError("Mountpoint cannot be empty")
 
@@ -207,18 +215,32 @@ class Filesystem:
 
         self.mounts[name] = Mount(tree, name, storage_path)
 
+        # send MEDIUM_INSERTED event
+        if self.connection:
+            payload = {
+                "root": f"{self.sep}{name}",
+                "files": tree.to_dict()
+            }
+            self.connect_event(const.Event.MEDIUM_INSERTED, payload)
+
     def umount(self, name: str):
         """Umount a mountpoint.
 
         :param name: The mountpoint
         :raises InvalidMountpointError: if `name` is not mounted
         """
-        # TODO MEDIUM_EJECTED event
         if name not in self.mounts:
             msg = f"`{name}` is not used as a mountpoint"
             raise InvalidMountpointError(msg)
 
         del self.mounts[name]
+
+        # send MEDIUM_EJECTED event
+        if self.connection:
+            payload = {
+                "root": f"{self.sep}{name}",
+            }
+            self.connect_event(const.Event.MEDIUM_EJECTED, payload)
 
     def get(self, abs_path: str):
         """Return the File addressed by `abs_path`
@@ -246,7 +268,7 @@ class Filesystem:
         }
         return root
 
-    def from_dir(self, dirpath: str, mountpoint: str):
+    def from_dir(self, dirpath: str, mountpoint: str, conn: Connection = None):
         """Initialize a (File) tree from `dirpath` and mount it.
 
         :param dirpath: The directory on store from which to create the FS
@@ -279,6 +301,12 @@ class Filesystem:
 
         # mount
         self.mount(mountpoint, root, dirpath)
+
+    def connect_event(self, event: const.Event, data: dict):
+        """Send an event to connect if `self.connection` is set"""
+        if self.connection:
+            event = Event(event, const.Source.CONNECT, **data)
+            event(self.connection)
 
 
 # blinker signals you can subscribe to
@@ -397,7 +425,9 @@ class InotifyHandler:
         node.set_attrs(abs_path)
         if is_dir:
             # add inotify watch
-            self.__init_wd(mount.path_storage, node)
+            self.__init_wd(mount.path_storage, node)     # add inotify watch
+        self.send_file_changed(file=node.to_dict(),
+                               new_path=node.abs_path(mount.path_storage))
 
     def process_delete(self, sender, abs_path, event):
         """Handle DELETE inotify signal by deleting the node
@@ -407,8 +437,10 @@ class InotifyHandler:
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
-        if node:
+        if node:    # might be None because of deletion of some parent dir
+            path = node.abs_path(mount.path_storage)
             node.delete()
+            self.send_file_changed(old_path=path)
 
     def process_modify(self, sender, abs_path, event):
         """Process MODIFY inotify signal by updating the
@@ -419,6 +451,9 @@ class InotifyHandler:
         parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
         node.set_attrs(abs_path)
+        path = node.abs_path(mount.path_storage)
+        self.send_file_changed(old_path=path, new_path=path,
+                               file=node.to_dict())
 
     def process_delete_self(self, sender, abs_path, event):
         """Process DELETE_SELF inotify signal by deleting the
@@ -428,6 +463,8 @@ class InotifyHandler:
         mount = self.mount_for(abs_path)
         mount.tree.children = dict()
         mount.tree.attrs = dict()
+        self.send_file_changed(old_path=path, new_path=path,
+                               file=mount.tree.to_dict())
 
     def process_moved_to(self, *args, **kw):
         # pylint: disable=missing-function-docstring
@@ -444,3 +481,21 @@ class InotifyHandler:
     def process_unmount(self, *args, **kw):
         # pylint: disable=missing-function-docstring
         self.process_delete_self(*args, **kw)
+
+    def send_file_changed(self, old_path: str = None,
+                          new_path: str = None,
+                          file: File = None):
+        """Send FIlE_CHANGED event to Connect. It will be only
+        sent if self.fs.connection is set.
+
+        :raises ValueError: if both old_path and new_path are not set
+        """
+        if not old_path and not new_path:
+            msg = "At least one of (old_path, new_path) must be set"
+            raise ValueError(msg)
+        data = {
+            "old_path": old_path,
+            "new_path": new_path,
+            "file": file
+        }
+        self.fs.connect_event(const.Event.FILE_CHANGED, data)

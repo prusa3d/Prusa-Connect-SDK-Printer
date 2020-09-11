@@ -285,3 +285,5 @@ class TestINotify:
         node = inotify.fs.get("/test/a/1.txt")
         assert node.attrs['size'] == 11
         assert node.attrs['ro'] is True
+
+    # TODO add tests for generating Events to connect
