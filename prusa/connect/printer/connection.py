@@ -14,7 +14,7 @@ class Connection:
         """Return request headers from connection variables."""
         headers = {
             "Fingerprint": self.fingerprint,
-            "Timestamp": str(timestamp)
+            "Timestamp": str(int(timestamp))
         }
         if self.token:
             headers['Token'] = self.token
