@@ -3,6 +3,11 @@
 import os
 import typing
 
+# pylint: disable=fixme
+# pylint: disable=redefined-builtin
+# pylint: disable=too-few-public-methods
+# pylint: disable=missing-class-docstring
+
 
 class File:
     """A node of a Filesystem representing either a file or a directory"""
@@ -49,7 +54,7 @@ class File:
         :return: the found node
         :raise TypeError if `parts` is string and not a collection of strings
         """
-        if type(parts) is str:
+        if isinstance(parts, str):
             raise TypeError("`part` must be a collection of strings")
 
         last = self
@@ -61,6 +66,7 @@ class File:
         return last
 
     def delete(self):
+        """Delete this node"""
         del self.parent.children[self.name]
 
     def pprint(self, file=None, _prefix="", _last=True, _first=True):
@@ -112,6 +118,7 @@ class File:
 
 
 class Mount:
+    """Represent a mountpoint"""
     def __init__(self, tree, fs_sync=False):
         self.tree = tree
         self.fs_sync = fs_sync
