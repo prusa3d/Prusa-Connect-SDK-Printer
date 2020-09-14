@@ -1,11 +1,13 @@
-import pytest
-import tempfile
 import os
 import shutil
-from stat import S_IREAD
+import stat
 import sys
-
+import tempfile
 from collections import namedtuple
+from unittest.mock import patch
+
+import pytest
+
 from prusa.connect.printer.files import File, Filesystem, \
     InvalidMountpointError, InotifyHandler
 
@@ -23,17 +25,17 @@ def nodes():
 
 
 @pytest.fixture
-def fs_from_dir(mocker):
+@patch("prusa.connect.printer.files.stat",
+       return_value=os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
+                                    1599740701, 1596120005, 1596120005)))
+@patch("prusa.connect.printer.files.path.abspath", return_value='/a')
+@patch("prusa.connect.printer.files.walk", return_value=[
+    ('/a', ['b', 'c'], ['1.txt']),
+    ('/a/b', [], []),
+    ('/a/c', [], ['2.txt', '3.txt'])
+])
+def fs_from_dir(*mocks):
     fs = Filesystem()
-    stat_mock = os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
-                               1599740701, 1596120005, 1596120005))
-    mocker.patch("os.stat", return_value=stat_mock)
-    mocker.patch("os.path.abspath", return_value='/a')
-    mocker.patch("os.walk", return_value=[
-            ('/a', ['b', 'c'], ['1.txt']),
-            ('/a/b', [], []),
-            ('/a/c', [], ['2.txt', '3.txt'])
-        ])
     fs.from_dir('/somewhere/on/the/disk/a', 'a')
     return fs
 
@@ -277,7 +279,7 @@ class TestINotify:
         path = node.abs_path(inotify.path)
         with open(path, "a") as fh:
             fh.write("Hello World")
-        os.chmod(path, S_IREAD)
+        os.chmod(path, stat.S_IREAD)
 
         inotify.handler()
         node = inotify.fs.get("/test/a/1.txt")
