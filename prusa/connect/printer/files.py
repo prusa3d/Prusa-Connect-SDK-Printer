@@ -322,7 +322,7 @@ class InotifyHandler:
         self.wds: typing.Dict[int, str] = {}       # watch descriptors
         # init mount watches
         for mount in self.fs.mounts.values():
-            self._init_wd(mount.path_storage, mount.tree)
+            self.__init_wd(mount.path_storage, mount.tree)
         self.__connect_signals()
 
     def __connect_signals(self):
@@ -335,7 +335,7 @@ class InotifyHandler:
         move_self.connect(self.process_move_self)
         unmount.connect(self.process_unmount)
 
-    def _init_wd(self, path_storage, node):
+    def __init_wd(self, path_storage, node):
         # pylint: disable=invalid-name
         abs_dir = path.join(path_storage, path.sep.join(node.abs_parts()))
         try:
@@ -344,7 +344,7 @@ class InotifyHandler:
             log.debug("Added watch (%s) for %s", wd, abs_dir)
             for n in node.children.values():
                 if n.dir:
-                    self._init_wd(path_storage, n)
+                    self.__init_wd(path_storage, n)
         except PermissionError:
             pass
 
@@ -398,7 +398,7 @@ class InotifyHandler:
         node.set_attrs(abs_path)
         if is_dir:
             # add inotify watch
-            self._init_wd(mount.path_storage, node)
+            self.__init_wd(mount.path_storage, node)
 
     def process_delete(self, sender, abs_path, event):
         """Handle DELETE inotify signal by deleting the node
