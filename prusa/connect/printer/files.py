@@ -268,7 +268,7 @@ class Filesystem:
         }
         return root
 
-    def from_dir(self, dirpath: str, mountpoint: str, conn: Connection = None):
+    def from_dir(self, dirpath: str, mountpoint: str):
         """Initialize a (File) tree from `dirpath` and mount it.
 
         :param dirpath: The directory on store from which to create the FS
@@ -305,8 +305,8 @@ class Filesystem:
     def connect_event(self, event: const.Event, data: dict):
         """Send an event to connect if `self.connection` is set"""
         if self.connection:
-            event = Event(event, const.Source.CONNECT, **data)
-            event(self.connection)
+            event_ = Event(event, const.Source.CONNECT, **data)
+            event_(self.connection)
 
 
 # blinker signals you can subscribe to
@@ -438,9 +438,9 @@ class InotifyHandler:
         parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
         if node:    # might be None because of deletion of some parent dir
-            path = node.abs_path(mount.path_storage)
+            path_ = node.abs_path(mount.path_storage)
             node.delete()
-            self.send_file_changed(old_path=path)
+            self.send_file_changed(old_path=path_)
 
     def process_modify(self, sender, abs_path, event):
         """Process MODIFY inotify signal by updating the
@@ -451,8 +451,8 @@ class InotifyHandler:
         parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
         node.set_attrs(abs_path)
-        path = node.abs_path(mount.path_storage)
-        self.send_file_changed(old_path=path, new_path=path,
+        path_ = node.abs_path(mount.path_storage)
+        self.send_file_changed(old_path=path, new_path=path_,
                                file=node.to_dict())
 
     def process_delete_self(self, sender, abs_path, event):
