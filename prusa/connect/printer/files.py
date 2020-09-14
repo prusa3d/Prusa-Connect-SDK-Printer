@@ -1,9 +1,8 @@
 """File management"""
 
-import os
 import typing
 from datetime import datetime
-from os import path, access, W_OK
+from os import path, access, W_OK, stat, walk
 
 from blinker import signal  # type: ignore
 from inotify_simple import INotify, flags  # type: ignore
@@ -144,7 +143,7 @@ class File:
         """Set `ro`, `size_` and `m_time` attributes on this file
         according to `abs_path` file on storage.
         """
-        stats = os.stat(abs_path)
+        stats = stat(abs_path)
         self.attrs["ro"] = not access(abs_path, W_OK)
         if not self.dir:
             self.attrs["size"] = stats.st_size
@@ -264,7 +263,7 @@ class Filesystem:
         root = File(name, dir=True)
         root.set_attrs(dirpath)
 
-        for abs_dir, dirs, files in os.walk(dirpath):
+        for abs_dir, dirs, files in walk(dirpath):
             dirname = abs_dir[len(dirpath):]
             if not dirname:
                 parent = root
