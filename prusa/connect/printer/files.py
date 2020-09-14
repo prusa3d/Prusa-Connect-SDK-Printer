@@ -7,8 +7,8 @@ from os import path, access, W_OK, stat, walk
 from blinker import signal  # type: ignore
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import log, Event
 from . import const
+from . import log, Event
 from .connection import Connection
 
 
@@ -82,17 +82,19 @@ class File:
             return self.parent.abs_parts(result)
         return result
 
-    def abs_path(self, path_storage: str):
+    def abs_path(self, prefix: str):
         """Return the absolute path of this File
 
-        :param path_storage: path on the storage to be used for creation
-            of the absolute path to this File.
+        :param prefix: prefix as a path to be used for absolute path geneartion
         """
-        return path.join(path_storage, path.sep.join(self.abs_parts()))
+        if not prefix.startswith(path.sep):
+            prefix = path.sep + prefix
+        return path.join(prefix, path.sep.join(self.abs_parts()))
 
     def delete(self):
         """Delete this node"""
-        del self.parent.children[self.name]
+        if self.parent:    # only if parent is set
+            del self.parent.children[self.name]
 
     def pprint(self, file=None, _prefix="", _last=True, _first=True):
         """Pretty print the File as  a tree. `self` should be a directory
@@ -176,9 +178,9 @@ class InvalidMountpointError(ValueError):
 
 
 class Filesystem:
-    """Collection of Files (which are grouped in to trees). This is like
-    the DOS filesystem flat, therefore unlike in UNIX OSes tress cannot
-    be nested in each other.
+    """Model a collection of Files (which are grouped in to trees).
+    This is like the DOS filesystem flat, therefore unlike in UNIX OSes
+    tress cannot be nested in each other.
     """
 
     def __init__(self, sep: str = "/", connection: Connection = None):
@@ -279,10 +281,7 @@ class Filesystem:
         if not dirpath.endswith(path.sep):
             dirpath += path.sep
 
-        # create nodes
-        name = path.dirname(dirpath)
-        name = path.split(name)[1]
-        root = File(name, dir=True)
+        root = File(mountpoint, dir=True)
         root.set_attrs(dirpath)
 
         for abs_dir, dirs, files in walk(dirpath):
@@ -311,15 +310,10 @@ class Filesystem:
 
 # blinker signals you can subscribe to
 #  the handling functions always receive the absolute path of the file
-#  and the event as arguments
+#  dir: boolean in a tuple as arguments
 create = signal("CREATE")
 delete = signal("DELETE")
 modify = signal("MODIFY")
-delete_self = signal("DELETE_SELF")
-moved_to = signal("MOVED_TO")
-moved_from = signal("MOVED_FROM")
-move_self = signal("MOVE_SELF")
-unmount = signal("UNMOUNT")
 
 
 class InotifyHandler:
@@ -329,17 +323,17 @@ class InotifyHandler:
 
     WATCH_FLAGS = flags.CREATE | flags.DELETE | flags.MODIFY | \
         flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM | \
-        flags.MOVE_SELF | flags.UNMOUNT
+        flags.MOVE_SELF
 
+    # map Inotify signals to our (defined by the `blinker` module)
     SIGNALS = {
         "CREATE": create,
-        "DELETE": delete,
         "MODIFY": modify,
-        "DELETE_SELF": delete_self,
-        "MOVED_TO": moved_to,
-        "MOVED_FROM": moved_from,
-        "MOVE_SELF": move_self,
-        "UNMOUNT": unmount,
+        "DELETE": delete,
+        "MOVED_TO": create,
+        "MOVED_FROM": delete,
+        "DELETE_SELF": delete,
+        "MOVE_SELF": delete,
     }
 
     def __init__(self, fs: Filesystem):
@@ -356,11 +350,6 @@ class InotifyHandler:
         create.connect(self.process_create)
         delete.connect(self.process_delete)
         modify.connect(self.process_modify)
-        delete_self.connect(self.process_delete_self)
-        moved_to.connect(self.process_moved_to)
-        moved_from.connect(self.process_moved_from)
-        move_self.connect(self.process_move_self)
-        unmount.connect(self.process_unmount)
 
     def __init_wd(self, path_storage, node):
         # pylint: disable=invalid-name
@@ -369,18 +358,51 @@ class InotifyHandler:
             wd = self.inotify.add_watch(abs_dir, self.WATCH_FLAGS)
             self.wds[wd] = abs_dir
             log.debug("Added watch (%s) for %s", wd, abs_dir)
-            for n in node.children.values():
-                if n.dir:
-                    self.__init_wd(path_storage, n)
+            for child in node.children.values():
+                if child.dir:
+                    self.__init_wd(path_storage, child)
         except PermissionError:
             pass
+
+    def filter_delete_events(self, events):
+        """Because we are adding inotify watch descriptors to all
+        subdirectories, ignore all DELETE_SELF and DELETE events if they are
+        followed by by any DELETE_SELF on any of their parents."""
+        # TODO add test
+        ignorelist = [False] * len(events)
+        rev_events = list(reversed(events))   # we are examining from the end
+        for i, event in enumerate(rev_events):
+            log.debug("Event: %d %s (%s), %s",
+                      i, event,
+                      [f.name for f in flags.from_mask(event.mask)],
+                      self.wds[event.wd])
+            if event.mask & flags.DELETE_SELF:
+                log.debug(" found DELETE_SELF at %d", i)
+                for j, follower in enumerate(rev_events[i+1:]):
+                    if follower.mask & flags.DELETE_SELF or \
+                            follower.mask & flags.DELETE:
+                        sub_event_dir = self.wds[follower.wd]
+                        if follower.mask & flags.ISDIR and \
+                                follower.mask & flags.DELETE:
+                            sub_event_dir = path.join(sub_event_dir,
+                                                      follower.name)
+                        event_dir = self.wds[event.wd]
+                        if sub_event_dir.startswith(event_dir):
+                            # i+1: 0 is the DELETE_SELF event,
+                            #  1 is following_event
+                            ignorelist[i + 1 + j] = True
+        log.debug("ignore: %s", list(enumerate(ignorelist)))
+        result = [e for (e, i) in zip(rev_events, ignorelist) if not i]
+        return result[::-1]
 
     def __call__(self, timeout=0):
         """Process inotify events. This picks the proper `process_$FLAG`
         handler method and executes it with the absolute_path of the
         affected file as argument.
         """
-        for event in self.inotify.read(timeout=timeout):
+        events = self.inotify.read(timeout=timeout)
+        events = self.filter_delete_events(events)
+        for event in events:
             for flag in flags.from_mask(event.mask):
                 # ignore not watched events
                 if not self.WATCH_FLAGS & flag:
@@ -390,7 +412,8 @@ class InotifyHandler:
                 abs_path = path.join(parent_dir, event.name)
                 log.debug("Flag: %s %s %s", flag.name, abs_path, event)
                 handler = self.SIGNALS[flag.name]
-                handler.send("sdk-printer", abs_path=abs_path, event=event)
+                handler.send("sdk-printer", abs_path=abs_path,
+                             dir=event.mask & flags.ISDIR)
 
     # pylint: disable=inconsistent-return-statements
     def mount_for(self, abs_path):
@@ -409,78 +432,60 @@ class InotifyHandler:
         :return: list of parts of the relative path
         """
         rel_path = abs_path[len(mount.path_storage):]
-        return rel_path.split(self.fs.sep)
+        return rel_path.rstrip(self.fs.sep).split(self.fs.sep)
 
-    def process_create(self, sender, abs_path, event):
+    def process_create(self, sender, abs_path, dir):
         """Handle CREATE inotify signal by creating the file/directory
-        determined by `abs_path`. `event` is used to find out whether to
-        create a file or a directory.
+        determined by `abs_path`. `dir` is set, if the event was generated
+        for a directory.
         """
         # pylint: disable=unused-argument
+        # pylint: disable=redefined-builtin
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         *parent, name = parts
-        is_dir = event.mask & flags.ISDIR
-        node = mount.tree.get(parent).add(name, dir=is_dir)
+        node = mount.tree.get(parent).add(name, dir=dir)
         node.set_attrs(abs_path)
-        if is_dir:
+        if dir:
             # add inotify watch
             self.__init_wd(mount.path_storage, node)     # add inotify watch
-        self.send_file_changed(file=node.to_dict(),
-                               new_path=node.abs_path(mount.path_storage))
+        self.send_file_changed(file=node,
+                               new_path=node.abs_path(mount.mountpoint))
 
-    def process_delete(self, sender, abs_path, event):
+    def process_delete(self, sender, abs_path, dir):
         """Handle DELETE inotify signal by deleting the node
         indicated by `abs_path`.
         """
         # pylint: disable=unused-argument
+        # pylint: disable=redefined-builtin
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
-        node = mount.tree.get(parts)
-        if node:    # might be None because of deletion of some parent dir
-            path_ = node.abs_path(mount.path_storage)
+        # top level dir (mount.tree) was deleted or unmounted
+        if abs_path == mount.path_storage:
+            node = mount.tree
+            node.children = dict()
+            node.attrs = dict()
+            path_ = node.abs_path(mount.mountpoint)
+            self.send_file_changed(old_path=path_, new_path=path_, file=node)
+        else:
+            # some watched directory other than top level was deleted
+            node = mount.tree.get(parts)
             node.delete()
+            path_ = node.abs_path(mount.mountpoint)
             self.send_file_changed(old_path=path_)
 
-    def process_modify(self, sender, abs_path, event):
+    def process_modify(self, sender, abs_path, dir):
         """Process MODIFY inotify signal by updating the
         attributes for a file indicated by `abs_path`.
         """
         # pylint: disable=unused-argument
+        # pylint: disable=redefined-builtin
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
         node.set_attrs(abs_path)
-        path_ = node.abs_path(mount.path_storage)
-        self.send_file_changed(old_path=path, new_path=path_,
-                               file=node.to_dict())
-
-    def process_delete_self(self, sender, abs_path, event):
-        """Process DELETE_SELF inotify signal by deleting the
-        clearing tree under the mountpoint for `abs_path`.
-        """
-        # pylint: disable=unused-argument
-        mount = self.mount_for(abs_path)
-        mount.tree.children = dict()
-        mount.tree.attrs = dict()
-        self.send_file_changed(old_path=path, new_path=path,
-                               file=mount.tree.to_dict())
-
-    def process_moved_to(self, *args, **kw):
-        # pylint: disable=missing-function-docstring
-        self.process_create(*args, **kw)
-
-    def process_moved_from(self, *args, **kw):
-        # pylint: disable=missing-function-docstring
-        self.process_delete(*args, **kw)
-
-    def process_move_self(self, *args, **kw):
-        # pylint: disable=missing-function-docstring
-        self.process_delete_self(*args, **kw)
-
-    def process_unmount(self, *args, **kw):
-        # pylint: disable=missing-function-docstring
-        self.process_delete_self(*args, **kw)
+        path_ = node.abs_path(mount.mountpoint)
+        self.send_file_changed(old_path=path_, new_path=path_, file=node)
 
     def send_file_changed(self, old_path: str = None,
                           new_path: str = None,
@@ -496,6 +501,7 @@ class InotifyHandler:
         data = {
             "old_path": old_path,
             "new_path": new_path,
-            "file": file
         }
+        if file:
+            data["file"] = file.to_dict()
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
