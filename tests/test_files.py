@@ -2,7 +2,7 @@ import pytest
 import tempfile
 import os
 import shutil
-import stat
+from stat import S_IREAD
 import sys
 
 from collections import namedtuple
@@ -277,7 +277,7 @@ class TestINotify:
         path = node.abs_path(inotify.path)
         with open(path, "a") as fh:
             fh.write("Hello World")
-        os.chmod(path, stat.S_IREAD)
+        os.chmod(path, S_IREAD)
 
         inotify.handler()
         node = inotify.fs.get("/test/a/1.txt")
