@@ -1,17 +1,18 @@
 """File management"""
 
+from __future__ import annotations
 import typing
 from datetime import datetime
 from os import path, access, W_OK, stat, walk
+from queue import Queue
 
 from blinker import signal  # type: ignore
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import const
-from . import log, Event
-from .connection import Connection
+from . import const, log, Event
 
 
+assert Queue
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
 
@@ -186,17 +187,17 @@ class Filesystem:
     sent to Connect.
     """
 
-    def __init__(self, sep: str = "/", connection: Connection = None):
+    def __init__(self, sep: str = "/", events: "Queue[Event]" = None):
         """Create a Filesystem (FS).
 
-        :param sep: Separator on the FS
-        :param connection: SDK's Connection object. If set, the FS
-            will notify Connect on mount/umount and the InotifyHandler
+        :sep: Separator on the FS
+        :events: SDK's Printer.events queue. If set, the FS
+            will put event to queue on mount/umount and the InotifyHandler
             on changes to the FS.
         """
         self.sep = sep
         self.mounts: typing.Dict[str, Mount] = {}
-        self.connection = connection
+        self.events = events
 
     def mount(self, name: str, tree: File, storage_path: str = ""):
         """Mount the a tree under a mountpoint.
@@ -221,7 +222,7 @@ class Filesystem:
         self.mounts[name] = Mount(tree, name, storage_path)
 
         # send MEDIUM_INSERTED event
-        if self.connection:
+        if self.events:
             payload = {
                 "root": f"{self.sep}{name}",
                 "files": tree.to_dict()
@@ -241,7 +242,7 @@ class Filesystem:
         del self.mounts[name]
 
         # send MEDIUM_EJECTED event
-        if self.connection:
+        if self.events:
             payload = {
                 "root": f"{self.sep}{name}",
             }
@@ -305,10 +306,10 @@ class Filesystem:
         self.mount(mountpoint, root, dirpath)
 
     def connect_event(self, event: const.Event, data: dict):
-        """Send an event to connect if `self.connection` is set"""
-        if self.connection:
-            event_ = Event(event, const.Source.CONNECT, **data)
-            event_(self.connection)
+        """Send an event to connect if `self.events` is set"""
+        if self.events:
+            event_ = Event(event, const.Source.WUI, **data)
+            self.events.put(event_)
 
 
 class InotifyHandler:
@@ -494,8 +495,8 @@ class InotifyHandler:
     def send_file_changed(self, old_path: str = None,
                           new_path: str = None,
                           file: File = None):
-        """Send FIlE_CHANGED event to Connect. It will be only
-        sent if self.fs.connection is set.
+        """Put FIlE_CHANGED event to event queue. It will be only
+        put if self.fs.events is set.
 
         :raises ValueError: if both old_path and new_path are not set
         """

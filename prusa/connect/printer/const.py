@@ -2,6 +2,9 @@
 from enum import Enum
 
 
+TIMESTAMP_PRECISSION = 0.1      # 100ms
+
+
 class State(Enum):
     """Printer could be in one of this state."""
     READY = "READY"

@@ -1,3 +1,4 @@
+"""Test of files handling."""
 import os
 import shutil
 import stat
@@ -5,22 +6,23 @@ import sys
 import tempfile
 from collections import namedtuple
 from unittest.mock import patch
+from queue import Queue
 
 import pytest  # type: ignore
-import requests_mock    # type: ignore
 
 from prusa.connect.printer.files import File, Filesystem, \
     InvalidMountpointError, InotifyHandler
-from .test_events import connection, SERVER
+from prusa.connect.printer import const
 
-assert connection       # stop pre-commit from complaining
-
-
-EVENTS_URL = f"{SERVER}/p/events"
+# pylint: disable=missing-function-docstring
+# pylint: disable=no-self-use
+# pylint: disable=invalid-name
+# pylint: disable=redefined-outer-name
 
 
 @pytest.fixture
 def nodes():
+    """Create file tree in memmory."""
     root = File(None, is_dir=True)
     a = root.add("a", is_dir=True)
     a.add("1.txt")
@@ -51,7 +53,7 @@ InotifyFixture = namedtuple('InotifyFixture', ['path', 'handler', 'fs'])
 
 
 @pytest.fixture
-def inotify(nodes, connection):
+def inotify(nodes):
     """Create and cleanup the same structure as in `nodes` in a temporary
     directory. This returns the path to the dir on storage, the Inotify
     handler and filesystem as a tuple: (path, handler, filesystem).
@@ -71,17 +73,14 @@ def inotify(nodes, connection):
     create_on_storage(tmp_dir.name, nodes)
 
     # mount storage:$tmp_dir as Filesystem:/test
-    fs = Filesystem(connection=connection)
-    with requests_mock.Mocker() as req_mock:
-        # test within a context manager so each test for events
-        #  has to explicitly mock POST $EVENTS_URL
-        res = req_mock.post(EVENTS_URL, status_code=204)
-        fs.from_dir(tmp_dir.name, "test")
-        data = res.last_request.json()
-        assert data['event'] == 'MEDIUM_INSERTED'
-        assert data['source'] == 'CONNECT'
-        assert data['data']['root'] == '/test'
-        assert len(data['data']['files']) == 5
+    fs = Filesystem(events=Queue())
+    fs.from_dir(tmp_dir.name, "test")
+    # Test event in queue
+    event = fs.events.get_nowait()
+    assert event.event == const.Event.MEDIUM_INSERTED
+    assert event.source == const.Source.WUI
+    assert event.data['root'] == '/test'
+    assert len(event.data['files']) == 5
     handler = InotifyHandler(fs)
 
     yield InotifyFixture(tmp_dir.name, handler, fs)
@@ -174,6 +173,7 @@ class TestFile:
 
 
 class TestFilesystem:
+    """Test Filesystem class interface."""
 
     def test_mount(self, fs):
         assert len(fs.mounts) == 1
@@ -237,12 +237,12 @@ class TestFilesystem:
 
 
 class TestINotify:
+    """Test events from Inotify class."""
 
-    def test_CREATE_file(self, inotify, requests_mock):
+    def test_CREATE_file(self, inotify):
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event
         """
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         p = os.path.join(inotify.path, "simple.txt")
         open(p, "w").close()
         inotify.handler()
@@ -250,19 +250,18 @@ class TestINotify:
         assert inotify.fs.get("/test/does-not-exit.txt") is None
 
         # check event to Connect
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert len(data['data']['file']['m_time']) == 6
-        assert data['data']['file']['path'] == "simple.txt"
-        assert not data['data']['file']['ro']
-        assert data['data']['file']['type'] == "FILE"
-        assert data['data']['new_path'] == '/test/simple.txt'
-        assert data['data']['old_path'] is None
+        event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert len(event.data['file']['m_time']) == 6
+        assert event.data['file']['path'] == "simple.txt"
+        assert not event.data['file']['ro']
+        assert event.data['file']['type'] == "FILE"
+        assert event.data['new_path'] == '/test/simple.txt'
+        assert event.data['old_path'] is None
 
-    def test_CREATE_dir(self, inotify, requests_mock):
+    def test_CREATE_dir(self, inotify):
         """Same as CREATE_file but this time a directory is used."""
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         p = os.path.join(inotify.path, "directory")
         os.mkdir(p)
         inotify.handler()
@@ -270,16 +269,16 @@ class TestINotify:
         assert d
         assert d.is_dir
 
-        # test that an event to CONNECT was sent
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert len(data['data']['file']['m_time']) == 6
-        assert data['data']['file']['path'] == "directory"
-        assert not data['data']['file']['ro']
-        assert data['data']['file']['type'] == "DIR"
-        assert data['data']['new_path'] == '/test/directory'
-        assert data['data']['old_path'] is None
+        # check event to Connect
+        event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert len(event.data['file']['m_time']) == 6
+        assert event.data['file']['path'] == "directory"
+        assert not event.data['file']['ro']
+        assert event.data['file']['type'] == "DIR"
+        assert event.data['new_path'] == '/test/directory'
+        assert event.data['old_path'] is None
 
         # test that a inotify watch has also been installed for the
         #  newly added dir
@@ -288,12 +287,11 @@ class TestINotify:
         inotify.handler()
         assert inotify.fs.get("/test/directory/file.txt")
 
-    def test_DELETE_file(self, inotify, requests_mock):
+    def test_DELETE_file(self, inotify):
         """Test deleting a file by creating it first, then deleting it and
         requesting it from the Filesystem. Also test that other file(s) were
         not affected
         """
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         p = os.path.join(inotify.path, "simple.txt")
         open(p, "w").close()
         inotify.handler()
@@ -304,18 +302,19 @@ class TestINotify:
         assert not inotify.fs.get("/test/simple.txt")
         assert inotify.fs.get("/test/a/c/2.txt")
 
-        # test sending of event to CONNECT`
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert data['data']['old_path'] == "/test/simple.txt"
-        assert data['data']['new_path'] is None
+        # check event to Connect
+        event = None
+        while not inotify.fs.events.empty():
+            event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert event.data['old_path'] == "/test/simple.txt", event.data
+        assert event.data['new_path'] is None
 
-    def test_DELETE_dir(self, inotify, requests_mock):
+    def test_DELETE_dir(self, inotify):
         """Test that after deleting a directory it is removed from the
         Filesystem.
         """
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         node = inotify.fs.get("/test/a/b")
         path = node.abs_path(inotify.path)
         assert inotify.fs.get("/test/a/b")
@@ -323,36 +322,35 @@ class TestINotify:
         inotify.handler()
         assert not inotify.fs.get("/test/a/b")
 
-        # test event to Connect
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert data['data']['old_path'] == "/test/a/b"
-        assert data['data']['new_path'] is None
+        # check event to Connect
+        event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert event.data['old_path'] == "/test/a/b"
+        assert event.data['new_path'] is None
 
-    def test_DELETE_root_dir(self, inotify, requests_mock):
+    def test_DELETE_root_dir(self, inotify):
         """Test removing the root of a mount `Mount.path_storage` in a
         `Filesystem`
         """
-        # this also tests MOVE_SELF and events
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         shutil.rmtree(inotify.path)
         inotify.handler()
         assert not inotify.fs.get("/test/a/1.txt")
         assert not inotify.fs.get("/test/a/c")
 
-        # check Connect event
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert data['data']['old_path'] == data['data']['new_path'] == "/test/"
-        assert data['data']['file']['type'] == "DIR"
-        assert "m_time" not in data['data']['file']
-        assert data['data']['file']['path'] == "test"
+        # check event to Connect
+        event = None
+        while not inotify.fs.events.empty():
+            event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert event.data['old_path'] == event.data['new_path'] == "/test/"
+        assert event.data['file']['type'] == "DIR"
+        assert "m_time" not in event.data['file']
+        assert event.data['file']['path'] == "test"
 
-    def test_MOVE_file(self, inotify, requests_mock):
+    def test_MOVE_file(self, inotify):
         """Create a file and move it to a different directory"""
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         src = inotify.fs.get("/test/a/1.txt")
         assert src
         src_path = src.abs_path(inotify.path)
@@ -365,17 +363,18 @@ class TestINotify:
         inotify.handler()
         assert inotify.fs.get("/test/a/c/1.txt")
 
-        # test that last move sends events to CONNECT
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert data['data']['old_path'] is None
-        assert data['data']['file']['path'] == "1.txt"
-        assert data['data']['new_path'] == "/test/a/c/1.txt"
+        # check event to Connect
+        event = None
+        while not inotify.fs.events.empty():
+            event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert event.data['old_path'] is None
+        assert event.data['file']['path'] == "1.txt"
+        assert event.data['new_path'] == "/test/a/c/1.txt"
 
-    def test_MODIFY_file(self, inotify, requests_mock):
+    def test_MODIFY_file(self, inotify):
         """Write into a file and make sure that the change is reflected"""
-        res = requests_mock.post(EVENTS_URL, status_code=204)
         node = inotify.fs.get("/test/a/1.txt")
         assert node.attrs['size'] == 0
         assert node.attrs['ro'] is False
@@ -389,12 +388,14 @@ class TestINotify:
         assert node.attrs['size'] == 11
         assert node.attrs['ro'] is True
 
-        # test events -> Connect
-        data = res.last_request.json()
-        assert data['event'] == 'FILE_CHANGED'
-        assert data['source'] == 'CONNECT'
-        assert data['data']['file']['path'] == "1.txt"
-        assert "m_time" in data['data']['file']
-        assert data['data']['file']['ro']
-        assert data['data']['old_path'] == "/test/a/1.txt"
-        assert data['data']['new_path'] == "/test/a/1.txt"
+        # check event to Connect
+        event = None
+        while not inotify.fs.events.empty():
+            event = inotify.fs.events.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.source == const.Source.WUI
+        assert event.data['file']['path'] == "1.txt"
+        assert "m_time" in event.data['file']
+        assert event.data['file']['ro']
+        assert event.data['old_path'] == "/test/a/1.txt"
+        assert event.data['new_path'] == "/test/a/1.txt"

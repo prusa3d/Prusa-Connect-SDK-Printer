@@ -4,11 +4,14 @@ from __future__ import annotations          # noqa
 import configparser
 import os
 from logging import getLogger
-from time import time
+from time import time, sleep
+from queue import Queue
 from typing import Optional, List, Any, Callable, Dict
 
 from . import const
 from .connection import Connection
+from .events import Event
+from .command import Command
 
 __version__ = "0.1.0"
 __date__ = "13 Aug 2020"        # version date
@@ -27,9 +30,11 @@ __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 
 log = getLogger("connect-printer")
 
+__all__ = ["Printer", "Telemetry", "Event", "Notifications"]
+
 
 class Telemetry:
-    """Telemetry object must contain Printer state at minimum."""
+    """Telemetry object must contain Printer state, at a minimum."""
     timestamp: float
 
     def __init__(self, state: const.State, timestamp: float = None, **kwargs):
@@ -37,7 +42,7 @@ class Telemetry:
         timestamp : float
             If not set int(time.time()*10)/10 is used.
         """
-        self.timestamp = timestamp or int(time()*10)/10
+        self.timestamp = timestamp or int(time()*10)*const.TIMESTAMP_PRECISSION
         self.__data = kwargs
         self.__data['state'] = state.value
 
@@ -47,43 +52,13 @@ class Telemetry:
                          self.__data)
 
 
-class Event:
-    """Event object must contain Event type at minimum.
-
-    timestamp : float
-        If not set int(time.time()*10)/10 is used.
-    command_id : int
-        Must be set for answer to Connect command.
-    """
-    timestamp: float
-
-    def __init__(self, event: const.Event, source: const.Source,
-                 timestamp: float = None, command_id: int = None, **kwargs):
-        self.timestamp = timestamp or int(time()*10)/10
-        self.event = event
-        self.source = source
-        self.command_id = command_id
-        self.data = kwargs
-
-    def __call__(self, conn: Connection):
-        data = {"event": self.event.value,
-                "source": self.source.value,
-                "data": self.data}
-        if self.command_id:
-            data["command_id"] = self.command_id
-
-        return conn.post("/p/events",
-                         conn.make_headers(self.timestamp),
-                         data)
-
-
 CommandArgs = Optional[List[Any]]
 
 
 class Printer:
     """Printer representation object."""
-    command_id: Optional[int] = None
-    handlers: Dict[const.Command, Callable[[Printer, CommandArgs], Any]]
+    events: "Queue[Event]"
+    telemetry: "Queue[Telemetry]"
 
     def __init__(self, type_: const.Printer, sn: str, conn: Connection):
         self.type = type_
@@ -93,9 +68,12 @@ class Printer:
         self.firmware = None
 
         self.conn = conn
-        self.handlers = {
-            const.Command.SEND_INFO: Printer.send_info
-        }
+        self.events = Queue()
+        self.telemetry = Queue()
+        self.run = False
+
+        self.command = Command(self.events)
+        self.set_handler(const.Command.SEND_INFO, self.get_info)
 
     @classmethod
     def from_config(cls, path: str, fingerprint: str,
@@ -117,26 +95,29 @@ class Printer:
         printer = cls(type_, sn, conn)
         return printer
 
-    @staticmethod
-    def send_info(prn: Printer, args: CommandArgs) -> Any:
-        """Emit INFO event to Connect."""
+    def get_info(self, args: CommandArgs) -> Dict[str, Any]:
+        """Return kwargs for Command.finish method as raction to SEND_INFO."""
         # pylint: disable=unused-argument
-        type_, ver, sub = prn.type.value
-        Event(
-            const.Event.INFO, const.Source.CONNECT, int(time()),
-            prn.command_id,
-            type=type_, version=ver, subversion=sub,
-            firmware=prn.firmware, ip_address=prn.ip,
-            mac=prn.mac, sn=prn.sn)(prn.conn)
-        prn.command_id = None
+        type_, ver, sub = self.type.value
+        return dict(source=const.Source.CONNECT, state=const.Event.INFO,
+                    type=type_, version=ver, subversion=sub,
+                    firmware=self.firmware, ip_address=self.ip,
+                    mac=self.mac, sn=self.sn)
 
     def set_handler(self, command: const.Command,
-                    handler: Callable[[Printer, CommandArgs], Any]):
-        """Set handler for command."""
-        self.handlers[command] = handler
+                    handler: Callable[[CommandArgs], Dict[str, Any]]):
+        """Set handler for command.
+
+        Handler must return **kwargs dictionary for Command.finish method,
+        which means that source must be set at least.
+        """
+        self.command.handlers[command] = handler
 
     def handler(self, command: const.Command):
         """Wrap function to handle command.
+
+        Handler must return **kwargs dictionary for Command.finish method,
+        which means that source must be set at least.
 
         .. code:: python
 
@@ -144,51 +125,17 @@ class Printer:
             def gcode(prn, gcode):
                 ...
         """
-        def wrapper(handler: Callable[[Printer, Optional[List[Any]]], Any]):
+        def wrapper(handler: Callable[[CommandArgs], Dict[str, Any]]):
             self.set_handler(command, handler)
             return handler
         return wrapper
 
-    def __execute(self, cmd: str, args: Optional[List[Any]] = None):
-        log.debug("Try to handle %s command.", cmd)
-        handler = None
-        try:
-            cmd_ = const.Command(cmd)
-            handler = self.handlers[cmd_]
-        except ValueError:
-            log.error("Unknown printer command %s.", cmd)
-            Event(const.Event.REJECTED, const.Source.WUI, int(time()),
-                  self.command_id, reason="Unknown command")(self.conn)
-            self.command_id = None
-            return
-        except KeyError:
-            log.error("Not implemented printer command %s.", cmd)
-            Event(const.Event.REJECTED, const.Source.WUI, int(time()),
-                  self.command_id, reason="Not Implemented")(self.conn)
-            self.command_id = None
-            return
-        try:
-            handler(self, args)
-        except Exception as e:  # pylint: disable=broad-except
-            log.exception("")
-            Event(const.Event.REJECTED, const.Source.WUI, int(time()),
-                  self.command_id, reason="Command error",
-                  error=str(e))(self.conn)
-            self.command_id = None
-            return
-
-    def event(self, event: Event):
-        """Send event to Connect."""
-        event(self.conn)
-
-    def telemetry(self, telemetry: Telemetry):
-        """Send telemetry to Connect.
+    def parse_command(self, res):
+        """Parse telemetry response.
 
         When response from connect is command (HTTP Status: 200 OK), it
-        will parse response and call handler from handler table. See
-        Printer.set_handler or Printer.handler.
+        will set command object.
         """
-        res = telemetry(self.conn)
         if res.status_code == 200:
             command_id: Optional[int] = None
             try:
@@ -196,34 +143,30 @@ class Printer:
             except (TypeError, ValueError):
                 log.error("Invalid Command-Id header: %s",
                           res.headers.get("Command-Id"))
-                Event(const.Event.REJECTED, const.Source.CONNECT,
-                      int(time()),
-                      reason="Invalid Command-Id header")(self.conn)
+                event = Event(const.Event.REJECTED, const.Source.CONNECT,
+                              reason="Invalid Command-Id header")
+                self.events.put(event)
                 return res
 
-            if self.command_id and self.command_id != command_id:
-                log.error("Another command is running: %d", self.command_id)
-                Event(const.Event.REJECTED, const.Source.CONNECT, int(time()),
-                      command_id, reason="Another command is running",
-                      actual_command_id=self.command_id)(self.conn)
-            else:
-                self.command_id = command_id
-                content_type = res.headers.get("content-type")
-                try:
-                    if content_type == "application/json":
-                        data = res.json()
-                        self.__execute(data.get("command", ""),
-                                       data.get("args"))
-                    elif content_type == "text/x.gcode":
-                        self.__execute(const.Command.GCODE.value,
-                                       res.text)
-                    else:
-                        raise ValueError("Invalid command content type")
-                except Exception as e:  # pylint: disable=broad-except
-                    log.exception("")
-                    Event(const.Event.REJECTED, const.Source.CONNECT,
-                          int(time()), self.command_id,
-                          reason=str(e))(self.conn)
+            content_type = res.headers.get("content-type")
+            try:
+                if content_type == "application/json":
+                    data = res.json()
+                    if self.command.check_state(command_id):
+                        self.command.accept(
+                            command_id, data.get("command", ""),
+                            data.get("args"))
+                elif content_type == "text/x.gcode":
+                    if self.command.check_state(command_id):
+                        self.command.accept(
+                            command_id, const.Command.GCODE.value, [res.text])
+                else:
+                    raise ValueError("Invalid command content type")
+            except Exception as e:  # pylint: disable=broad-except
+                log.exception("")
+                event = Event(const.Event.REJECTED, const.Source.CONNECT,
+                              command_id=command_id, reason=str(e))
+                self.events.put(event)
         return res
 
     def register(self):
@@ -261,15 +204,30 @@ class Printer:
         log.debug("Status code: {res.status_code}")
         raise RuntimeError(res.text)
 
+    def loop(self):
+        """This method is reponsible /to communication with Connect.
 
-def default_notification_handler(code, msg):
+        While Printer.run is True, which is set by this method, it fetches
+        events and telemetry from the queue. When Connect responsed with
+        command, Printer.command will be set.
+        """
+        self.run = True
+        while self.run:
+            while not self.events.empty():  # fetch events frist
+                event = self.events.get_nowait()
+                event(self.conn)
+            if not self.telemetry.empty():
+                telemetry = self.telemetry.get_nowait()
+                res = telemetry(self.conn)
+                self.parse_command(res)
+            sleep(const.TIMESTAMP_PRECISSION)
+
+
+def default_notification_handler(code, msg) -> Any:
     """Library notification handler call print."""
     print(f"{code}: {msg}")
 
 
 class Notifications:
     """Notification class."""
-    handler: Callable[[str, str], None] = default_notification_handler
-
-
-__all__ = ["Printer", "Telemetry", "Event", "Notifications"]
+    handler: Callable[[str, str], Any] = default_notification_handler
