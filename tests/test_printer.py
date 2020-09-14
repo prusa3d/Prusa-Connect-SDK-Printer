@@ -1,13 +1,17 @@
+"""Test for Printer object."""
 import tempfile
-from time import time
 from typing import Optional, List, Any
 
 import pytest  # type: ignore
-import requests  # noqa
+import requests  # noqa pylint: disable=unused-import
 
-from prusa.connect.printer import Printer, Telemetry, Event, const, \
+from prusa.connect.printer import Printer, Telemetry, const, \
     Notifications
 from prusa.connect.printer.connection import Connection
+
+# pylint: disable=missing-function-docstring
+# pylint: disable=no-self-use
+# pylint: disable=redefined-outer-name
 
 FINGERPRINT = "__fingerprint__"
 SN = "SN001002XP003"
@@ -22,11 +26,13 @@ SERVER = f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 
 @pytest.fixture()
 def connection():
+    """Connectinon fixture."""
     return Connection(SERVER, FINGERPRINT)
 
 
 @pytest.fixture(scope="session")
 def lan_settings_ini():
+    """Temporary lan_settings.ini file fixture."""
     tmpf = tempfile.NamedTemporaryFile(mode="w", delete=False)
     tmpf.write(f"""
 [lan_ip4]
@@ -49,11 +55,12 @@ tls=False
 
 
 class TestPrinter:
+    """Tests for Printer class."""
     def test_init(self, requests_mock, connection):
         requests_mock.post(SERVER+"/p/telemetry", status_code=204)
 
         printer = Printer(const.Printer.I3MK3S, SN, connection)
-        printer.telemetry(Telemetry(const.State.READY))
+        Telemetry(const.State.READY)(printer.conn)
 
         assert (str(requests_mock.request_history[0])
                 == f"POST {SERVER}/p/telemetry")
@@ -61,18 +68,22 @@ class TestPrinter:
     def test_set_handler(self):
         printer = Printer(const.Printer.I3MK3, SN, connection)
 
-        def send_info(prn: Printer, args: Optional[List[Any]]) -> Any:
-            pass
+        def send_info(args: Optional[List[Any]]) -> Any:
+            assert args
+
         printer.set_handler(const.Command.SEND_INFO, send_info)
-        assert printer.handlers[const.Command.SEND_INFO] == send_info
+        # pylint: disable=comparison-with-callable
+        assert printer.command.handlers[const.Command.SEND_INFO] == send_info
 
     def test_decorator(self):
         printer = Printer(const.Printer.I3MK3, SN, connection)
 
         @printer.handler(const.Command.GCODE)
-        def gcode(prn: Printer, gcode: str) -> None:
-            pass
-        assert printer.handlers[const.Command.GCODE] == gcode
+        def gcode(gcode: str) -> None:
+            assert gcode
+
+        # pylint: disable=comparison-with-callable
+        assert printer.command.handlers[const.Command.GCODE] == gcode
 
     def test_send_info(self, requests_mock, connection):
         requests_mock.post(
@@ -83,15 +94,24 @@ class TestPrinter:
 
         printer = Printer(const.Printer.I3MK3S, SN, connection)
 
-        printer.test_ok = False
-
+        # pylint: disable=unused-variable,unused-argument
         @printer.handler(const.Command.SEND_INFO)
-        def send_info(prn, args):
-            prn.test_ok = True
+        def send_info(args):
+            return dict(source=const.Source.MARLIN)
 
-        printer.telemetry(Telemetry(const.State.READY))
+        res = Telemetry(const.State.READY)(printer.conn)
+        printer.parse_command(res)
 
-        assert printer.test_ok
+        assert printer.command.state == const.Event.ACCEPTED
+        assert not printer.events.empty()
+        event = printer.events.get_nowait()
+        assert event.event == const.Event.ACCEPTED
+
+        printer.command()   # run the command
+        assert not printer.events.empty()
+        event = printer.events.get_nowait()
+        assert event.source == const.Source.MARLIN
+        assert event.event == const.Event.FINISHED, event
 
     def test_buildin_send_info(self, requests_mock, connection):
         requests_mock.post(
@@ -102,11 +122,24 @@ class TestPrinter:
         requests_mock.post(SERVER+"/p/events", status_code=204)
 
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        printer.telemetry(Telemetry(const.State.READY))
+        res = Telemetry(const.State.READY)(printer.conn)
+        printer.parse_command(res)
+
+        assert printer.command.state == const.Event.ACCEPTED
+        assert not printer.events.empty()
+        event = printer.events.get_nowait()
+        assert event.event == const.Event.ACCEPTED
+        event(connection)   # send info to mock
+
+        printer.command()   # run the command
+        assert not printer.events.empty()
+        event = printer.events.get_nowait()
+        assert event.event == const.Event.INFO, event
+        event(connection)   # send info to mock
 
         assert (str(requests_mock.request_history[1])
                 == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[1].json()
+        info = requests_mock.request_history[2].json()
         assert info["event"] == "INFO", info
 
     def test_unknown(self, requests_mock, connection):
@@ -118,11 +151,24 @@ class TestPrinter:
         requests_mock.post(SERVER+"/p/events", status_code=204)
 
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        printer.telemetry(Telemetry(const.State.READY))
+        res = Telemetry(const.State.READY)(printer.conn)
+        printer.parse_command(res)
 
-        assert (str(requests_mock.request_history[1])
+        assert printer.command.state == const.Event.ACCEPTED
+        assert not printer.events.empty()
+        event = printer.events.get_nowait()
+        assert event.event == const.Event.ACCEPTED
+        event(connection)   # send info to mock
+
+        printer.command()   # run the command
+        assert not printer.events.empty()
+        event = printer.events.get_nowait()
+        assert event.event == const.Event.REJECTED, event
+        event(connection)   # send answer to mock
+
+        assert (str(requests_mock.request_history[2])
                 == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[1].json()
+        info = requests_mock.request_history[2].json()
         assert info["event"] == "REJECTED", info
         assert info["data"]["reason"] == "Unknown command"
 
@@ -136,17 +182,25 @@ class TestPrinter:
 
         printer = Printer(const.Printer.I3MK3, SN, connection)
 
+        # pylint: disable=unused-variable, unused-argument
         @printer.handler(const.Command.GCODE)
-        def gcode(prn: Printer, args: str):
-            prn.event(Event(const.Event.ACCEPTED, const.Source.CONNECT,
-                      int(time()), prn.command_id))
+        def gcode(args: List[str]):
+            return dict(source=const.Source.MARLIN)
 
-        printer.telemetry(Telemetry(const.State.READY))
+        res = Telemetry(const.State.READY)(printer.conn)
+        printer.parse_command(res)
+        printer.events.get_nowait()(connection)   # send accepted to mock
+        printer.command()   # run the command
+        printer.events.get_nowait()(connection)   # send finisged to mock
 
         assert (str(requests_mock.request_history[1])
                 == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[1].json()
         assert info["event"] == "ACCEPTED", info
+        assert (str(requests_mock.request_history[2])
+                == f"POST {SERVER}/p/events")
+        info = requests_mock.request_history[2].json()
+        assert info["event"] == "FINISHED", info
 
     def test_register(self, requests_mock, connection):
         mock_tmp_code = "f4c8996fb9"
@@ -223,5 +277,6 @@ def test_notification_handler():
 
     Notifications.handler = cb
 
+    # pylint: disable=assignment-from-no-return
     res = Notifications.handler(code, msg)
     assert res == (code, msg)
