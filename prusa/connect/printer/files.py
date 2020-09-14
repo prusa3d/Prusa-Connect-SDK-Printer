@@ -3,18 +3,16 @@
 import os
 import typing
 from datetime import datetime
+from os import path, access, W_OK
 
-from inotify_simple import INotify, flags   # type: ignore
+from blinker import signal  # type: ignore
+from inotify_simple import INotify, flags  # type: ignore
 
 from . import log
 
 
 # pylint: disable=fixme
-# pylint: disable=invalid-name
-# pylint: disable=redefined-builtin
 # pylint: disable=too-few-public-methods
-# pylint: disable=missing-function-docstring
-# pylint: disable=unused-argument
 
 
 class File:
@@ -31,6 +29,7 @@ class File:
             to_dict() method add `ro`, `m_time` and `size` attributes, if
             it finds them.
         """
+        # pylint: disable=redefined-builtin
         self.name = name
         self.dir = dir
         self.parent = parent
@@ -47,6 +46,7 @@ class File:
         :raise ValueError: if self is not a directory
         :return the added file.
         """
+        # pylint: disable=redefined-builtin
         if not self.dir:
             raise ValueError("You can add only to directories")
         node = File(name, dir=dir, parent=self, **attrs)
@@ -73,17 +73,13 @@ class File:
             last = node
         return last
 
-    def _abs_parts(self, result):
-        # pylint: disable=protected-access
+    def abs_parts(self, result=None):
+        """Return all the parts until root"""
+        result = result or []
         if self.parent:
             result.insert(0, self.name)
-            self.parent._abs_parts(result)
+            return self.parent.abs_parts(result)
         return result
-
-    def abs_parts(self):
-        """Return all the parts until root"""
-        result = []
-        return self._abs_parts(result)
 
     def abs_path(self, path_storage: str):
         """Return the absolute path of this File
@@ -91,7 +87,7 @@ class File:
         :param path_storage: path on the storage to be used for creation
             of the absolute path to this File.
         """
-        return os.path.join(path_storage, os.sep.join(self.abs_parts()))
+        return path.join(path_storage, path.sep.join(self.abs_parts()))
 
     def delete(self):
         """Delete this node"""
@@ -145,10 +141,11 @@ class File:
         return self.name
 
     def set_attrs(self, abs_path):
-        """Set attributes on this file according to `abs_path` file on storage.
+        """Set `ro`, `size_` and `m_time` attributes on this file
+        according to `abs_path` file on storage.
         """
         stats = os.stat(abs_path)
-        self.attrs["ro"] = not os.access(abs_path, os.W_OK)
+        self.attrs["ro"] = not access(abs_path, W_OK)
         if not self.dir:
             self.attrs["size"] = stats.st_size
         m_datetime = datetime.fromtimestamp(stats.st_mtime)
@@ -159,7 +156,7 @@ class File:
 class Mount:
     """Represent a mountpoint"""
 
-    def __init__(self, tree, mountpoint, abs_path_storage):
+    def __init__(self, tree: File, mountpoint: str, abs_path_storage: str):
         """
         Initialize a Mount.
 
@@ -187,12 +184,12 @@ class Filesystem:
         self.sep = sep
         self.mounts = dict()        # FS-mountpoint:Mount(...)
 
-    def mount(self, name: str, tree: File, storage_path: str = None):
+    def mount(self, name: str, tree: File, storage_path: str = ""):
         """Mount the a tree under a mountpoint.
 
         :param name: The mountpoint
         :param tree: The tree of `File` instances to be mounted
-        :param storage_path: Path on storage, if any
+        :param storage_path: Path on storage
         :raises InvalidMountpointError: If the mountpoint is already used,
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
@@ -240,7 +237,8 @@ class Filesystem:
     def to_dict(self):
         """Return all the tree in the representation Connect requires
 
-        :return: dictionary representation of the Filesystem"""
+        :return: dictionary representation of the Filesystem.
+        """
         root = {
             "type": "DIR",
             "path": "/",
@@ -256,13 +254,13 @@ class Filesystem:
         :param mountpoint: Mountpoint
         """
         # normalize dirpath
-        dirpath = os.path.abspath(dirpath)
-        if not dirpath.endswith(os.path.sep):
-            dirpath += os.path.sep
+        dirpath = path.abspath(dirpath)
+        if not dirpath.endswith(path.sep):
+            dirpath += path.sep
 
         # create nodes
-        name = os.path.dirname(dirpath)
-        name = os.path.split(name)[1]
+        name = path.dirname(dirpath)
+        name = path.split(name)[1]
         root = File(name, dir=True)
         root.set_attrs(dirpath)
 
@@ -271,17 +269,30 @@ class Filesystem:
             if not dirname:
                 parent = root
             else:
-                parent = root.get(dirname.split(os.path.sep))
+                parent = root.get(dirname.split(path.sep))
 
             for name in dirs:
                 node = parent.add(name, dir=True)
-                node.set_attrs(os.path.join(abs_dir, name))
+                node.set_attrs(path.join(abs_dir, name))
             for name in files:
                 node = parent.add(name)
-                node.set_attrs(os.path.join(abs_dir, name))
+                node.set_attrs(path.join(abs_dir, name))
 
         # mount
         self.mount(mountpoint, root, dirpath)
+
+
+# blinker signals you can subscribe to
+#  the handling functions always receive the absolute path of the file
+#  and the event as arguments
+create = signal("CREATE")
+delete = signal("DELETE")
+modify = signal("MODIFY")
+delete_self = signal("DELETE_SELF")
+moved_to = signal("MOVED_TO")
+moved_from = signal("MOVED_FROM")
+move_self = signal("MOVE_SELF")
+unmount = signal("UNMOUNT")
 
 
 class InotifyHandler:
@@ -293,16 +304,40 @@ class InotifyHandler:
         flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM | \
         flags.MOVE_SELF | flags.UNMOUNT
 
+    SIGNALS = {
+        "CREATE": create,
+        "DELETE": delete,
+        "MODIFY": modify,
+        "DELETE_SELF": delete_self,
+        "MOVED_TO": moved_to,
+        "MOVED_FROM": moved_from,
+        "MOVE_SELF": move_self,
+        "UNMOUNT": unmount,
+    }
+
     def __init__(self, fs: Filesystem):
+        # pylint: disable=invalid-name
         self.fs = fs
         self.inotify = INotify()
         self.wds: typing.Dict[int, str] = {}       # watch descriptors
         # init mount watches
         for mount in self.fs.mounts.values():
             self._init_wd(mount.path_storage, mount.tree)
+        self.__connect_signals()
+
+    def __connect_signals(self):
+        create.connect(self.process_create)
+        delete.connect(self.process_delete)
+        modify.connect(self.process_modify)
+        delete_self.connect(self.process_delete_self)
+        moved_to.connect(self.process_moved_to)
+        moved_from.connect(self.process_moved_from)
+        move_self.connect(self.process_move_self)
+        unmount.connect(self.process_unmount)
 
     def _init_wd(self, path_storage, node):
-        abs_dir = os.path.join(path_storage, os.sep.join(node.abs_parts()))
+        # pylint: disable=invalid-name
+        abs_dir = path.join(path_storage, path.sep.join(node.abs_parts()))
         try:
             wd = self.inotify.add_watch(abs_dir, self.WATCH_FLAGS)
             self.wds[wd] = abs_dir
@@ -324,11 +359,11 @@ class InotifyHandler:
                 if not self.WATCH_FLAGS & flag:
                     log.debug("Ignoring %s", flag.name)
                     continue
-                handler = getattr(self, f"process_{flag.name}")
                 parent_dir = self.wds[event.wd]
-                abs_path = os.path.join(parent_dir, event.name)
-                print("Flag", flag.name, abs_path, event)
-                handler(abs_path, event)
+                abs_path = path.join(parent_dir, event.name)
+                log.debug("Flag: %s %s %s", flag.name, abs_path, event)
+                handler = self.SIGNALS[flag.name]
+                handler.send("sdk-printer", abs_path=abs_path, event=event)
 
     # pylint: disable=inconsistent-return-statements
     def mount_for(self, abs_path):
@@ -337,13 +372,26 @@ class InotifyHandler:
             if abs_path.startswith(mount.path_storage):
                 return mount
 
-    def _rel_path_parts(self, path, mount):
-        rel_path = path[len(mount.path_storage):]
+    def __rel_path_parts(self, abs_path, mount) -> typing.List[str]:
+        """
+        Return the relative part of `abs_path` minus the `mount` split by
+        self.fs.sep
+
+        :param abs_path: path
+        :param mount: mount point - beginning of the abs_path
+        :return: list of parts of the relative path
+        """
+        rel_path = abs_path[len(mount.path_storage):]
         return rel_path.split(self.fs.sep)
 
-    def process_CREATE(self, abs_path, event):
+    def process_create(self, sender, abs_path, event):
+        """Handle CREATE inotify signal by creating the file/directory
+        determined by `abs_path`. `event` is used to find out whether to
+        create a file or a directory.
+        """
+        # pylint: disable=unused-argument
         mount = self.mount_for(abs_path)
-        parts = self._rel_path_parts(abs_path, mount)
+        parts = self.__rel_path_parts(abs_path, mount)
         *parent, name = parts
         is_dir = event.mask & flags.ISDIR
         node = mount.tree.get(parent).add(name, dir=is_dir)
@@ -352,32 +400,48 @@ class InotifyHandler:
             # add inotify watch
             self._init_wd(mount.path_storage, node)
 
-    def process_DELETE(self, abs_path, event):
+    def process_delete(self, sender, abs_path, event):
+        """Handle DELETE inotify signal by deleting the node
+        indicated by `abs_path`.
+        """
+        # pylint: disable=unused-argument
         mount = self.mount_for(abs_path)
-        parts = self._rel_path_parts(abs_path, mount)
+        parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
         if node:
             node.delete()
 
-    def process_MODIFY(self, abs_path, event):
+    def process_modify(self, sender, abs_path, event):
+        """Process MODIFY inotify signal by updating the
+        attributes for a file indicated by `abs_path`.
+        """
+        # pylint: disable=unused-argument
         mount = self.mount_for(abs_path)
-        parts = self._rel_path_parts(abs_path, mount)
+        parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)
         node.set_attrs(abs_path)
 
-    def process_MOVED_FROM(self, abs_path, event):
-        self.process_DELETE(abs_path, event)
-
-    def process_MOVED_TO(self, abs_path, event):
-        self.process_CREATE(abs_path, event)
-
-    def process_DELETE_SELF(self, abs_path, event):
+    def process_delete_self(self, sender, abs_path, event):
+        """Process DELETE_SELF inotify signal by deleting the
+        clearing tree under the mountpoint for `abs_path`.
+        """
+        # pylint: disable=unused-argument
         mount = self.mount_for(abs_path)
         mount.tree.children = dict()
         mount.tree.attrs = dict()
 
-    def process_MOVE_SELF(self, abs_path, event):
-        self.process_DELETE_SELF(abs_path, event)
+    def process_moved_to(self, *args, **kw):
+        # pylint: disable=missing-function-docstring
+        self.process_create(*args, **kw)
 
-    def process_UNMOUNT(self, abs_path, event):
-        self.process_DELETE_SELF(abs_path, event)
+    def process_moved_from(self, *args, **kw):
+        # pylint: disable=missing-function-docstring
+        self.process_delete(*args, **kw)
+
+    def process_move_self(self, *args, **kw):
+        # pylint: disable=missing-function-docstring
+        self.process_delete_self(*args, **kw)
+
+    def process_unmount(self, *args, **kw):
+        # pylint: disable=missing-function-docstring
+        self.process_delete_self(*args, **kw)
