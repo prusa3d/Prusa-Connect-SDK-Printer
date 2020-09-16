@@ -10,7 +10,7 @@ install:
    requests_mock pytest-mypy inotify_simple blinker
 
 script:
- - pytest -v --mypy tests
+ - pytest -v --mypy tests --log-cli-level=10
  - pytest -v --mypy --pylint --doctest-rst prusa/connect/printer
 
 before_deploy:

@@ -379,8 +379,9 @@ class InotifyHandler:
                       i, event,
                       [f.name for f in flags.from_mask(event.mask)],
                       self.wds[event.wd])
-            if event.mask & flags.DELETE_SELF:
-                log.debug(" found DELETE_SELF at %d", i)
+            if (event.mask & flags.ISDIR and event.mask & flags.DELETE) \
+                    or event.mask & flags.DELETE_SELF:
+                log.debug(" found DELETE(DIR)/DELETE_SELF at %d", i)
                 for j, follower in enumerate(rev_events[i+1:]):
                     if follower.mask & flags.DELETE_SELF or \
                             follower.mask & flags.DELETE:
@@ -391,8 +392,8 @@ class InotifyHandler:
                                                       follower.name)
                         event_dir = self.wds[event.wd]
                         if sub_event_dir.startswith(event_dir):
-                            # i+1: 0 is the DELETE_SELF event,
-                            #  1 is following_event
+                            # i+1: 0 is the DELETE_SELF/DELETE (DIR) event,
+                            #  1 is the following event
                             ignorelist[i + 1 + j] = True
         log.debug("ignore: %s", list(enumerate(ignorelist)))
         result = [e for (e, i) in zip(rev_events, ignorelist) if not i]
