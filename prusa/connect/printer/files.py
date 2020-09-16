@@ -181,6 +181,10 @@ class Filesystem:
     """Model a collection of Files (which are grouped in to trees).
     This is like the DOS filesystem flat, therefore unlike in UNIX OSes
     tress cannot be nested in each other.
+
+    It translates from physical representation on the storage to
+    virtual organised by mount (points). This virtual one is then
+    sent to Connect.
     """
 
     def __init__(self, sep: str = "/", connection: Connection = None):
@@ -308,14 +312,6 @@ class Filesystem:
             event_(self.connection)
 
 
-# blinker signals you can subscribe to
-#  the handling functions always receive the absolute path of the file
-#  dir: boolean in a tuple as arguments
-create = signal("CREATE")
-delete = signal("DELETE")
-modify = signal("MODIFY")
-
-
 class InotifyHandler:
     """This is handler is initialised with a Filesystem instance and
     using it makes sure that all its mounts `tree`s are updated on changes
@@ -325,15 +321,22 @@ class InotifyHandler:
         flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM | \
         flags.MOVE_SELF
 
+    # blinker signals you can subscribe to
+    #  the handling functions always receive the absolute path of the file
+    #  and dir (as boolean) in a tuple as arguments
+    CREATE = signal("CREATE")
+    DELETE = signal("DELETE")
+    MODIFY = signal("MODIFY")
+
     # map Inotify signals to our (defined by the `blinker` module)
     SIGNALS = {
-        "CREATE": create,
-        "MODIFY": modify,
-        "DELETE": delete,
-        "MOVED_TO": create,
-        "MOVED_FROM": delete,
-        "DELETE_SELF": delete,
-        "MOVE_SELF": delete,
+        "CREATE": CREATE,
+        "MODIFY": MODIFY,
+        "DELETE": DELETE,
+        "MOVED_TO": CREATE,
+        "MOVED_FROM": DELETE,
+        "DELETE_SELF": DELETE,
+        "MOVE_SELF": DELETE,
     }
 
     def __init__(self, fs: Filesystem):
@@ -347,9 +350,9 @@ class InotifyHandler:
         self.__connect_signals()
 
     def __connect_signals(self):
-        create.connect(self.process_create)
-        delete.connect(self.process_delete)
-        modify.connect(self.process_modify)
+        self.CREATE.connect(self.process_create)
+        self.DELETE.connect(self.process_delete)
+        self.MODIFY.connect(self.process_modify)
 
     def __init_wd(self, path_storage, node):
         # pylint: disable=invalid-name
