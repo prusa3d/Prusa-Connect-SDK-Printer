@@ -19,38 +19,37 @@ from .connection import Connection
 class File:
     """A node of a Filesystem representing either a file or a directory"""
 
-    def __init__(self, name: str, dir: bool = False, parent: "File" = None,
+    def __init__(self, name: str, is_dir: bool = False, parent: "File" = None,
                  **attrs):
         """Create a File object
 
         :param name: Filename
-        :param dr: Flag whether this is a directory
-        :param parent: Parent for this File, which itself is a File(dir=True)
+        :param is_dir: Flag whether this is a directory
+        :param parent: Parent for this File, which itself is a
+            File(is_dir=True)
         :param attrs: Any attributes for the file you want to store. File's
             to_dict() method add `ro`, `m_time` and `size` attributes, if
             it finds them.
         """
-        # pylint: disable=redefined-builtin
         self.name = name
-        self.dir = dir
+        self.is_dir = is_dir
         self.parent = parent
         self.attrs = attrs
         self.children: dict = {}
 
-    def add(self, name: str, dir: bool = False, **attrs):
+    def add(self, name: str, is_dir: bool = False, **attrs):
         """Add a file to this File's children.
         Note that `self` must be a directory.
 
         :param name: name of the file
-        :param dir: Is this a directory?
+        :param is_dir: Is this a directory?
         :param attrs: arbitrary File attributes
         :raise ValueError: if self is not a directory
         :return the added file.
         """
-        # pylint: disable=redefined-builtin
-        if not self.dir:
+        if not self.is_dir:
             raise ValueError("You can add only to directories")
-        node = File(name, dir=dir, parent=self, **attrs)
+        node = File(name, is_dir=is_dir, parent=self, **attrs)
         self.children[node.name] = node
         return node
 
@@ -120,7 +119,7 @@ class File:
     def to_dict(self):
         """:return `self` in the format for Connect Backend"""
         result = {
-            "type": "DIR" if self.dir else "FILE",
+            "type": "DIR" if self.is_dir else "FILE",
             "path": self.name,
         }
         for attr in ("ro", "size", "m_time"):
@@ -149,7 +148,7 @@ class File:
         """
         stats = stat(abs_path)
         self.attrs["ro"] = not access(abs_path, W_OK)
-        if not self.dir:
+        if not self.is_dir:
             self.attrs["size"] = stats.st_size
         m_datetime = datetime.fromtimestamp(stats.st_mtime)
         m_time = datetime.timetuple(m_datetime)[:6]
@@ -285,7 +284,7 @@ class Filesystem:
         if not dirpath.endswith(path.sep):
             dirpath += path.sep
 
-        root = File(mountpoint, dir=True)
+        root = File(mountpoint, is_dir=True)
         root.set_attrs(dirpath)
 
         for abs_dir, dirs, files in walk(dirpath):
@@ -296,7 +295,7 @@ class Filesystem:
                 parent = root.get(dirname.split(path.sep))
 
             for name in dirs:
-                node = parent.add(name, dir=True)
+                node = parent.add(name, is_dir=True)
                 node.set_attrs(path.join(abs_dir, name))
             for name in files:
                 node = parent.add(name)
@@ -323,7 +322,7 @@ class InotifyHandler:
 
     # blinker signals you can subscribe to
     #  the handling functions always receive the absolute path of the file
-    #  and dir (as boolean) in a tuple as arguments
+    #  and is_dir flag in a tuple as arguments
     CREATE = signal("CREATE")
     DELETE = signal("DELETE")
     MODIFY = signal("MODIFY")
@@ -362,15 +361,15 @@ class InotifyHandler:
             self.wds[wd] = abs_dir
             log.debug("Added watch (%s) for %s", wd, abs_dir)
             for child in node.children.values():
-                if child.dir:
+                if child.is_dir:
                     self.__init_wd(path_storage, child)
         except PermissionError:
             pass
 
     def filter_delete_events(self, events):
         """Because we are adding inotify watch descriptors to all
-        subdirectories, ignore all DELETE_SELF and DELETE events if they are
-        followed by by any DELETE_SELF on any of their parents."""
+        subdirectories, ignore all DELETE events if they are
+        followed by any DElETE on any of their parents."""
         # TODO add test
         ignorelist = [False] * len(events)
         rev_events = list(reversed(events))   # we are examining from the end
@@ -381,16 +380,16 @@ class InotifyHandler:
                       self.wds[event.wd])
             if (event.mask & flags.ISDIR and event.mask & flags.DELETE) \
                     or event.mask & flags.DELETE_SELF:
-                log.debug(" found DELETE(DIR)/DELETE_SELF at %d", i)
-                for j, follower in enumerate(rev_events[i+1:]):
-                    if follower.mask & flags.DELETE_SELF or \
-                            follower.mask & flags.DELETE:
-                        sub_event_dir = self.wds[follower.wd]
-                        if follower.mask & flags.ISDIR and \
-                                follower.mask & flags.DELETE:
-                            sub_event_dir = path.join(sub_event_dir,
-                                                      follower.name)
-                        event_dir = self.wds[event.wd]
+                log.debug(" found DEL at %d", i)
+                event_dir = self.wds[event.wd].rstrip(path.sep)
+                if event.mask & flags.DELETE:
+                    event_dir = path.join(event_dir, event.name)
+                for j, nxt in enumerate(rev_events[i+1:]):
+                    if (nxt.mask & flags.DELETE and nxt.mask & flags.ISDIR) \
+                            or nxt.mask & flags.DELETE_SELF:
+                        sub_event_dir = self.wds[nxt.wd].rstrip(path.sep)
+                        if nxt.mask & flags.DELETE:
+                            sub_event_dir = path.join(sub_event_dir, nxt.name)
                         if sub_event_dir.startswith(event_dir):
                             # i+1: 0 is the DELETE_SELF/DELETE (DIR) event,
                             #  1 is the following event
@@ -408,7 +407,11 @@ class InotifyHandler:
         events = self.filter_delete_events(events)
         for event in events:
             for flag in flags.from_mask(event.mask):
-                # ignore not watched events
+                # remove wds that are no longer needed
+                if flag.name == "IGNORED":
+                    del self.wds[event.wd]
+                    continue
+                # ignore non watched events
                 if not self.WATCH_FLAGS & flag:
                     log.debug("Ignoring %s", flag.name)
                     continue
@@ -417,7 +420,7 @@ class InotifyHandler:
                 log.debug("Flag: %s %s %s", flag.name, abs_path, event)
                 handler = self.SIGNALS[flag.name]
                 handler.send("sdk-printer", abs_path=abs_path,
-                             dir=event.mask & flags.ISDIR)
+                             is_dir=event.mask & flags.ISDIR)
 
     # pylint: disable=inconsistent-return-statements
     def mount_for(self, abs_path):
@@ -438,30 +441,28 @@ class InotifyHandler:
         rel_path = abs_path[len(mount.path_storage):]
         return rel_path.rstrip(self.fs.sep).split(self.fs.sep)
 
-    def process_create(self, sender, abs_path, dir):
+    def process_create(self, sender, abs_path, is_dir):
         """Handle CREATE inotify signal by creating the file/directory
-        determined by `abs_path`. `dir` is set, if the event was generated
+        determined by `abs_path`. `is_dir` is set, if the event was generated
         for a directory.
         """
         # pylint: disable=unused-argument
-        # pylint: disable=redefined-builtin
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         *parent, name = parts
-        node = mount.tree.get(parent).add(name, dir=dir)
+        node = mount.tree.get(parent).add(name, is_dir=is_dir)
         node.set_attrs(abs_path)
-        if dir:
+        if is_dir:
             # add inotify watch
             self.__init_wd(mount.path_storage, node)     # add inotify watch
         self.send_file_changed(file=node,
                                new_path=node.abs_path(mount.mountpoint))
 
-    def process_delete(self, sender, abs_path, dir):
+    def process_delete(self, sender, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
         indicated by `abs_path`.
         """
         # pylint: disable=unused-argument
-        # pylint: disable=redefined-builtin
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         # top level dir (mount.tree) was deleted or unmounted
@@ -478,12 +479,11 @@ class InotifyHandler:
             path_ = node.abs_path(mount.mountpoint)
             self.send_file_changed(old_path=path_)
 
-    def process_modify(self, sender, abs_path, dir):
+    def process_modify(self, sender, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
         attributes for a file indicated by `abs_path`.
         """
         # pylint: disable=unused-argument
-        # pylint: disable=redefined-builtin
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         node = mount.tree.get(parts)

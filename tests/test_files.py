@@ -21,11 +21,11 @@ EVENTS_URL = f"{SERVER}/p/events"
 
 @pytest.fixture
 def nodes():
-    root = File(None, dir=True)
-    a = root.add("a", dir=True)
+    root = File(None, is_dir=True)
+    a = root.add("a", is_dir=True)
     a.add("1.txt")
-    a.add("b", dir=True)
-    c = a.add("c", dir=True)
+    a.add("b", is_dir=True)
+    c = a.add("c", is_dir=True)
     c.add("2.txt")
     c.add("3.txt")
     return root
@@ -60,7 +60,7 @@ def inotify(nodes, connection):
         parts = node.abs_parts()
         parts.insert(0, root_dir)
         path = os.path.sep.join(parts)
-        if node.dir:
+        if node.is_dir:
             if not os.path.exists(path):    # root node is already created
                 os.mkdir(path)
         else:
@@ -96,25 +96,32 @@ def fs(nodes):
 
 
 class TestFile:
+    """Test the methods of the File class"""
+
     def test_add(self):
-        root = File("root", dir=True)
+        root = File("root", is_dir=True)
         assert not root.children
-        assert root.dir
+        assert root.is_dir
         root.add("child")
         assert "child" in root
-        assert not root.child.dir
+        assert not root.child.is_dir
 
     def test_add_to_file(self):
         file = File("file")
-        assert not file.dir
+        assert not file.is_dir
         with pytest.raises(ValueError):
             file.add("another_file")
 
     def test_add_multiple(self):
-        root = File("root", dir=True)
+        """Make sure that adding twice the same name adds it only once.
+        Any further add() with the name name overwrite the previous file.
+        """
+        root = File("root", is_dir=True)
         assert len(root.children) == 0
-        root.add("a")
-        root.add("a")
+        root.add("a", is_dir=True)
+        assert root.a.is_dir
+        root.add("a", is_dir=False)
+        assert not root.a.is_dir
         assert root.a
         assert len(root.children) == 1
 
@@ -125,6 +132,7 @@ class TestFile:
         assert nodes.get(["a", "c", "2.txt"])
 
     def test_get_str(self, nodes):
+        """One cannot call node.get with a string argument"""
         with pytest.raises(TypeError):
             nodes.get("b/b/d")
 
@@ -149,7 +157,7 @@ class TestFile:
         assert "a" in nodes
 
     def test_str(self):
-        d = File("directory", dir=True)
+        d = File("directory", is_dir=True)
         f = File("filename")
         assert str(d) == "directory"
         assert str(f) == "filename"
@@ -195,23 +203,24 @@ class TestFilesystem:
     def test_from_dir(self, fs_from_dir, fs):
         b = fs_from_dir.get("/a/b")
         assert not b.children
-        assert b.dir
+        assert b.is_dir
         assert fs_from_dir.get("/a/1.txt")
         assert fs_from_dir.get("/a/c/2.txt")
         assert fs_from_dir.get("/a/c/3.txt")
 
         # test root node
-        assert fs_from_dir.get("/a").dir is True
+        assert fs_from_dir.get("/a").is_dir is True
         assert fs_from_dir.get("/a/").name == "a"
         assert fs_from_dir.get("/a/").parent is None
 
     def test_get_root(self, fs):
         a = fs.get("a")
         assert a.name == "a"
-        assert a.dir
+        assert a.is_dir
         assert len(a.children) == 3
 
     def test_get_deep(self, fs):
+        """Test walking along the file tree using get()"""
         assert fs.get("a/1.txt")
         assert fs.get("a/c/2.txt")
         assert fs.get("a/c/3.txt")
@@ -224,11 +233,15 @@ class TestFilesystem:
                        {'type': 'DIR', 'path': 'b'},
                        {'type': 'DIR', 'path': 'c', 'children': [
                            {'type': 'FILE', 'path': '2.txt'},
-                           {'type': 'FILE', 'path': '3.txt'}]}]}]}  # NOQA: E501
+                           {'type': 'FILE', 'path': '3.txt'}]}]}]}
 
 
 class TestINotify:
+
     def test_CREATE_file(self, inotify, requests_mock):
+        """Test that creating a file is reflected in the Filesystem
+        and that also Connect is notified by the means of an Event
+        """
         res = requests_mock.post(EVENTS_URL, status_code=204)
         p = os.path.join(inotify.path, "simple.txt")
         open(p, "w").close()
@@ -236,6 +249,7 @@ class TestINotify:
         assert inotify.fs.get("/test/simple.txt")
         assert inotify.fs.get("/test/does-not-exit.txt") is None
 
+        # check event to Connect
         data = res.last_request.json()
         assert data['event'] == 'FILE_CHANGED'
         assert data['source'] == 'CONNECT'
@@ -247,13 +261,14 @@ class TestINotify:
         assert data['data']['old_path'] is None
 
     def test_CREATE_dir(self, inotify, requests_mock):
+        """Same as CREATE_file but this time a directory is used."""
         res = requests_mock.post(EVENTS_URL, status_code=204)
         p = os.path.join(inotify.path, "directory")
         os.mkdir(p)
         inotify.handler()
         d = inotify.fs.get("/test/directory")
         assert d
-        assert d.dir
+        assert d.is_dir
 
         # test that an event to CONNECT was sent
         data = res.last_request.json()
@@ -266,13 +281,18 @@ class TestINotify:
         assert data['data']['new_path'] == '/test/directory'
         assert data['data']['old_path'] is None
 
-        # test that a inotify watch has also been installed
+        # test that a inotify watch has also been installed for the
+        #  newly added dir
         file_path = os.path.join(p, "file.txt")
         open(file_path, "w").close()
         inotify.handler()
         assert inotify.fs.get("/test/directory/file.txt")
 
     def test_DELETE_file(self, inotify, requests_mock):
+        """Test deleting a file by creating it first, then deleting it and
+        requesting it from the Filesystem. Also test that other file(s) were
+        not affected
+        """
         res = requests_mock.post(EVENTS_URL, status_code=204)
         p = os.path.join(inotify.path, "simple.txt")
         open(p, "w").close()
@@ -292,6 +312,9 @@ class TestINotify:
         assert data['data']['new_path'] is None
 
     def test_DELETE_dir(self, inotify, requests_mock):
+        """Test that after deleting a directory it is removed from the
+        Filesystem.
+        """
         res = requests_mock.post(EVENTS_URL, status_code=204)
         node = inotify.fs.get("/test/a/b")
         path = node.abs_path(inotify.path)
@@ -300,6 +323,7 @@ class TestINotify:
         inotify.handler()
         assert not inotify.fs.get("/test/a/b")
 
+        # test event to Connect
         data = res.last_request.json()
         assert data['event'] == 'FILE_CHANGED'
         assert data['source'] == 'CONNECT'
@@ -307,6 +331,9 @@ class TestINotify:
         assert data['data']['new_path'] is None
 
     def test_DELETE_root_dir(self, inotify, requests_mock):
+        """Test removing the root of a mount `Mount.path_storage` in a
+        `Filesystem`
+        """
         # this also tests MOVE_SELF and events
         res = requests_mock.post(EVENTS_URL, status_code=204)
         shutil.rmtree(inotify.path)
@@ -314,6 +341,7 @@ class TestINotify:
         assert not inotify.fs.get("/test/a/1.txt")
         assert not inotify.fs.get("/test/a/c")
 
+        # check Connect event
         data = res.last_request.json()
         assert data['event'] == 'FILE_CHANGED'
         assert data['source'] == 'CONNECT'
@@ -323,6 +351,7 @@ class TestINotify:
         assert data['data']['file']['path'] == "test"
 
     def test_MOVE_file(self, inotify, requests_mock):
+        """Create a file and move it to a different directory"""
         res = requests_mock.post(EVENTS_URL, status_code=204)
         src = inotify.fs.get("/test/a/1.txt")
         assert src
@@ -345,6 +374,7 @@ class TestINotify:
         assert data['data']['new_path'] == "/test/a/c/1.txt"
 
     def test_MODIFY_file(self, inotify, requests_mock):
+        """Write into a file and make sure that the change is reflected"""
         res = requests_mock.post(EVENTS_URL, status_code=204)
         node = inotify.fs.get("/test/a/1.txt")
         assert node.attrs['size'] == 0
