@@ -1,5 +1,9 @@
 ---
 repos:
+  - repo: https://github.com/pre-commit/mirrors-yapf
+    rev: ''  # Use the sha / tag you want to point at
+    hooks:
+      - id: yapf
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
     hooks:
