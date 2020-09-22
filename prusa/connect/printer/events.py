@@ -33,7 +33,7 @@ class Event:
         self.data = kwargs
 
     def __call__(self, conn: Connection):
-        """Sent event to connect."""
+        """Send event to connect."""
         data = {"event": self.event.value,
                 "source": self.source.value,
                 "data": filter_null(self.data)}

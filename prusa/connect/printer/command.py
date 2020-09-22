@@ -22,7 +22,7 @@ class Command:
     def __init__(self, events: Queue):
         self.events = events
         self.state = None
-        self.command_id = 0         # 0 mean that there is no command before
+        self.command_id = 0         # 0 mean that there was no command before
         self.command = None
         self.args = []
         self.handlers = {}
@@ -30,12 +30,12 @@ class Command:
     def check_state(self, command_id: int):
         """Check, if Command has right state (None).
 
-        :return:    True, if command can be accpeted.
+        :return:    True, if command can be accepted.
 
-        Atherwise, put right event to queue.
+        Otherwise, put right event to queue.
         """
 
-        if self.state is not None:     # comes another command
+        if self.state is not None:     # here comes another command
             if self.command_id != command_id:
                 event = Event(const.Event.REJECTED, const.Source.CONNECT,
                               command_id=command_id,

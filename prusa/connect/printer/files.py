@@ -192,8 +192,8 @@ class Filesystem:
 
         :sep: Separator on the FS
         :events: SDK's Printer.events queue. If set, the FS
-            will put event to queue on mount/umount and the InotifyHandler
-            on changes to the FS.
+            will put events to queue on mount/umount operations and
+            the InotifyHandler on changes to the FS.
         """
         self.sep = sep
         self.mounts: typing.Dict[str, Mount] = {}
@@ -495,8 +495,7 @@ class InotifyHandler:
     def send_file_changed(self, old_path: str = None,
                           new_path: str = None,
                           file: File = None):
-        """Put FIlE_CHANGED event to event queue. It will be only
-        put if self.fs.events is set.
+        """If self.fs.events is set, put FIlE_CHANGED event to event queue.
 
         :raises ValueError: if both old_path and new_path are not set
         """
