@@ -96,7 +96,7 @@ class Printer:
         return printer
 
     def get_info(self, args: CommandArgs) -> Dict[str, Any]:
-        """Return kwargs for Command.finish method as raction to SEND_INFO."""
+        """Return kwargs for Command.finish method as reaction to SEND_INFO."""
         # pylint: disable=unused-argument
         type_, ver, sub = self.type.value
         return dict(source=const.Source.CONNECT, state=const.Event.INFO,
