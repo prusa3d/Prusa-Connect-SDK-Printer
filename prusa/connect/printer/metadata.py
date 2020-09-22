@@ -7,7 +7,6 @@ import json
 import re
 import zipfile
 from os import path
-from pathlib import Path
 from typing import Dict, Any, List
 from . import log
 
@@ -38,16 +37,21 @@ class MetaData:
         self.load_from_filename(self.filename)
         self.load_from_file(self.filename)
 
-    def load_from_file(self, filename: Path):
+    def load_from_file(self, filename: str):
         """Load metadata and thumbnails from given `filename`"""
-        raise NotImplementedError
+        # pylint: disable=no-self-use
+        # pylint: disable=unused-argument
+        ...
 
-    def load_from_filename(self, filename: Path):
+    def load_from_filename(self, filename: str):
         """Load metadata from given filename (filename, not its content),
         if possible.
         """
+        # pylint: disable=no-self-use
+        # pylint: disable=unused-argument
+        ...
 
-    def _set_data(self, data: Dict):
+    def set_data(self, data: Dict):
         """Helper function to save all items from `data` that
         match `self.Attr` in `self.data`.
         """
@@ -104,9 +108,13 @@ class FDMMetaData(MetaData):
                 "printer_model": match.group("printer"),
                 "estimated printing time (normal mode)": match.group("time"),
             }
-            self._set_data(data)
+            self.set_data(data)
 
-    def load_from_file(self, filename: Path):
+    def load_from_file(self, filename: str):
+        """Load metadata from file
+
+        :filename: Path to the file to load the metadata from
+        """
         # pylint: disable=redefined-outer-name
         # pylint: disable=invalid-name
         meta = {}
@@ -138,7 +146,7 @@ class FDMMetaData(MetaData):
                     if match:
                         key, val = match.groups()
                         meta[key] = val
-        self._set_data(meta)
+        self.set_data(meta)
 
 
 class SLMetaData(MetaData):
@@ -166,14 +174,19 @@ class SLMetaData(MetaData):
     THUMBNAIL_NAME_PAT = re.compile(r"(?P<dim>\d+x\d+)")
 
     def load(self):
+        """Load metadata"""
         try:
             super().load()
         except zipfile.BadZipFile:
             log.error("%s is not a valid SL1 archive", self.filename)
 
-    def load_from_file(self, filename):
+    def load_from_file(self, filename: str):
+        """Load SL1 metadata
+
+        :filename: path to the file to load the metadata from
+        """
         data = self.extract_metadata(filename)
-        self._set_data(data)
+        self.set_data(data)
 
         self.thumbnails = self.extract_thumbnails(filename)
 
@@ -198,7 +211,8 @@ class SLMetaData(MetaData):
                         data[key] = value
         return data
 
-    def extract_thumbnails(self, filename: str) -> Dict[str, bytes]:
+    @staticmethod
+    def extract_thumbnails(filename: str) -> Dict[str, bytes]:
         """Extract thumbnails from `filename`.
 
         :param filename: zip file
@@ -211,7 +225,8 @@ class SLMetaData(MetaData):
                 if info.filename.startswith("thumbnail/"):
                     data = zip_file.read(info.filename)
                     data = base64.b64encode(data)
-                    dim = self.THUMBNAIL_NAME_PAT.findall(info.filename)[-1]
+                    dim = SLMetaData.THUMBNAIL_NAME_PAT.findall(
+                        info.filename)[-1]
                     thumbnails[dim] = data
         return thumbnails
 
