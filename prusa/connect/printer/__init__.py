@@ -1,5 +1,5 @@
 """Python printer library for Prusa Connect."""
-from __future__ import annotations          # noqa
+from __future__ import annotations  # noqa
 
 import configparser
 import os
@@ -14,7 +14,7 @@ from .events import Event
 from .command import Command
 
 __version__ = "0.1.0"
-__date__ = "13 Aug 2020"        # version date
+__date__ = "13 Aug 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
 __author_email__ = "ondrej.tuma@prusa3d.cz"
@@ -42,13 +42,13 @@ class Telemetry:
         timestamp : float
             If not set int(time.time()*10)/10 is used.
         """
-        self.timestamp = timestamp or int(time()*10)*const.TIMESTAMP_PRECISSION
+        self.timestamp = timestamp or int(
+            time() * 10) * const.TIMESTAMP_PRECISSION
         self.__data = kwargs
         self.__data['state'] = state.value
 
     def __call__(self, conn: Connection):
-        return conn.post("/p/telemetry",
-                         conn.make_headers(self.timestamp),
+        return conn.post("/p/telemetry", conn.make_headers(self.timestamp),
                          self.__data)
 
 
@@ -76,8 +76,8 @@ class Printer:
         self.set_handler(const.Command.SEND_INFO, self.get_info)
 
     @classmethod
-    def from_config(cls, path: str, fingerprint: str,
-                    type_: const.Printer, sn: str):
+    def from_config(cls, path: str, fingerprint: str, type_: const.Printer,
+                    sn: str):
         """Load lan_settings.ini config from `path` and create from it
         and from `fingerprint` a Connection and set it on `self`"""
         if not os.path.exists(path):
@@ -99,10 +99,15 @@ class Printer:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
         # pylint: disable=unused-argument
         type_, ver, sub = self.type.value
-        return dict(source=const.Source.CONNECT, state=const.Event.INFO,
-                    type=type_, version=ver, subversion=sub,
-                    firmware=self.firmware, ip_address=self.ip,
-                    mac=self.mac, sn=self.sn)
+        return dict(source=const.Source.CONNECT,
+                    state=const.Event.INFO,
+                    type=type_,
+                    version=ver,
+                    subversion=sub,
+                    firmware=self.firmware,
+                    ip_address=self.ip,
+                    mac=self.mac,
+                    sn=self.sn)
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[CommandArgs], Dict[str, Any]]):
@@ -128,6 +133,7 @@ class Printer:
         def wrapper(handler: Callable[[CommandArgs], Dict[str, Any]]):
             self.set_handler(command, handler)
             return handler
+
         return wrapper
 
     def parse_command(self, res):
@@ -143,7 +149,8 @@ class Printer:
             except (TypeError, ValueError):
                 log.error("Invalid Command-Id header: %s",
                           res.headers.get("Command-Id"))
-                event = Event(const.Event.REJECTED, const.Source.CONNECT,
+                event = Event(const.Event.REJECTED,
+                              const.Source.CONNECT,
                               reason="Invalid Command-Id header")
                 self.events.put(event)
                 return res
@@ -153,19 +160,22 @@ class Printer:
                 if content_type == "application/json":
                     data = res.json()
                     if self.command.check_state(command_id):
-                        self.command.accept(
-                            command_id, data.get("command", ""),
-                            data.get("args"))
+                        self.command.accept(command_id,
+                                            data.get("command", ""),
+                                            data.get("args"))
                 elif content_type == "text/x.gcode":
                     if self.command.check_state(command_id):
-                        self.command.accept(
-                            command_id, const.Command.GCODE.value, [res.text])
+                        self.command.accept(command_id,
+                                            const.Command.GCODE.value,
+                                            [res.text])
                 else:
                     raise ValueError("Invalid command content type")
             except Exception as e:  # pylint: disable=broad-except
                 log.exception("")
-                event = Event(const.Event.REJECTED, const.Source.CONNECT,
-                              command_id=command_id, reason=str(e))
+                event = Event(const.Event.REJECTED,
+                              const.Source.CONNECT,
+                              command_id=command_id,
+                              reason=str(e))
                 self.events.put(event)
         return res
 
@@ -179,9 +189,7 @@ class Printer:
             "version": self.type.value[1],
             "firmware": self.firmware
         }
-        headers = {
-            'Content-Type': 'application/json'
-        }
+        headers = {'Content-Type': 'application/json'}
         res = self.conn.post("/p/register", headers=headers, data=data)
         if res.status_code == 200:
             return res.headers['Temporary-Code']
@@ -192,14 +200,12 @@ class Printer:
     # pylint: disable=inconsistent-return-statements
     def get_token(self, tmp_code):
         """If the printer has already been added, return printer token."""
-        headers = {
-            "Temporary-Code": tmp_code
-        }
+        headers = {"Temporary-Code": tmp_code}
         res = self.conn.get("/p/register", headers=headers)
         if res.status_code == 200:
             return res.headers["Token"]
         if res.status_code == 202:
-            return            # printer was not created yet by `/app/printers`
+            return  # printer was not created yet by `/app/printers`
 
         log.debug("Status code: {res.status_code}")
         raise RuntimeError(res.text)

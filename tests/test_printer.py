@@ -57,13 +57,13 @@ tls=False
 class TestPrinter:
     """Tests for Printer class."""
     def test_init(self, requests_mock, connection):
-        requests_mock.post(SERVER+"/p/telemetry", status_code=204)
+        requests_mock.post(SERVER + "/p/telemetry", status_code=204)
 
         printer = Printer(const.Printer.I3MK3S, SN, connection)
         Telemetry(const.State.READY)(printer.conn)
 
-        assert (str(requests_mock.request_history[0])
-                == f"POST {SERVER}/p/telemetry")
+        assert (str(
+            requests_mock.request_history[0]) == f"POST {SERVER}/p/telemetry")
 
     def test_set_handler(self):
         printer = Printer(const.Printer.I3MK3, SN, connection)
@@ -86,11 +86,13 @@ class TestPrinter:
         assert printer.command.handlers[const.Command.GCODE] == gcode
 
     def test_send_info(self, requests_mock, connection):
-        requests_mock.post(
-            SERVER+"/p/telemetry",
-            text='{"command":"SEND_INFO"}',
-            headers={"Command-Id": "1", "Content-Type": "application/json"},
-            status_code=200)
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command":"SEND_INFO"}',
+                           headers={
+                               "Command-Id": "1",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
 
         printer = Printer(const.Printer.I3MK3S, SN, connection)
 
@@ -107,19 +109,21 @@ class TestPrinter:
         event = printer.events.get_nowait()
         assert event.event == const.Event.ACCEPTED
 
-        printer.command()   # run the command
+        printer.command()  # run the command
         assert not printer.events.empty()
         event = printer.events.get_nowait()
         assert event.source == const.Source.MARLIN
         assert event.event == const.Event.FINISHED, event
 
     def test_buildin_send_info(self, requests_mock, connection):
-        requests_mock.post(
-            SERVER+"/p/telemetry",
-            text='{"command":"SEND_INFO"}',
-            headers={"Command-Id": "1", "Content-Type": "application/json"},
-            status_code=200)
-        requests_mock.post(SERVER+"/p/events", status_code=204)
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command":"SEND_INFO"}',
+                           headers={
+                               "Command-Id": "1",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer = Printer(const.Printer.I3MK3, SN, connection)
         res = Telemetry(const.State.READY)(printer.conn)
@@ -129,26 +133,28 @@ class TestPrinter:
         assert not printer.events.empty()
         event = printer.events.get_nowait()
         assert event.event == const.Event.ACCEPTED
-        event(connection)   # send info to mock
+        event(connection)  # send info to mock
 
-        printer.command()   # run the command
+        printer.command()  # run the command
         assert not printer.events.empty()
         event = printer.events.get_nowait()
         assert event.event == const.Event.INFO, event
-        event(connection)   # send info to mock
+        event(connection)  # send info to mock
 
-        assert (str(requests_mock.request_history[1])
-                == f"POST {SERVER}/p/events")
+        assert (str(
+            requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[2].json()
         assert info["event"] == "INFO", info
 
     def test_unknown(self, requests_mock, connection):
-        requests_mock.post(
-            SERVER+"/p/telemetry",
-            text='{"command": "STANDUP"}',
-            headers={"Command-Id": "1", "Content-Type": "application/json"},
-            status_code=200)
-        requests_mock.post(SERVER+"/p/events", status_code=204)
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command": "STANDUP"}',
+                           headers={
+                               "Command-Id": "1",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer = Printer(const.Printer.I3MK3, SN, connection)
         res = Telemetry(const.State.READY)(printer.conn)
@@ -158,27 +164,29 @@ class TestPrinter:
         assert not printer.events.empty()
         event = printer.events.get_nowait()
         assert event.event == const.Event.ACCEPTED
-        event(connection)   # send info to mock
+        event(connection)  # send info to mock
 
-        printer.command()   # run the command
+        printer.command()  # run the command
         assert not printer.events.empty()
         event = printer.events.get_nowait()
         assert event.event == const.Event.REJECTED, event
-        event(connection)   # send answer to mock
+        event(connection)  # send answer to mock
 
-        assert (str(requests_mock.request_history[2])
-                == f"POST {SERVER}/p/events")
+        assert (str(
+            requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[2].json()
         assert info["event"] == "REJECTED", info
         assert info["data"]["reason"] == "Unknown command"
 
     def test_gcode(self, requests_mock, connection):
-        requests_mock.post(
-            SERVER+"/p/telemetry",
-            text='G1 X10.0',
-            headers={"Command-Id": "1", "Content-Type": "text/x.gcode"},
-            status_code=200)
-        requests_mock.post(SERVER+"/p/events", status_code=204)
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='G1 X10.0',
+                           headers={
+                               "Command-Id": "1",
+                               "Content-Type": "text/x.gcode"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer = Printer(const.Printer.I3MK3, SN, connection)
 
@@ -189,35 +197,32 @@ class TestPrinter:
 
         res = Telemetry(const.State.READY)(printer.conn)
         printer.parse_command(res)
-        printer.events.get_nowait()(connection)   # send accepted to mock
-        printer.command()   # run the command
-        printer.events.get_nowait()(connection)   # send finisged to mock
+        printer.events.get_nowait()(connection)  # send accepted to mock
+        printer.command()  # run the command
+        printer.events.get_nowait()(connection)  # send finisged to mock
 
-        assert (str(requests_mock.request_history[1])
-                == f"POST {SERVER}/p/events")
+        assert (str(
+            requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[1].json()
         assert info["event"] == "ACCEPTED", info
-        assert (str(requests_mock.request_history[2])
-                == f"POST {SERVER}/p/events")
+        assert (str(
+            requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[2].json()
         assert info["event"] == "FINISHED", info
 
     def test_register(self, requests_mock, connection):
         mock_tmp_code = "f4c8996fb9"
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        requests_mock.post(
-            SERVER+"/p/register",
-            headers={"Temporary-Code": mock_tmp_code},
-            status_code=200)
+        requests_mock.post(SERVER + "/p/register",
+                           headers={"Temporary-Code": mock_tmp_code},
+                           status_code=200)
 
         tmp_code = printer.register()
         assert tmp_code == mock_tmp_code
 
     def test_register_400_no_mac(self, requests_mock, connection):
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        requests_mock.post(
-            SERVER+"/p/register",
-            status_code=400)
+        requests_mock.post(SERVER + "/p/register", status_code=400)
 
         with pytest.raises(RuntimeError):
             printer.register()
@@ -226,10 +231,9 @@ class TestPrinter:
         tmp_code = "f4c8996fb9"
         token = "9TKC0M6mH7WNZTk4NbHG"
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        requests_mock.get(
-            SERVER+"/p/register",
-            headers={"Token": token},
-            status_code=200)
+        requests_mock.get(SERVER + "/p/register",
+                          headers={"Token": token},
+                          status_code=200)
 
         token_ = printer.get_token(tmp_code)
         assert token == token_
@@ -239,18 +243,14 @@ class TestPrinter:
         Connect."""
         tmp_code = "f4c8996fb9"
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        requests_mock.get(
-            SERVER+"/p/register",
-            status_code=202)
+        requests_mock.get(SERVER + "/p/register", status_code=202)
 
         assert printer.get_token(tmp_code) is None
 
     def test_get_token_invalid_code(self, requests_mock, connection):
         tmp_code = "invalid_tmp_code"
         printer = Printer(const.Printer.I3MK3, SN, connection)
-        requests_mock.get(
-            SERVER+"/p/register",
-            status_code=400)
+        requests_mock.get(SERVER + "/p/register", status_code=400)
 
         with pytest.raises(RuntimeError):
             printer.get_token(tmp_code)

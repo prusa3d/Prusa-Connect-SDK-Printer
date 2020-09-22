@@ -4,7 +4,6 @@ from requests import post, get
 
 class Connection:
     """Connection class for printer."""
-
     def __init__(self, server: str, fingerprint: str, token: str = None):
         self.server = server
         self.fingerprint = fingerprint

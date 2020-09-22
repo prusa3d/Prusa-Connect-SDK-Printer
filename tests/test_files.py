@@ -38,11 +38,9 @@ def nodes():
        return_value=os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
                                     1599740701, 1596120005, 1596120005)))
 @patch("prusa.connect.printer.files.path.abspath", return_value='/a')
-@patch("prusa.connect.printer.files.walk", return_value=[
-    ('/a', ['b', 'c'], ['1.txt']),
-    ('/a/b', [], []),
-    ('/a/c', [], ['2.txt', '3.txt'])
-])
+@patch("prusa.connect.printer.files.walk",
+       return_value=[('/a', ['b', 'c'], ['1.txt']), ('/a/b', [], []),
+                     ('/a/c', [], ['2.txt', '3.txt'])])
 def fs_from_dir(*mocks):
     fs = Filesystem()
     fs.from_dir('/somewhere/on/the/disk/a', 'a')
@@ -63,12 +61,13 @@ def inotify(nodes):
         parts.insert(0, root_dir)
         path = os.path.sep.join(parts)
         if node.is_dir:
-            if not os.path.exists(path):    # root node is already created
+            if not os.path.exists(path):  # root node is already created
                 os.mkdir(path)
         else:
-            open(path, "w").close()         # create file
+            open(path, "w").close()  # create file
         for n in node.children.values():
             create_on_storage(root_dir, n)
+
     tmp_dir = tempfile.TemporaryDirectory()
     create_on_storage(tmp_dir.name, nodes)
 
@@ -96,7 +95,6 @@ def fs(nodes):
 
 class TestFile:
     """Test the methods of the File class"""
-
     def test_add(self):
         root = File("root", is_dir=True)
         assert not root.children
@@ -174,7 +172,6 @@ class TestFile:
 
 class TestFilesystem:
     """Test Filesystem class interface."""
-
     def test_mount(self, fs):
         assert len(fs.mounts) == 1
         assert "a" in fs.mounts
@@ -238,7 +235,6 @@ class TestFilesystem:
 
 class TestINotify:
     """Test events from Inotify class."""
-
     def test_CREATE_file(self, inotify):
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event

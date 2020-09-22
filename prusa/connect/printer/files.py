@@ -11,7 +11,6 @@ from inotify_simple import INotify, flags  # type: ignore
 
 from . import const, log, Event
 
-
 assert Queue
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
@@ -19,8 +18,10 @@ assert Queue
 
 class File:
     """A node of a Filesystem representing either a file or a directory"""
-
-    def __init__(self, name: str, is_dir: bool = False, parent: "File" = None,
+    def __init__(self,
+                 name: str,
+                 is_dir: bool = False,
+                 parent: "File" = None,
                  **attrs):
         """Create a File object
 
@@ -93,7 +94,7 @@ class File:
 
     def delete(self):
         """Delete this node"""
-        if self.parent:    # only if parent is set
+        if self.parent:  # only if parent is set
             del self.parent.children[self.name]
 
     def pprint(self, file=None, _prefix="", _last=True, _first=True):
@@ -158,7 +159,6 @@ class File:
 
 class Mount:
     """Represent a mountpoint"""
-
     def __init__(self, tree: File, mountpoint: str, abs_path_storage: str):
         """
         Initialize a Mount.
@@ -186,7 +186,6 @@ class Filesystem:
     virtual organised by mount (points). This virtual one is then
     sent to Connect.
     """
-
     def __init__(self, sep: str = "/", events: "Queue[Event]" = None):
         """Create a Filesystem (FS).
 
@@ -223,10 +222,7 @@ class Filesystem:
 
         # send MEDIUM_INSERTED event
         if self.events:
-            payload = {
-                "root": f"{self.sep}{name}",
-                "files": tree.to_dict()
-            }
+            payload = {"root": f"{self.sep}{name}", "files": tree.to_dict()}
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
     def umount(self, name: str):
@@ -343,7 +339,7 @@ class InotifyHandler:
         # pylint: disable=invalid-name
         self.fs = fs
         self.inotify = INotify()
-        self.wds: typing.Dict[int, str] = {}       # watch descriptors
+        self.wds: typing.Dict[int, str] = {}  # watch descriptors
         # init mount watches
         for mount in self.fs.mounts.values():
             self.__init_wd(mount.path_storage, mount.tree)
@@ -373,10 +369,9 @@ class InotifyHandler:
         followed by any DElETE on any of their parents."""
         # TODO add test
         ignorelist = [False] * len(events)
-        rev_events = list(reversed(events))   # we are examining from the end
+        rev_events = list(reversed(events))  # we are examining from the end
         for i, event in enumerate(rev_events):
-            log.debug("Event: %d %s (%s), %s",
-                      i, event,
+            log.debug("Event: %d %s (%s), %s", i, event,
                       [f.name for f in flags.from_mask(event.mask)],
                       self.wds[event.wd])
             if (event.mask & flags.ISDIR and event.mask & flags.DELETE) \
@@ -385,7 +380,7 @@ class InotifyHandler:
                 event_dir = self.wds[event.wd].rstrip(path.sep)
                 if event.mask & flags.DELETE:
                     event_dir = path.join(event_dir, event.name)
-                for j, nxt in enumerate(rev_events[i+1:]):
+                for j, nxt in enumerate(rev_events[i + 1:]):
                     if (nxt.mask & flags.DELETE and nxt.mask & flags.ISDIR) \
                             or nxt.mask & flags.DELETE_SELF:
                         sub_event_dir = self.wds[nxt.wd].rstrip(path.sep)
@@ -420,7 +415,8 @@ class InotifyHandler:
                 abs_path = path.join(parent_dir, event.name)
                 log.debug("Flag: %s %s %s", flag.name, abs_path, event)
                 handler = self.SIGNALS[flag.name]
-                handler.send("sdk-printer", abs_path=abs_path,
+                handler.send("sdk-printer",
+                             abs_path=abs_path,
                              is_dir=event.mask & flags.ISDIR)
 
     # pylint: disable=inconsistent-return-statements
@@ -455,7 +451,7 @@ class InotifyHandler:
         node.set_attrs(abs_path)
         if is_dir:
             # add inotify watch
-            self.__init_wd(mount.path_storage, node)     # add inotify watch
+            self.__init_wd(mount.path_storage, node)  # add inotify watch
         self.send_file_changed(file=node,
                                new_path=node.abs_path(mount.mountpoint))
 
@@ -492,7 +488,8 @@ class InotifyHandler:
         path_ = node.abs_path(mount.mountpoint)
         self.send_file_changed(old_path=path_, new_path=path_, file=node)
 
-    def send_file_changed(self, old_path: str = None,
+    def send_file_changed(self,
+                          old_path: str = None,
                           new_path: str = None,
                           file: File = None):
         """If self.fs.events is set, put FIlE_CHANGED event to event queue.
