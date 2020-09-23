@@ -1,7 +1,7 @@
 """Setup of Prusa Connect SDK for Printer."""
 import re
 
-from setuptools import setup, find_namespace_packages
+from setuptools import setup, find_namespace_packages  # type: ignore
 
 METADATA = {}
 with open("prusa/connect/printer/__init__.py", "r") as info:
@@ -33,7 +33,7 @@ setup(name="prusa.connect.sdk.printer",
           "Source Code":
           "https://github.com/prusa3d/Prusa-Connect-SDK-Printer",
       },
-      packages=find_namespace_packages(include=["prusa.connect.*"]),
+      packages=find_namespace_packages(include=["prusa.connect.printer"]),
       long_description=doc(),
       long_description_content_type="text/x-rst",
       classifiers=[

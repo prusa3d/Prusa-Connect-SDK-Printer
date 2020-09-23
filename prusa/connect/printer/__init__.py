@@ -4,13 +4,15 @@ from __future__ import annotations  # noqa
 import configparser
 import os
 from logging import getLogger
-from time import time, sleep
-from queue import Queue
-from typing import Optional, List, Any, Callable, Dict
+from time import time
+from queue import Queue, Empty
+from hashlib import sha256
+from typing import Optional, List, Any, Callable, Dict, Union
+
+from requests import Session
 
 from . import const
-from .connection import Connection
-from .events import Event
+from .models import Event, Telemetry
 from .command import Command
 
 __version__ = "0.1.0"
@@ -30,56 +32,105 @@ __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 
 log = getLogger("connect-printer")
 
-__all__ = ["Printer", "Telemetry", "Event", "Notifications"]
-
-
-class Telemetry:
-    """Telemetry object must contain Printer state, at a minimum."""
-    timestamp: float
-
-    def __init__(self, state: const.State, timestamp: float = None, **kwargs):
-        """
-        timestamp : float
-            If not set int(time.time()*10)/10 is used.
-        """
-        self.timestamp = timestamp or int(
-            time() * 10) * const.TIMESTAMP_PRECISSION
-        self.__data = kwargs
-        self.__data['state'] = state.value
-
-    def __call__(self, conn: Connection):
-        return conn.post("/p/telemetry", conn.make_headers(self.timestamp),
-                         self.__data)
-
+__all__ = ["Printer", "Notifications"]
 
 CommandArgs = Optional[List[Any]]
 
 
 class Printer:
     """Printer representation object."""
-    events: "Queue[Event]"
-    telemetry: "Queue[Telemetry]"
+    queue: "Queue[Union[Event, Telemetry]]"
 
-    def __init__(self, type_: const.Printer, sn: str, conn: Connection):
+    def __init__(self,
+                 type_: const.Printer,
+                 sn: str,
+                 server: str,
+                 token: str = None):
         self.type = type_
-        self.sn = sn
-        self.ip = None
-        self.mac = None
+        self.__sn = sn
+        self.__fingerprint = sha256(sn.encode()).hexdigest()
         self.firmware = None
+        self.network_info = {
+            "lan_mac": None,
+            "lan_ipv4": None,
+            "lan_ipv6": None,
+            "wifi_mac": None,
+            "wifi_ipv4": None,
+            "wifi_ipv6": None,
+            "wifi_ssid": None,
+        }
 
-        self.conn = conn
-        self.events = Queue()
-        self.telemetry = Queue()
+        self.__state = const.State.BUSY
+        self.job_id = None
+
+        self.server = server
+        self.token = token
+        self.conn = Session()
+        self.queue = Queue()
         self.run = False
 
-        self.command = Command(self.events)
+        self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.get_info)
 
+    @property
+    def state(self):
+        """Return printer state."""
+        return self.__state
+
+    @property
+    def fingerprint(self):
+        """Return printer fingerprint."""
+        return self.__fingerprint
+
+    @property
+    def sn(self):
+        """Return printer serial number"""
+        return self.__sn
+
+    def make_headers(self, timestamp: float = None) -> dict:
+        """Return request headers from connection variables."""
+        timestamp = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
+
+        headers = {
+            "Fingerprint": self.__fingerprint,
+            "Timestamp": str(timestamp)
+        }
+        if self.token:
+            headers['Token'] = self.token
+        return headers
+
+    def set_state(self, state: const.State, source: const.Source, **kwargs):
+        """Set printer state and push event about that to queue."""
+        self.__state = state
+        self.event_cb(const.Event.STATE_CHANGED, source, **kwargs)
+
+    def event_cb(self,
+                 event: const.Event,
+                 source: const.Source,
+                 timestamp: float = None,
+                 command_id: int = None,
+                 **kwargs) -> None:
+        """Create event and push it to queue."""
+        if self.job_id:
+            kwargs['job_id'] = self.job_id
+        event_ = Event(event, source, timestamp, command_id, **kwargs)
+        self.queue.put(event_)
+
+    def telemetry(self,
+                  state: const.State,
+                  timestamp: float = None,
+                  **kwargs) -> None:
+        """Create telemetry end push it to queue."""
+        if self.job_id:
+            kwargs['job_id'] = self.job_id
+        telemetry = Telemetry(state, timestamp, **kwargs)
+        self.queue.put(telemetry)
+
     @classmethod
-    def from_config(cls, path: str, fingerprint: str, type_: const.Printer,
-                    sn: str):
-        """Load lan_settings.ini config from `path` and create from it
-        and from `fingerprint` a Connection and set it on `self`"""
+    def from_config(cls, path: str, type_: const.Printer, sn: str):
+        """Load lan_settings.ini config from `path` and create Printer instance
+           from it.
+        """
         if not os.path.exists(path):
             raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
         config = configparser.ConfigParser()
@@ -91,8 +142,7 @@ class Printer:
         if config['connect'].getboolean('tls'):
             protocol = "https"
         server = f"{protocol}://{connect_host}:{connect_port}"
-        conn = Connection(server, fingerprint, token)
-        printer = cls(type_, sn, conn)
+        printer = cls(type_, sn, server, token)
         return printer
 
     def get_info(self, args: CommandArgs) -> Dict[str, Any]:
@@ -100,14 +150,14 @@ class Printer:
         # pylint: disable=unused-argument
         type_, ver, sub = self.type.value
         return dict(source=const.Source.CONNECT,
-                    state=const.Event.INFO,
+                    event=const.Event.INFO,
+                    state=self.__state.value,
                     type=type_,
                     version=ver,
                     subversion=sub,
                     firmware=self.firmware,
-                    ip_address=self.ip,
-                    mac=self.mac,
-                    sn=self.sn)
+                    network_info=self.network_info,
+                    sn=self.__sn)
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[CommandArgs], Dict[str, Any]]):
@@ -149,10 +199,9 @@ class Printer:
             except (TypeError, ValueError):
                 log.error("Invalid Command-Id header: %s",
                           res.headers.get("Command-Id"))
-                event = Event(const.Event.REJECTED,
+                self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
                               reason="Invalid Command-Id header")
-                self.events.put(event)
                 return res
 
             content_type = res.headers.get("content-type")
@@ -172,25 +221,25 @@ class Printer:
                     raise ValueError("Invalid command content type")
             except Exception as e:  # pylint: disable=broad-except
                 log.exception("")
-                event = Event(const.Event.REJECTED,
+                self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
                               command_id=command_id,
                               reason=str(e))
-                self.events.put(event)
         return res
 
     def register(self):
         """Register the printer with Connect and return a registration
         temporary code, or fail with a RuntimeError."""
         data = {
-            "mac": self.mac,
-            "sn": self.sn,
+            "sn": self.__sn,
             "type": self.type.value[0],
             "version": self.type.value[1],
+            "subversion": self.type.value[2],
             "firmware": self.firmware
         }
-        headers = {'Content-Type': 'application/json'}
-        res = self.conn.post("/p/register", headers=headers, data=data)
+        res = self.conn.post(self.server + "/p/register",
+                             headers=self.make_headers(),
+                             json=data)
         if res.status_code == 200:
             return res.headers['Temporary-Code']
 
@@ -200,10 +249,12 @@ class Printer:
     # pylint: disable=inconsistent-return-statements
     def get_token(self, tmp_code):
         """If the printer has already been added, return printer token."""
-        headers = {"Temporary-Code": tmp_code}
-        res = self.conn.get("/p/register", headers=headers)
+        headers = self.make_headers()
+        headers["Temporary-Code"] = tmp_code
+        res = self.conn.get(self.server + "/p/register", headers=headers)
         if res.status_code == 200:
-            return res.headers["Token"]
+            self.token = res.headers["Token"]
+            return self.token
         if res.status_code == 202:
             return  # printer was not created yet by `/app/printers`
 
@@ -219,14 +270,20 @@ class Printer:
         """
         self.run = True
         while self.run:
-            while not self.events.empty():  # fetch events frist
-                event = self.events.get_nowait()
-                event(self.conn)
-            if not self.telemetry.empty():
-                telemetry = self.telemetry.get_nowait()
-                res = telemetry(self.conn)
-                self.parse_command(res)
-            sleep(const.TIMESTAMP_PRECISSION)
+            try:
+                item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
+                if isinstance(item, Telemetry):
+                    headers = self.make_headers(item.timestamp)
+                    res = self.conn.post(self.server + '/p/telemetry',
+                                         headers=headers,
+                                         json=item.to_payload())
+                    self.parse_command(res)
+                else:
+                    self.conn.post(self.server + '/p/events',
+                                   headers=self.make_headers(item.timestamp),
+                                   json=item.to_payload())
+            except Empty:
+                continue
 
 
 def default_notification_handler(code, msg) -> Any:

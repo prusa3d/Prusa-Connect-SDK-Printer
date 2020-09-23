@@ -4,15 +4,17 @@ import shutil
 import stat
 import sys
 import tempfile
+
 from collections import namedtuple
 from unittest.mock import patch
 from queue import Queue
 
 import pytest  # type: ignore
 
+from prusa.connect.printer import const
 from prusa.connect.printer.files import File, Filesystem, \
     InvalidMountpointError, InotifyHandler
-from prusa.connect.printer import const
+from prusa.connect.printer.models import Event
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=no-self-use
@@ -47,11 +49,17 @@ def fs_from_dir(*mocks):
     return fs
 
 
-InotifyFixture = namedtuple('InotifyFixture', ['path', 'handler', 'fs'])
+InotifyFixture = namedtuple('InotifyFixture',
+                            ['path', 'handler', 'fs', 'queue'])
 
 
 @pytest.fixture
-def inotify(nodes):
+def queue():
+    yield Queue()
+
+
+@pytest.fixture
+def inotify(queue, nodes):
     """Create and cleanup the same structure as in `nodes` in a temporary
     directory. This returns the path to the dir on storage, the Inotify
     handler and filesystem as a tuple: (path, handler, filesystem).
@@ -68,21 +76,29 @@ def inotify(nodes):
         for n in node.children.values():
             create_on_storage(root_dir, n)
 
+    def event_cb(event: const.Event,
+                 source: const.Source,
+                 timestamp: float = None,
+                 command_id: int = None,
+                 **kwargs) -> None:
+        event_ = Event(event, source, timestamp, command_id, **kwargs)
+        queue.put(event_)
+
     tmp_dir = tempfile.TemporaryDirectory()
     create_on_storage(tmp_dir.name, nodes)
 
     # mount storage:$tmp_dir as Filesystem:/test
-    fs = Filesystem(events=Queue())
+    fs = Filesystem(event_cb=event_cb)
     fs.from_dir(tmp_dir.name, "test")
     # Test event in queue
-    event = fs.events.get_nowait()
+    event = queue.get_nowait()
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
     assert event.data['root'] == '/test'
     assert len(event.data['files']) == 5
     handler = InotifyHandler(fs)
 
-    yield InotifyFixture(tmp_dir.name, handler, fs)
+    yield InotifyFixture(tmp_dir.name, handler, fs, queue)
     del tmp_dir
 
 
@@ -246,7 +262,7 @@ class TestINotify:
         assert inotify.fs.get("/test/does-not-exit.txt") is None
 
         # check event to Connect
-        event = inotify.fs.events.get_nowait()
+        event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert len(event.data['file']['m_time']) == 6
@@ -266,7 +282,7 @@ class TestINotify:
         assert d.is_dir
 
         # check event to Connect
-        event = inotify.fs.events.get_nowait()
+        event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert len(event.data['file']['m_time']) == 6
@@ -300,8 +316,8 @@ class TestINotify:
 
         # check event to Connect
         event = None
-        while not inotify.fs.events.empty():
-            event = inotify.fs.events.get_nowait()
+        while not inotify.queue.empty():
+            event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] == "/test/simple.txt", event.data
@@ -319,7 +335,7 @@ class TestINotify:
         assert not inotify.fs.get("/test/a/b")
 
         # check event to Connect
-        event = inotify.fs.events.get_nowait()
+        event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] == "/test/a/b"
@@ -336,8 +352,8 @@ class TestINotify:
 
         # check event to Connect
         event = None
-        while not inotify.fs.events.empty():
-            event = inotify.fs.events.get_nowait()
+        while not inotify.queue.empty():
+            event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] == event.data['new_path'] == "/test/"
@@ -361,8 +377,8 @@ class TestINotify:
 
         # check event to Connect
         event = None
-        while not inotify.fs.events.empty():
-            event = inotify.fs.events.get_nowait()
+        while not inotify.queue.empty():
+            event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] is None
@@ -386,8 +402,8 @@ class TestINotify:
 
         # check event to Connect
         event = None
-        while not inotify.fs.events.empty():
-            event = inotify.fs.events.get_nowait()
+        while not inotify.queue.empty():
+            event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['file']['path'] == "1.txt"

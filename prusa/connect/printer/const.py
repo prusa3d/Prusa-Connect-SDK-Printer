@@ -1,7 +1,7 @@
 """Constants and enums for Printer."""
 from enum import Enum
 
-TIMESTAMP_PRECISSION = 0.1  # 100ms
+TIMESTAMP_PRECISION = 0.1  # 100ms
 
 
 class State(Enum):

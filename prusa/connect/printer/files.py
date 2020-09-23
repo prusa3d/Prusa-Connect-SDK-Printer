@@ -4,14 +4,13 @@ from __future__ import annotations
 import typing
 from datetime import datetime
 from os import path, access, W_OK, stat, walk
-from queue import Queue
 
 from blinker import signal  # type: ignore
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import const, log, Event
+from . import const, log
+from .models import EventCallback
 
-assert Queue
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
 
@@ -186,17 +185,17 @@ class Filesystem:
     virtual organised by mount (points). This virtual one is then
     sent to Connect.
     """
-    def __init__(self, sep: str = "/", events: "Queue[Event]" = None):
+    def __init__(self, sep: str = "/", event_cb: EventCallback = None):
         """Create a Filesystem (FS).
 
         :sep: Separator on the FS
-        :events: SDK's Printer.events queue. If set, the FS
-            will put events to queue on mount/umount operations and
-            the InotifyHandler on changes to the FS.
+        :event_cb: SDK's Printer.event_cb method. If set, the FS
+            will call callback to put events to queue on mount/umount
+            operations and the InotifyHandler on changes to the FS.
         """
         self.sep = sep
         self.mounts: typing.Dict[str, Mount] = {}
-        self.events = events
+        self.event_cb = event_cb
 
     def mount(self, name: str, tree: File, storage_path: str = ""):
         """Mount the a tree under a mountpoint.
@@ -221,7 +220,7 @@ class Filesystem:
         self.mounts[name] = Mount(tree, name, storage_path)
 
         # send MEDIUM_INSERTED event
-        if self.events:
+        if self.event_cb:
             payload = {"root": f"{self.sep}{name}", "files": tree.to_dict()}
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
@@ -238,7 +237,7 @@ class Filesystem:
         del self.mounts[name]
 
         # send MEDIUM_EJECTED event
-        if self.events:
+        if self.event_cb:
             payload = {
                 "root": f"{self.sep}{name}",
             }
@@ -303,9 +302,8 @@ class Filesystem:
 
     def connect_event(self, event: const.Event, data: dict):
         """Send an event to connect if `self.events` is set"""
-        if self.events:
-            event_ = Event(event, const.Source.WUI, **data)
-            self.events.put(event_)
+        if self.event_cb:
+            self.event_cb(event, const.Source.WUI, **data)
 
 
 class InotifyHandler:

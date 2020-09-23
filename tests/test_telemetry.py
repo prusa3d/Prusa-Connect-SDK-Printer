@@ -1,21 +1,18 @@
-import pytest  # type: ignore
-import requests  # noqa
-
+"""Tests for telemetry functionality"""
 from prusa.connect.printer import Telemetry, const
-from prusa.connect.printer.connection import Connection
 
-FINGERPRINT = "__fingerprint__"
-SERVER = "http://server"
+# pylint: disable=missing-function-docstring
 
 
-@pytest.fixture()
-def connection():
-    return Connection(SERVER, FINGERPRINT)
+def test_telemetry():
+    telemetry = Telemetry(const.State.READY)
+    assert telemetry.timestamp > 1
+    payload = telemetry.to_payload()
+    assert payload['state'] == 'READY'
 
+    telemetry = Telemetry(const.State.READY, 24)
+    assert telemetry.timestamp == 24
 
-def test_telemetry(requests_mock, connection):
-    requests_mock.post(SERVER + "/p/telemetry", status_code=204)
-
-    Telemetry(const.State.READY)(connection)
-    Telemetry(const.State.READY, 1)(connection)
-    Telemetry(const.State.BUSY, axis_x=3.1)(connection)
+    telemetry = Telemetry(const.State.BUSY, axis_x=3.1, fan=None)
+    payload = telemetry.to_payload()
+    assert payload == {'state': 'BUSY', 'axis_x': 3.1}
