@@ -1,10 +1,9 @@
 """Command class representation."""
-from queue import Queue
 from typing import Optional, List, Any, Dict, Callable
 from logging import getLogger
 
 from . import const
-from .events import Event
+from .models import EventCallback
 
 log = getLogger("connect-printer")
 
@@ -19,9 +18,10 @@ class Command:
     args: Optional[List[Any]]
     handlers: Dict[const.Command, Callable[[CommandArgs], Dict[str, Any]]]
 
-    def __init__(self, events: Queue):
-        self.events = events
+    def __init__(self, event_cb: EventCallback):
+        self.event_cb = event_cb
         self.state = None
+        self.last_state = const.Event.REJECTED
         self.command_id = 0  # 0 mean that there was no command before
         self.command = None
         self.args = []
@@ -34,20 +34,25 @@ class Command:
 
         Otherwise, put right event to queue.
         """
-
         if self.state is not None:  # here comes another command
             if self.command_id != command_id:
-                event = Event(const.Event.REJECTED,
+                self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
                               command_id=command_id,
                               reason="Another command is running",
                               actual_command_id=self.command_id)
-                self.events.put(event)
             else:  # resend state of accepted command
-                event = Event(self.state,
+                # self.state can be changed in other thread, and command
+                # can be FINISHED or REJECT at this time (theoretical).
+                self.event_cb(self.state or self.last_state,
                               const.Source.CONNECT,
                               command_id=command_id)
-                self.events.put(event)
+            return False
+
+        if self.command_id == command_id:  # resend last state of last_command
+            self.event_cb(self.last_state,
+                          const.Source.CONNECT,
+                          command_id=command_id)
             return False
         return True
 
@@ -57,31 +62,30 @@ class Command:
                args: Optional[List[Any]] = None):
         """Accept command (add event to queue)."""
         self.state = const.Event.ACCEPTED
-        self.command_id = self.command_id
+        self.command_id = command_id
         self.command = command
         self.args = args
-        event = Event(self.state, const.Source.CONNECT, command_id=command_id)
-        self.events.put(event)
+        self.event_cb(self.state, const.Source.CONNECT, command_id=command_id)
 
     def reject(self, source: const.Source, reason: str, **kwargs):
         """Reject command with some reason"""
-        event = Event(const.Event.REJECTED,
+        self.last_state = const.Event.REJECTED
+        self.event_cb(self.last_state,
                       source,
                       command_id=self.command_id,
                       reason=reason,
                       **kwargs)
-        self.events.put(event)
         self.state = None
         # don't clean data, which is history in fact
 
     def finish(self,
                source: const.Source,
-               state: const.Event = None,
+               event: const.Event = None,
                **kwargs):
-        """Finish command with optional other state and data."""
-        state = state or const.Event.FINISHED
-        event = Event(state, source, command_id=self.command_id, **kwargs)
-        self.events.put(event)
+        """Finish command with optional other event and data."""
+        event = event or const.Event.FINISHED
+        self.last_state = const.Event.FINISHED
+        self.event_cb(event, source, command_id=self.command_id, **kwargs)
         self.state = None
 
     def __call__(self):
@@ -110,5 +114,5 @@ class Command:
         except Exception as err:  # pylint: disable=broad-except
             log.exception("")
             return self.reject(const.Source.WUI,
-                               reason="command error",
+                               reason="Command error",
                                error=str(err))
