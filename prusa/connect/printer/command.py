@@ -94,7 +94,7 @@ class Command:
         Handler must return **kwargs dictionary for Command.finish method,
         which means that source must be set at least.
         """
-        if self.state is None:
+        if self.state != const.Event.ACCEPTED:
             return None
 
         log.debug("Try to handle %s command.", self.command)

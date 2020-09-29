@@ -2,11 +2,10 @@
 import tempfile
 
 from typing import Optional, List, Any
-from threading import Thread
-from time import sleep
 
 import pytest  # type: ignore
 import requests  # noqa pylint: disable=unused-import
+from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Notifications
 from prusa.connect.printer.models import Telemetry, Event
@@ -80,11 +79,10 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
         printer.event_cb(const.Event.INFO, const.Source.WUI)
 
-        thread = Thread(target=printer.loop)
-        thread.start()
-        sleep(0.1)
-        printer.run = False
-        thread.join()
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
 
         assert (str(
             requests_mock.request_history[0]) == f"POST {SERVER}/p/events")
@@ -120,11 +118,11 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
-        thread = Thread(target=printer.loop)
-        thread.start()
-        sleep(0.1)
-        printer.run = False
-        thread.join()
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
 
         assert printer.command.state == const.Event.ACCEPTED
         assert (str(
@@ -135,11 +133,11 @@ class TestPrinter:
         assert info["command_id"] == 42
 
         printer.command()
-        thread = Thread(target=printer.loop)
-        thread.start()
-        sleep(0.1)
-        printer.run = False
-        thread.join()
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
 
         assert (str(
             requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
@@ -165,11 +163,11 @@ class TestPrinter:
             return dict(source=const.Source.MARLIN)
 
         printer.telemetry(const.State.READY)
-        thread = Thread(target=printer.loop)
-        thread.start()
-        sleep(0.1)
-        printer.run = False
-        thread.join()
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
 
         assert (str(
             requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
@@ -177,11 +175,11 @@ class TestPrinter:
         assert info["event"] == "ACCEPTED", info
 
         printer.command()
-        thread = Thread(target=printer.loop)
-        thread.start()
-        sleep(0.1)
-        printer.run = False
-        thread.join()
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
 
         assert (str(
             requests_mock.request_history[2]) == f"POST {SERVER}/p/events")

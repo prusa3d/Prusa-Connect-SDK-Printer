@@ -67,7 +67,6 @@ class Printer:
         self.token = token
         self.conn = Session()
         self.queue = Queue()
-        self.run = False
 
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.get_info)
@@ -100,7 +99,10 @@ class Printer:
         return headers
 
     def set_state(self, state: const.State, source: const.Source, **kwargs):
-        """Set printer state and push event about that to queue."""
+        """Set printer state and push event about that to queue.
+
+        :source: the initiator of printer state
+        """
         self.__state = state
         self.event_cb(const.Event.STATE_CHANGED, source, **kwargs)
 
@@ -264,12 +266,10 @@ class Printer:
     def loop(self):
         """This method is reponsible /to communication with Connect.
 
-        While Printer.run is True, which is set by this method, it fetches
-        events and telemetry from the queue. When Connect responsed with
-        command, Printer.command will be set.
+        Get item (Event or Telemetry) from queue in loop, and set
+        Printer.command object, when command is answer to telemetry.
         """
-        self.run = True
-        while self.run:
+        while True:
             try:
                 item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
                 if isinstance(item, Telemetry):

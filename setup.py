@@ -34,6 +34,7 @@ setup(name="prusa.connect.sdk.printer",
           "https://github.com/prusa3d/Prusa-Connect-SDK-Printer",
       },
       packages=find_namespace_packages(include=["prusa.connect.printer"]),
+      data_files=[("share/doc/prusa-connect-printer", ["README.rst"])],
       long_description=doc(),
       long_description_content_type="text/x-rst",
       classifiers=[
@@ -45,4 +46,6 @@ setup(name="prusa.connect.sdk.printer",
       ],
       python_requires=">=3.7",
       install_requires=REQUIRES,
-      tests_require=['pytest', 'requests_mock', 'pytest-mypy-plugins'])
+      tests_require=[
+          'pytest', 'requests_mock', 'pytest-mypy-plugins', 'func-timeout'
+      ])
