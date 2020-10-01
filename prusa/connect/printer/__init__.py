@@ -114,6 +114,7 @@ class Printer:
         if self.job_id:
             kwargs['job_id'] = self.job_id
         event_ = Event(event, source, timestamp, command_id, **kwargs)
+        log.debug("Putting event to queue: %s", event_)
         self.queue.put(event_)
 
     def telemetry(self,
@@ -205,6 +206,7 @@ class Printer:
                 return res
 
             content_type = res.headers.get("content-type")
+            log.debug("parse_command res: %s", res.text)
             try:
                 if content_type == "application/json":
                     data = res.json()
@@ -252,6 +254,7 @@ class Printer:
         headers = self.make_headers()
         headers["Temporary-Code"] = tmp_code
         res = self.conn.get(self.server + "/p/register", headers=headers)
+        log.debug("get_token: %s", res.text)
         if res.status_code == 200:
             self.token = res.headers["Token"]
             return self.token
@@ -274,14 +277,19 @@ class Printer:
                 item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
                 if isinstance(item, Telemetry):
                     headers = self.make_headers(item.timestamp)
+                    log.debug("Sending telemetry: %s", item)
                     res = self.conn.post(self.server + '/p/telemetry',
                                          headers=headers,
                                          json=item.to_payload())
+                    log.debug("Telemetry response: %s", res.text)
                     self.parse_command(res)
                 else:
-                    self.conn.post(self.server + '/p/events',
-                                   headers=self.make_headers(item.timestamp),
-                                   json=item.to_payload())
+                    log.debug("Sending event: %s", item)
+                    res = self.conn.post(self.server + '/p/events',
+                                         headers=self.make_headers(
+                                             item.timestamp),
+                                         json=item.to_payload())
+                    log.debug("Event response: %s", res.text)
             except Empty:
                 continue
 
