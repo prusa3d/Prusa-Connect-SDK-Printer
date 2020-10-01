@@ -1,12 +1,11 @@
 Prusa Connect SDK for Printer
 =============================
 
-:Requirements: Base Prusa Connect API knowledge https://connect.prusa3d.com/doc
+:Requirements: basic knowledge of `Prusa Connect API docs <http://dev.connect.prusa:8000/docs>`_.
 
 Printer instance
 ----------------
-You can create Printer instance with constructor, so you must know `server`,
-and `token`, which you can read them from lan_settings.ini.
+You can create a Printer instance using the constructor and passing `server` and `token` to it. These you can find in  `lan_settings.ini`.
 
 .. code:: python
 
@@ -19,8 +18,7 @@ and `token`, which you can read them from lan_settings.ini.
 
     printer.loop()  # communication loop
 
-Or you can use
-Printer.from_config method, which know read these values from ini file.
+Or you can use `Printer.from_config()` method which reads these values from the ini file.
 
 .. code:: python
 
@@ -28,16 +26,15 @@ Printer.from_config method, which know read these values from ini file.
 
     SERVER = "https://connect.prusa3d.com"
     SN = 'SERIAL_NUMBER_FROM_PRINTER'
-    printer = Printer.from_config("./lan_settings_ini", const.Printer.I3MK3, SN)
+    printer = Printer.from_config("./lan_settings.ini", const.Printer.I3MK3, SN)
 
     printer.loop()  # communication loop
 
 
 Registration
 ------------
-When printer is not registered, you must use Printer.register method to
-get temporary code. User must use this code in *Add Printer* form. When printer
-was added to Connect, Printer.get_token method returned persistent token.
+If the printer has not been registered yet, you need to use `Printer.register()` to get a temporary code. This code is then used in the **Add Printer** form in Connect Web. After the printer
+has been added to Connect, `Printer.get_token()` will return printer's persistent token.
 
 .. code:: python
 
@@ -61,8 +58,7 @@ was added to Connect, Printer.get_token method returned persistent token.
 
 Telemetry
 ---------
-Printer must send telemetry each second. While getting telemetry values
-can't be atomic, this must be do in another thread than Printer.loop.
+Printer must send telemetry to connect at least each second. Because obtaining telemetry values might not be atomic, this must be done in a different thread than `Printer.loop`.
 
 .. code:: python
 
@@ -71,32 +67,33 @@ can't be atomic, this must be do in another thread than Printer.loop.
 
     ...
 
-    # start communication loop in another thread
+    # start communication loop
     thread = Thread(target=printer.loop)
     thread.start()
 
-    while True:  # send telemetry each second to internal queue
+    # each second send telemetry to internal queue in the main-thread
+    while True:
         printer.telemetry(const.State.READY, temp_nozzle=24.1, temp_bed=23.2)
         sleep(1)
 
 
 Events
 ------
-Events are way, to send information about printer to Connect. There can be
-split to few groups:
+Events are a way to send information about the printer to Connect. They can be split into a few groups:
 
-    * Command answers - As respond to connect, if command was be ACCEPTED,
-      REJECTED, etc. These answers are handled as events by SDK in
-      Printer.loop method, or in Command.__call__ method.
-    * State change - when Printer state was changed. This events will be
-      send by Printer.set_state method.
-    * FILE INFO events, which are create in FileSystem object.
-    * Or you can inform Connect about other events like (un)mounting storage.
-      You can this do by call Printer.event_cb.
+    * **Command answers** - Response for Connect if the command was be ACCEPTED,
+      REJECTED, etc. These are handled by the SDK in `Printer.loop` method or in `Command.__call__` method.
+    * **State change** - indicating that the printer state has changed. This are sent
+      by `Printer.set_state` method.
+    * **FILE INFO** events which are created by `FileSystem` object.
+    * Alternatively you can inform Connect about other events like (un)mounting storage.
+      You can do this by calling `Printer.event_cb`.
+
+Examples for these groups follow below.
 
 Event callback
 --------------
-You can inform Connect on some specific situation, with another events.
+You can inform Connect about some specific situation using events.
 
 .. code:: python
 
@@ -104,13 +101,13 @@ You can inform Connect on some specific situation, with another events.
 
     ...
 
-    # start communication loop in another thread
+    # start communication loop
     thread = Thread(target=printer.loop)
     thread.start()
 
     try:
         ...
-    except Excpetion as err:
+    except Exception as err:
         # send event to internal queue
         printer.event_cb(const.Event.ATTENTION, const.Source.WUI, reason=str(err))
 
@@ -124,11 +121,11 @@ Printer state
 
     ...
 
-    # start communication loop in another thread
+    # start communication loop
     thread = Thread(target=printer.loop)
     thread.start()
 
-    # switch state each second
+    # toggle the state each second
     while True:
         if printer.state == const.State.READY:
             printer.set_state(const.State.BUSY, const.Source.MARLIN)
@@ -142,13 +139,23 @@ Files
 
 Commands
 --------
-When Connect sends *command* as answer to telemetry, Printer.command object
-will be set. But Printer.loop only set arguments to command, but never call
-command handler. This must be happen in another (main) thread.
+When Connect sends a command in the answer to telemetry,
+`Printer.command` object will be created. Please note that the `Printer.loop`
+only creates and parametrizes this command instance. It never
+calls this command's handler. It must happen in another (e.g. main) thread.
 
-Each command handler must returned dictionary with `source` key. When command
-can emit another event then FINISHED, `event` key must be set. Other arguments
-will be send in `data` structure.
+Each command handler must return a dictionary with at least the `source` key.
+
+Normally each command is marked as finished by the FINISHED event. You
+might want to override it by some other event, e.g. INFO. In that case,
+also the `event` key must be set in the returned dictionary.
+
+Additional data for this event is passed using the `data` key with
+a dictionary as a value.
+
+For further detail see http://dev.connect.prusa:8000/docs/printer_communication
+or have a look at the implementation details in the SDK (INFO event
+handled by the `Printer.get_info()` method).
 
 .. code:: python
 
@@ -162,6 +169,7 @@ will be send in `data` structure.
         """This handler will be called when START_PRINT command was sent to
            the printer."""
         printer.set_state(const.State.PRINTING, const.Source.CONNECT)
+        print("Printing file: {args[0]}")
         ...
 
     @printer.handler(const.Command.STOP_PRINT)
@@ -169,9 +177,10 @@ will be send in `data` structure.
         """This handler will be called when STOP_PRINT command was sent to
            the printer."""
         printer.set_state(const.State.READY, const.Source.CONNECT)
+        print("Printing stopped")
         ...
 
-    # start communication loop in another thread
+    # communication loop
     thread = Thread(target=printer.loop)
     thread.start()
 
