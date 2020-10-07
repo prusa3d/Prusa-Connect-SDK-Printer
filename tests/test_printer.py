@@ -9,6 +9,7 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Notifications
 from prusa.connect.printer.models import Telemetry, Event
+from prusa.connect.printer.errors import SDKServerError, SDKConnectionError
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=no-self-use
@@ -89,6 +90,20 @@ class TestPrinter:
         info = requests_mock.request_history[0].json()
         assert info["event"] == "INFO"
         assert info["source"] == "WUI"
+
+    def test_loop_exception(self, requests_mock, printer):
+        requests_mock.post(SERVER + "/p/events",
+                           status_code=400,
+                           json={'message': 'No Way'})
+        printer.event_cb(const.Event.INFO, const.Source.WUI)
+        with pytest.raises(SDKServerError):
+            printer.loop()
+
+        requests_mock.post(SERVER + "/p/events",
+                           exc=requests.exceptions.ConnectTimeout)
+        printer.event_cb(const.Event.INFO, const.Source.WUI)
+        with pytest.raises(SDKConnectionError):
+            printer.loop()
 
     def test_set_handler(self, printer):
         def send_info(args: Optional[List[Any]]) -> Any:
