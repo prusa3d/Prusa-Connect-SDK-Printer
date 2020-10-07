@@ -3,18 +3,23 @@ from __future__ import annotations  # noqa
 
 import configparser
 import os
+import re
+
 from logging import getLogger
 from time import time
 from queue import Queue, Empty
 from hashlib import sha256
+from json import JSONDecodeError
 from typing import Optional, List, Any, Callable, Dict, Union
 
 from requests import Session
+from requests.exceptions import ConnectTimeout
 
 from . import const
 from .models import Event, Telemetry
 from .files import Filesystem, InotifyHandler
 from .command import Command
+from .errors import SDKServerError, SDKConnectionError
 
 __version__ = "0.1.0"
 __date__ = "13 Aug 2020"  # version date
@@ -32,6 +37,7 @@ __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 # pylint: disable=too-many-instance-attributes
 
 log = getLogger("connect-printer")
+re_conn_reason = re.compile(r"] (.*)")
 
 __all__ = ["Printer", "Notifications"]
 
@@ -316,8 +322,24 @@ class Printer:
                                              item.timestamp),
                                          json=item.to_payload())
                     log.debug("Event response: %s", res.text)
+
+                if res.status_code >= 400:
+                    try:
+                        message = res.json()["message"]
+                        raise SDKServerError(message)
+                    except (JSONDecodeError, KeyError) as err:
+                        raise SDKConnectionError("Wrong Connect answer.") \
+                            from err
             except Empty:
                 continue
+
+            except ConnectTimeout as err:
+                raise SDKConnectionError(err) from err
+
+            except ConnectionError as err:
+                reason = err.args[0].reason  # pylint: disable=no-member
+                reason = re_conn_reason.search(str(reason)).groups()[0]
+                raise SDKConnectionError(reason) from err
 
     def mount(self, dirpath: str, mountpoint: str):
         """Create a listing of `dirpath` and mount it under `mountpoint`.
