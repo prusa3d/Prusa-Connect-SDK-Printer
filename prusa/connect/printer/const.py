@@ -15,7 +15,7 @@ class State(Enum):
     ATTENTION = "ATTENTION"
 
 
-class Printer(Enum):
+class PrinterType(Enum):
     """Printer Type"""
     I3MK3 = (1, 3, 0)
     I3MK3S = (1, 3, 1)

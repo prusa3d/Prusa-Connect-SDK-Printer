@@ -42,7 +42,7 @@ class Printer:
     queue: "Queue[Union[Event, Telemetry]]"
 
     def __init__(self,
-                 type_: const.Printer,
+                 type_: const.PrinterType,
                  sn: str,
                  server: str,
                  token: str = None):
@@ -130,7 +130,7 @@ class Printer:
         self.queue.put(telemetry)
 
     @classmethod
-    def from_config(cls, path: str, type_: const.Printer, sn: str):
+    def from_config(cls, path: str, type_: const.PrinterType, sn: str):
         """Load lan_settings.ini config from `path` and create Printer instance
            from it.
         """

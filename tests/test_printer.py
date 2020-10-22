@@ -52,7 +52,7 @@ tls=False
 @pytest.fixture()
 def printer():
     """Printer object as fixture."""
-    printer = Printer(const.Printer.I3MK3S, SN, SERVER, TOKEN)
+    printer = Printer(const.PrinterType.I3MK3S, SN, SERVER, TOKEN)
     return printer
 
 
@@ -191,7 +191,7 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/register",
                            headers={"Temporary-Code": mock_tmp_code},
                            status_code=200)
-        printer = Printer(const.Printer.I3MK3, SN, SERVER)
+        printer = Printer(const.PrinterType.I3MK3, SN, SERVER)
         tmp_code = printer.register()
         assert tmp_code == mock_tmp_code
 
@@ -227,14 +227,14 @@ class TestPrinter:
             printer.get_token(tmp_code)
 
     def test_load_lan_settings(self, lan_settings_ini):
-        printer = Printer.from_config(lan_settings_ini, const.Printer.I3MK3,
+        printer = Printer.from_config(lan_settings_ini, const.PrinterType.I3MK3,
                                       SN)
         assert printer.token == TOKEN
         assert printer.server == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 
     def test_from_lan_settings_not_found(self):
         with pytest.raises(FileNotFoundError):
-            Printer.from_config("some_non-existing_file", const.Printer.I3MK3,
+            Printer.from_config("some_non-existing_file", const.PrinterType.I3MK3,
                                 SN)
 
 
