@@ -14,7 +14,7 @@ You can create a Printer instance using the constructor and passing `server` and
     SERVER = "https://connect.prusa3d.com"
     SN = 'SERIAL_NUMBER_FROM_PRINTER'
     TOKEN = 'secret token from lan_settings.ini'
-    printer = Printer(const.Printer.I3MK3, SN, SERVER, TOKEN)
+    printer = Printer(const.PrinterType.I3MK3, SN, SERVER, TOKEN)
 
     printer.loop()  # communication loop
 
@@ -26,7 +26,7 @@ Or you can use `Printer.from_config()` method which reads these values from the 
 
     SERVER = "https://connect.prusa3d.com"
     SN = 'SERIAL_NUMBER_FROM_PRINTER'
-    printer = Printer.from_config("./lan_settings.ini", const.Printer.I3MK3, SN)
+    printer = Printer.from_config("./lan_settings.ini", const.PrinterType.I3MK3, SN)
 
     printer.loop()  # communication loop
 
@@ -43,7 +43,7 @@ has been added to Connect, `Printer.get_token()` will return printer's persisten
 
     SERVER = "https://connect.prusa3d.com"
     SN = 'SERIAL_NUMBER_FROM_PRINTER'
-    printer = Printer(const.Printer.I3MK3, SN, SERVER)
+    printer = Printer(const.PrinterType.I3MK3, SN, SERVER)
 
     tmp_code = printer.register()
     print(f"Use this code `{tmp_code}` in add printer form "
