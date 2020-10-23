@@ -13,6 +13,7 @@ from requests import Session
 
 from . import const
 from .models import Event, Telemetry
+from .files import Filesystem, InotifyHandler
 from .command import Command
 
 __version__ = "0.1.0"
@@ -70,6 +71,9 @@ class Printer:
 
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.get_info)
+
+        self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
+        self.inotify_handler = InotifyHandler(self.fs)
 
     @property
     def state(self):
@@ -267,13 +271,15 @@ class Printer:
         raise RuntimeError(res.text)
 
     def loop(self):
-        """This method is reponsible /to communication with Connect.
+        """This method is responsible for communication with Connect.
 
-        Get item (Event or Telemetry) from queue in loop, and set
-        Printer.command object, when command is answer to telemetry.
+        In a loop it gets an item (Event or Telemetry) from queue and sets
+        Printer.command object, when the command is in the answer to telemetry.
         """
         while True:
             try:
+                self.inotify_handler()
+
                 item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
                 if isinstance(item, Telemetry):
                     headers = self.make_headers(item.timestamp)
@@ -292,6 +298,22 @@ class Printer:
                     log.debug("Event response: %s", res.text)
             except Empty:
                 continue
+
+    def mount(self, dirpath: str, mountpoint: str):
+        """Create a listing of `dirpath` and mount it under `mountpoint`.
+
+        This requires linux kernel with inotify support enabled to work.
+        """
+        self.fs.from_dir(dirpath, mountpoint)
+        self.inotify_handler = InotifyHandler(self.fs)
+
+    def umount(self, mountpoint: str):
+        """Umount `mountpoint`.
+
+        This requires linux kernel with inotify support enabled to work.
+        """
+        self.fs.umount(mountpoint)
+        self.inotify_handler = InotifyHandler(self.fs)
 
 
 def default_notification_handler(code, msg) -> Any:

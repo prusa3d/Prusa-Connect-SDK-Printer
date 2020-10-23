@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 import typing
+from logging import getLogger
 from datetime import datetime
 from os import path, access, W_OK, stat, walk
 
-from blinker import signal  # type: ignore
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import const, log
 from .models import EventCallback
+from . import const
+
+log = getLogger("connect-printer")
 
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
@@ -65,6 +67,9 @@ class File:
         """
         if isinstance(parts, str):
             raise TypeError("`part` must be a collection of strings")
+
+        if parts == [""]:
+            return self
 
         last = self
         for part in parts:
@@ -170,6 +175,11 @@ class Mount:
         self.mountpoint = mountpoint
         self.path_storage = abs_path_storage
 
+    def __str__(self):
+        return f"Mount({self.mountpoint} -> {self.path_storage})"
+
+    __repr__ = __str__
+
 
 class InvalidMountpointError(ValueError):
     """Mountpoint is not valid"""
@@ -178,10 +188,10 @@ class InvalidMountpointError(ValueError):
 
 class Filesystem:
     """Model a collection of Files (which are grouped in to trees).
-    This is like the DOS filesystem flat, therefore unlike in UNIX OSes
-    tress cannot be nested in each other.
+    This is flat like the DOS filesystem, therefore unlike in UNIX OSes
+    trees cannot be nested in each other.
 
-    It translates from physical representation on the storage to
+    A filesystem translates from physical representation on the storage to
     virtual organised by mount (points). This virtual one is then
     sent to Connect.
     """
@@ -190,7 +200,7 @@ class Filesystem:
 
         :sep: Separator on the FS
         :event_cb: SDK's Printer.event_cb method. If set, the FS
-            will call callback to put events to queue on mount/umount
+            will call callback to put events to event queue on mount/umount
             operations and the InotifyHandler on changes to the FS.
         """
         self.sep = sep
@@ -307,31 +317,13 @@ class Filesystem:
 
 
 class InotifyHandler:
-    """This is handler is initialised with a Filesystem instance and
-    using it makes sure that all its mounts `tree`s are updated on changes
+    """This handler is initialised with a Filesystem instance and
+    using it it makes sure that all its mounts' `tree`s are updated on changes
     on the physical storage"""
 
     WATCH_FLAGS = flags.CREATE | flags.DELETE | flags.MODIFY | \
         flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM | \
         flags.MOVE_SELF
-
-    # blinker signals you can subscribe to
-    #  the handling functions always receive the absolute path of the file
-    #  and is_dir flag in a tuple as arguments
-    CREATE = signal("CREATE")
-    DELETE = signal("DELETE")
-    MODIFY = signal("MODIFY")
-
-    # map Inotify signals to our (defined by the `blinker` module)
-    SIGNALS = {
-        "CREATE": CREATE,
-        "MODIFY": MODIFY,
-        "DELETE": DELETE,
-        "MOVED_TO": CREATE,
-        "MOVED_FROM": DELETE,
-        "DELETE_SELF": DELETE,
-        "MOVE_SELF": DELETE,
-    }
 
     def __init__(self, fs: Filesystem):
         # pylint: disable=invalid-name
@@ -341,12 +333,6 @@ class InotifyHandler:
         # init mount watches
         for mount in self.fs.mounts.values():
             self.__init_wd(mount.path_storage, mount.tree)
-        self.__connect_signals()
-
-    def __connect_signals(self):
-        self.CREATE.connect(self.process_create)
-        self.DELETE.connect(self.process_delete)
-        self.MODIFY.connect(self.process_modify)
 
     def __init_wd(self, path_storage, node):
         # pylint: disable=invalid-name
@@ -412,10 +398,9 @@ class InotifyHandler:
                 parent_dir = self.wds[event.wd]
                 abs_path = path.join(parent_dir, event.name)
                 log.debug("Flag: %s %s %s", flag.name, abs_path, event)
-                handler = self.SIGNALS[flag.name]
-                handler.send("sdk-printer",
-                             abs_path=abs_path,
-                             is_dir=event.mask & flags.ISDIR)
+                handler = self.HANDLERS[flag.name]
+                log.debug("Calling %s: %s", handler, abs_path)
+                handler(self, abs_path, event.mask & flags.ISDIR)
 
     # pylint: disable=inconsistent-return-statements
     def mount_for(self, abs_path):
@@ -436,7 +421,7 @@ class InotifyHandler:
         rel_path = abs_path[len(mount.path_storage):]
         return rel_path.rstrip(self.fs.sep).split(self.fs.sep)
 
-    def process_create(self, sender, abs_path, is_dir):
+    def process_create(self, abs_path, is_dir):
         """Handle CREATE inotify signal by creating the file/directory
         determined by `abs_path`. `is_dir` is set, if the event was generated
         for a directory.
@@ -453,7 +438,7 @@ class InotifyHandler:
         self.send_file_changed(file=node,
                                new_path=node.abs_path(mount.mountpoint))
 
-    def process_delete(self, sender, abs_path, is_dir):
+    def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
         indicated by `abs_path`.
         """
@@ -474,7 +459,7 @@ class InotifyHandler:
             path_ = node.abs_path(mount.mountpoint)
             self.send_file_changed(old_path=path_)
 
-    def process_modify(self, sender, abs_path, is_dir):
+    def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
         attributes for a file indicated by `abs_path`.
         """
@@ -504,3 +489,14 @@ class InotifyHandler:
         if file:
             data["file"] = file.to_dict()
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
+
+    # handlers for inotify file events
+    HANDLERS = {
+        "CREATE": process_create,
+        "MODIFY": process_modify,
+        "DELETE": process_delete,
+        "MOVED_TO": process_create,
+        "MOVED_FROM": process_delete,
+        "DELETE_SELF": process_delete,
+        "MOVE_SELF": process_delete,
+    }
