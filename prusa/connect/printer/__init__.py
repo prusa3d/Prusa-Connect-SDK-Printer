@@ -71,6 +71,7 @@ class Printer:
 
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.get_info)
+        self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -165,6 +166,25 @@ class Printer:
                     firmware=self.firmware,
                     network_info=self.network_info,
                     sn=self.__sn)
+
+    def get_file_info(self, args: CommandArgs) -> Dict[str, Any]:
+        """Return file info for a given file, if it exists."""
+        # pylint: disable=unused-argument
+        if not args:
+            raise ValueError("SEND_FILE_INFO requires args")
+
+        path = args[0]
+        node = self.fs.get(path)
+        if node is None:
+            raise ValueError(f"File does not exist: {path}")
+
+        info = dict(
+            source=const.Source.CONNECT,
+            event=const.Event.FILE_INFO,
+            path=path,
+        )
+        info.update(node.attrs)
+        return info
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[CommandArgs], Dict[str, Any]]):

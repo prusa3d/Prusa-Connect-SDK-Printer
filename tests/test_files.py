@@ -24,7 +24,7 @@ from prusa.connect.printer.models import Event
 
 @pytest.fixture
 def nodes():
-    """Create file tree in memmory."""
+    """Create file tree in memory."""
     root = File(None, is_dir=True)
     a = root.add("a", is_dir=True)
     a.add("1.txt")

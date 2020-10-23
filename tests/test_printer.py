@@ -227,21 +227,20 @@ class TestPrinter:
             printer.get_token(tmp_code)
 
     def test_load_lan_settings(self, lan_settings_ini):
-        printer = Printer.from_config(lan_settings_ini, const.PrinterType.I3MK3,
-                                      SN)
+        printer = Printer.from_config(lan_settings_ini,
+                                      const.PrinterType.I3MK3, SN)
         assert printer.token == TOKEN
         assert printer.server == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 
     def test_from_lan_settings_not_found(self):
         with pytest.raises(FileNotFoundError):
-            Printer.from_config("some_non-existing_file", const.PrinterType.I3MK3,
-                                SN)
+            Printer.from_config("some_non-existing_file",
+                                const.PrinterType.I3MK3, SN)
 
     def test_inotify(self, printer):
         # create two dirs. This will test if recreating the InotifyHandler
         # in mount/umount has side effects of creating multiple events
         # for the same thing
-        print("XXX initial fs", id(printer.fs))
         dir1 = tempfile.TemporaryDirectory()
         open(f"{dir1.name}/before1.txt", "w").close()
         printer.mount(dir1.name, "data1")
@@ -277,6 +276,77 @@ class TestPrinter:
         # make sure there is no more events
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
+
+    @staticmethod
+    def _send_file_info(dirpath, filename, requests_mock, printer):
+        printer.mount(dirpath, "test")
+        # MEDIUM_INSERTED event resulting from mounting
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command":"SEND_FILE_INFO", '
+                           f'"args": ["{filename}"]}}',
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert printer.command.state == const.Event.ACCEPTED
+
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[2].json()
+        assert info["event"] == "ACCEPTED"
+        assert info["source"] == "CONNECT"
+        assert info["command_id"] == 42
+
+        printer.command()  # exec SEND_FILE_INFO
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+        assert (str(
+            requests_mock.request_history[3]) == f"POST {SERVER}/p/events")
+        info = requests_mock.request_history[3].json()
+        assert info['command_id'] == 42
+        return info
+
+    def test_send_file_info(self, requests_mock, printer):
+        # create directory to be mounted with some content
+        dir = tempfile.TemporaryDirectory()
+        with open(f"{dir.name}/hello.txt", "w") as f:
+            f.write("Hello World!")
+
+        filename = '/test/hello.txt'
+        info = self._send_file_info(dir.name, filename, requests_mock, printer)
+        assert info["event"] == "FILE_INFO"
+        assert info["source"] == "CONNECT"
+        assert info["data"]['path'] == filename
+        assert info["data"]['size'] == 12
+        assert "m_time" in info['data']
+
+    def test_send_file_info_does_not_exist(self, requests_mock, printer):
+        dir = tempfile.TemporaryDirectory()
+        filename = '/N/A/file.txt'
+        info = self._send_file_info(dir.name, filename, requests_mock, printer)
+        assert info['event'] == 'REJECTED'
+        assert info['source'] == 'WUI'
+        assert info['data'] == {
+            'reason': 'Command error',
+            'error': 'File does not exist: /N/A/file.txt'
+        }
 
 
 def test_notification_handler():
