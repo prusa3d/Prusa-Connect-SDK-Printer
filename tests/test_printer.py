@@ -1,6 +1,6 @@
 """Test for Printer object."""
+import queue
 import tempfile
-
 from typing import Optional, List, Any
 
 import pytest  # type: ignore
@@ -236,6 +236,47 @@ class TestPrinter:
         with pytest.raises(FileNotFoundError):
             Printer.from_config("some_non-existing_file", const.PrinterType.I3MK3,
                                 SN)
+
+    def test_inotify(self, printer):
+        # create two dirs. This will test if recreating the InotifyHandler
+        # in mount/umount has side effects of creating multiple events
+        # for the same thing
+        print("XXX initial fs", id(printer.fs))
+        dir1 = tempfile.TemporaryDirectory()
+        open(f"{dir1.name}/before1.txt", "w").close()
+        printer.mount(dir1.name, "data1")
+
+        dir2 = tempfile.TemporaryDirectory()
+        printer.mount(dir2.name, "data2")
+
+        open(f"{dir1.name}/after1.txt", "w").close()
+        open(f"{dir2.name}/after2.txt", "w").close()
+
+        printer.inotify_handler()  # process inotify events
+
+        # mount of dir1
+        event = printer.queue.get_nowait()
+        assert event.event == const.Event.MEDIUM_INSERTED
+
+        # mount of dir2
+        event = printer.queue.get_nowait()
+        assert event.event == const.Event.MEDIUM_INSERTED
+
+        # after1.txt
+        event = printer.queue.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.data['old_path'] is None
+        assert event.data['new_path'] == '/data1/after1.txt'
+
+        # after2.txt
+        event = printer.queue.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.data['old_path'] is None
+        assert event.data['new_path'] == '/data2/after2.txt'
+
+        # make sure there is no more events
+        with pytest.raises(queue.Empty):
+            printer.queue.get_nowait()
 
 
 def test_notification_handler():
