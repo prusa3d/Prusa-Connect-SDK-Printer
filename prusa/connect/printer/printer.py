@@ -40,6 +40,7 @@ class Printer:
 
         self.__state = const.State.BUSY
         self.job_id = None
+        self.running = False
 
         self.server = server
         self.token = token
@@ -273,7 +274,9 @@ class Printer:
         In a loop it gets an item (Event or Telemetry) from queue and sets
         Printer.command object, when the command is in the answer to telemetry.
         """
-        while True:
+
+        self.running = True
+        while self.running:
             try:
                 self.inotify_handler()
 
@@ -311,3 +314,7 @@ class Printer:
         """
         self.fs.umount(mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
+
+    def stop(self):
+        """Stop the `loop()`, release its thread"""
+        self.running = False
