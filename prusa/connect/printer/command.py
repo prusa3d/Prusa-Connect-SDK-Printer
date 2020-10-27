@@ -1,4 +1,5 @@
 """Command class representation."""
+from multiprocessing import Event
 from typing import Optional, List, Any, Dict, Callable
 from logging import getLogger
 
@@ -26,6 +27,7 @@ class Command:
         self.command = None
         self.args = []
         self.handlers = {}
+        self.new_cmd_evt = Event()
 
     def check_state(self, command_id: int):
         """Check, if Command has right state (None).
@@ -66,6 +68,7 @@ class Command:
         self.command = command
         self.args = args
         self.event_cb(self.state, const.Source.CONNECT, command_id=command_id)
+        self.new_cmd_evt.set()
 
     def reject(self, source: const.Source, reason: str, **kwargs):
         """Reject command with some reason"""
@@ -75,7 +78,7 @@ class Command:
                       command_id=self.command_id,
                       reason=reason,
                       **kwargs)
-        self.state = None
+        self.teardown()
         # don't clean data, which is history in fact
 
     def finish(self,
@@ -86,7 +89,11 @@ class Command:
         event = event or const.Event.FINISHED
         self.last_state = const.Event.FINISHED
         self.event_cb(event, source, command_id=self.command_id, **kwargs)
+        self.teardown()
+
+    def teardown(self):
         self.state = None
+        self.new_cmd_evt.clear()
 
     def __call__(self):
         """Run handler command handler.
