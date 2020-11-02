@@ -106,7 +106,7 @@ class TestPrinter:
             printer.loop()
 
     def test_set_handler(self, printer):
-        def send_info(args: Optional[List[Any]]) -> Any:
+        def send_info(caller, args: Optional[List[Any]]) -> Any:
             assert args
 
         printer.set_handler(const.Command.SEND_INFO, send_info)
@@ -115,7 +115,7 @@ class TestPrinter:
 
     def test_decorator(self, printer):
         @printer.handler(const.Command.GCODE)
-        def gcode(gcode: str) -> None:
+        def gcode(caller, gcode: str) -> None:
             assert gcode
 
         # pylint: disable=comparison-with-callable
@@ -174,7 +174,7 @@ class TestPrinter:
 
         # pylint: disable=unused-variable, unused-argument
         @printer.handler(const.Command.GCODE)
-        def gcode(args: List[str]):
+        def gcode(caller, args: List[str]):
             return dict(source=const.Source.MARLIN)
 
         printer.telemetry(const.State.READY)

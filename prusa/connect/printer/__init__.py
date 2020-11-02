@@ -76,7 +76,7 @@ class Printer:
         self.queue = Queue()
 
         self.command = Command(self.event_cb)
-        self.set_handler(const.Command.SEND_INFO, self.get_info)
+        self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
@@ -159,7 +159,7 @@ class Printer:
         printer = cls(type_, sn, server, token)
         return printer
 
-    def get_info(self, args: CommandArgs) -> Dict[str, Any]:
+    def get_info(self) -> Dict[str, Any]:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
         # pylint: disable=unused-argument
         type_, ver, sub = self.type.value
@@ -173,7 +173,12 @@ class Printer:
                     network_info=self.network_info,
                     sn=self.__sn)
 
-    def get_file_info(self, args: CommandArgs) -> Dict[str, Any]:
+    def send_info(self, caller: Command, args: CommandArgs) -> Dict[str, Any]:
+        """Return kwargs for Command.finish method as reaction to SEND_INFO."""
+        # pylint: disable=unused-argument
+        return self.get_info()
+
+    def get_file_info(self, caller: Command, args: CommandArgs) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""
         # pylint: disable=unused-argument
         if not args:
@@ -193,7 +198,7 @@ class Printer:
         return info
 
     def set_handler(self, command: const.Command,
-                    handler: Callable[[CommandArgs], Dict[str, Any]]):
+                    handler: Callable[[Command, CommandArgs], Dict[str, Any]]):
         """Set handler for command.
 
         Handler must return **kwargs dictionary for Command.finish method,
@@ -213,7 +218,7 @@ class Printer:
             def gcode(prn, gcode):
                 ...
         """
-        def wrapper(handler: Callable[[CommandArgs], Dict[str, Any]]):
+        def wrapper(handler: Callable[["Command", CommandArgs], Dict[str, Any]]):
             self.set_handler(command, handler)
             return handler
 

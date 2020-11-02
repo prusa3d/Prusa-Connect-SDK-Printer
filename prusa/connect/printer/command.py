@@ -17,7 +17,7 @@ class Command:
     state: Optional[const.Event]
     command: Optional[str]
     args: Optional[List[Any]]
-    handlers: Dict[const.Command, Callable[[CommandArgs], Dict[str, Any]]]
+    handlers: Dict[const.Command, Callable[["Command", CommandArgs], Dict[str, Any]]]
 
     def __init__(self, event_cb: EventCallback):
         self.event_cb = event_cb
@@ -116,7 +116,7 @@ class Command:
             log.error("Printer command %s not implemented.", self.command)
             return self.reject(const.Source.WUI, reason="Not Implemented")
         try:
-            kwargs = handler(self.args)
+            kwargs = handler(self, self.args)
             return self.finish(**kwargs)
         except Exception as err:  # pylint: disable=broad-except
             log.exception("")
