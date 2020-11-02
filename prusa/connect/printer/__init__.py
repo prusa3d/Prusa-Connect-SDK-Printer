@@ -255,9 +255,13 @@ class Printer:
                                             data.get("args"))
                 elif content_type == "text/x.gcode":
                     if self.command.check_state(command_id):
+                        force = ("Force" in res.headers and
+                                 res.headers["Force"] == "1")
                         self.command.accept(command_id,
                                             const.Command.GCODE.value,
-                                            [res.text])
+                                            [res.text],
+                                            force=force
+                                            )
                 else:
                     raise ValueError("Invalid command content type")
             except Exception as e:  # pylint: disable=broad-except

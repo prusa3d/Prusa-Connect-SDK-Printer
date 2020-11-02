@@ -27,6 +27,7 @@ class Command:
         self.last_state = const.Event.REJECTED
         self.command_id = 0  # 0 mean that there was no command before
         self.command = None
+        self.force = False
         self.args = []
         self.handlers = {}
         self.new_cmd_evt = Event()
@@ -63,12 +64,14 @@ class Command:
     def accept(self,
                command_id: int,
                command: str,
-               args: Optional[List[Any]] = None):
+               args: Optional[List[Any]] = None,
+               force=False):
         """Accept command (add event to queue)."""
         self.state = const.Event.ACCEPTED
         self.command_id = command_id
         self.command = command
         self.args = args
+        self.force = force
         self.event_cb(self.state, const.Source.CONNECT, command_id=command_id)
         self.new_cmd_evt.set()
 

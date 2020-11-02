@@ -167,7 +167,8 @@ class TestPrinter:
                            text='G1 X10.0',
                            headers={
                                "Command-Id": "1",
-                               "Content-Type": "text/x.gcode"
+                               "Content-Type": "text/x.gcode",
+                               "Force": "1"
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -188,6 +189,7 @@ class TestPrinter:
             requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
         info = requests_mock.request_history[1].json()
         assert info["event"] == "ACCEPTED", info
+        assert printer.command.force
 
         printer.command()
 
