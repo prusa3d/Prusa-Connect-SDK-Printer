@@ -75,7 +75,7 @@ class Printer:
         self.conn = Session()
         self.queue = Queue()
 
-        self.command = Command(self.event_cb)
+        self.command = self.get_new_command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
 
@@ -97,12 +97,20 @@ class Printer:
         """Return printer serial number"""
         return self.__sn
 
+    @staticmethod
+    def get_new_command(event_cb):
+        """
+        Get the singleton instance
+        Makes it easy to subclass the Command class and use it
+        """
+        return Command(event_cb)
+
     def make_headers(self, timestamp: float = None) -> dict:
         """Return request headers from connection variables."""
         timestamp = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
 
         headers = {
-            "Fingerprint": self.__fingerprint,
+            "Fingerprint": self.fingerprint,
             "Timestamp": str(timestamp)
         }
         if self.token:
@@ -171,7 +179,7 @@ class Printer:
                     subversion=sub,
                     firmware=self.firmware,
                     network_info=self.network_info,
-                    sn=self.__sn)
+                    sn=self.sn)
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
@@ -270,7 +278,7 @@ class Printer:
         """Register the printer with Connect and return a registration
         temporary code, or fail with a RuntimeError."""
         data = {
-            "sn": self.__sn,
+            "sn": self.sn,
             "type": self.type.value[0],
             "version": self.type.value[1],
             "subversion": self.type.value[2],
