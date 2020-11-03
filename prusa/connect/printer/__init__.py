@@ -174,7 +174,7 @@ class Printer:
                     sn=self.__sn)
 
     def send_info(self, caller: Command, args: CommandArgs) -> Dict[str, Any]:
-        """Return kwargs for Command.finish method as reaction to SEND_INFO."""
+        """Accept command arguments and adapt the call for the getter"""
         # pylint: disable=unused-argument
         return self.get_info()
 

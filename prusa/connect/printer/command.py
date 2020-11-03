@@ -10,6 +10,8 @@ log = getLogger("connect-printer")
 
 CommandArgs = Optional[List[Any]]
 
+# pylint: disable=too-many-instance-attributes
+
 
 class Command:
     """Command singleton/state like structure."""
@@ -92,6 +94,7 @@ class Command:
         self.teardown()
 
     def teardown(self):
+        """Clear the last command state and prepare to accept a new one"""
         self.state = None
         self.new_cmd_evt.clear()
 
