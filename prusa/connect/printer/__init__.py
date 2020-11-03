@@ -10,7 +10,7 @@ from time import time
 from queue import Queue, Empty
 from hashlib import sha256
 from json import JSONDecodeError
-from typing import Optional, List, Any, Callable, Dict, Union
+from typing import Optional, List, Any, Callable, Dict, Union, Type
 
 from requests import Session
 from requests.exceptions import ConnectTimeout
@@ -34,6 +34,7 @@ __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 
 # pylint: disable=invalid-name
 # pylint: disable=too-few-public-methods
+# pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
 
 log = getLogger("connect-printer")
@@ -52,7 +53,8 @@ class Printer:
                  type_: const.PrinterType,
                  sn: str,
                  server: str,
-                 token: str = None):
+                 token: str = None,
+                 command_class: Type[Command] = Command):
         self.type = type_
         self.__sn = sn
         self.__fingerprint = sha256(sn.encode()).hexdigest()
@@ -75,7 +77,7 @@ class Printer:
         self.conn = Session()
         self.queue = Queue()
 
-        self.command = self.get_new_command(self.event_cb)
+        self.command = command_class(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
 
@@ -96,14 +98,6 @@ class Printer:
     def sn(self):
         """Return printer serial number"""
         return self.__sn
-
-    @staticmethod
-    def get_new_command(event_cb):
-        """
-        Get the singleton instance
-        Makes it easy to subclass the Command class and use it
-        """
-        return Command(event_cb)
 
     def make_headers(self, timestamp: float = None) -> dict:
         """Return request headers from connection variables."""
