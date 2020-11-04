@@ -163,17 +163,20 @@ class File:
 
 class Mount:
     """Represent a mountpoint"""
-    def __init__(self, tree: File, mountpoint: str, abs_path_storage: str):
+    def __init__(self, tree: File, mountpoint: str, abs_path_storage: str,
+                 to_inotify=True):
         """
         Initialize a Mount.
 
         :param tree: tree of File instances
         :param mountpoint: mount point on the virtual FS
         :param abs_path_storage: absolute path on the physical storage
+        :param to_inotify: whether to handle this mount point using inotify
         """
         self.tree = tree
         self.mountpoint = mountpoint
         self.path_storage = abs_path_storage
+        self.to_inotify = to_inotify
 
     def __str__(self):
         return f"Mount({self.mountpoint} -> {self.path_storage})"
@@ -207,12 +210,14 @@ class Filesystem:
         self.mounts: typing.Dict[str, Mount] = {}
         self.event_cb = event_cb
 
-    def mount(self, name: str, tree: File, storage_path: str = ""):
+    def mount(self, name: str, tree: File, storage_path: str = "",
+              to_inotify=True):
         """Mount the a tree under a mountpoint.
 
         :param name: The mountpoint
         :param tree: The tree of `File` instances to be mounted
         :param storage_path: Path on storage
+        :param to_inotify: Whether to use inotify on this mountpoint or not
         :raises InvalidMountpointError: If the mountpoint is already used,
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
@@ -227,7 +232,7 @@ class Filesystem:
         if name in self.mounts:
             raise InvalidMountpointError(f"`{name}` is already used")
 
-        self.mounts[name] = Mount(tree, name, storage_path)
+        self.mounts[name] = Mount(tree, name, storage_path, to_inotify)
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
@@ -332,7 +337,8 @@ class InotifyHandler:
         self.wds: typing.Dict[int, str] = {}  # watch descriptors
         # init mount watches
         for mount in self.fs.mounts.values():
-            self.__init_wd(mount.path_storage, mount.tree)
+            if mount.to_inotify:
+                self.__init_wd(mount.path_storage, mount.tree)
 
     def __init_wd(self, path_storage, node):
         # pylint: disable=invalid-name
