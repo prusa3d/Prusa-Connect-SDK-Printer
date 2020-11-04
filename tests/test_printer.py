@@ -174,7 +174,7 @@ class TestPrinter:
 
         # pylint: disable=unused-variable, unused-argument
         @printer.handler(const.Command.GCODE)
-        def gcode(caller, args: List[str]):
+        def gcode(caller):
             return dict(source=const.Source.MARLIN)
 
         printer.telemetry(const.State.READY)
