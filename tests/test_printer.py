@@ -1,13 +1,13 @@
 """Test for Printer object."""
 import queue
 import tempfile
-from typing import Optional, List, Any
+from typing import Any
 
 import pytest  # type: ignore
 import requests  # noqa pylint: disable=unused-import
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
-from prusa.connect.printer import Printer, const, Notifications
+from prusa.connect.printer import Printer, const, Notifications, Command
 from prusa.connect.printer.models import Telemetry, Event
 from prusa.connect.printer.errors import SDKServerError, SDKConnectionError
 
@@ -106,8 +106,8 @@ class TestPrinter:
             printer.loop()
 
     def test_set_handler(self, printer):
-        def send_info(caller, args: Optional[List[Any]]) -> Any:
-            assert args
+        def send_info(caller: Command) -> Any:
+            assert caller.args
 
         printer.set_handler(const.Command.SEND_INFO, send_info)
         # pylint: disable=comparison-with-callable
@@ -115,8 +115,8 @@ class TestPrinter:
 
     def test_decorator(self, printer):
         @printer.handler(const.Command.GCODE)
-        def gcode(caller, gcode: str) -> None:
-            assert gcode
+        def gcode(caller: Command) -> None:
+            assert caller.args
 
         # pylint: disable=comparison-with-callable
         assert printer.command.handlers[const.Command.GCODE] == gcode
@@ -174,7 +174,7 @@ class TestPrinter:
 
         # pylint: disable=unused-variable, unused-argument
         @printer.handler(const.Command.GCODE)
-        def gcode(caller):
+        def gcode(caller: Command):
             return dict(source=const.Source.MARLIN)
 
         printer.telemetry(const.State.READY)
