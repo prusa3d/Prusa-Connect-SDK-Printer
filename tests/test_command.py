@@ -81,8 +81,8 @@ def test_finish(command, queue):
 
 
 def test_call(command, queue):
-    def handler(caller, args):
-        assert len(args) == 0, args
+    def handler(caller):
+        assert len(caller.args) == 0, caller.args
         return dict(event=const.Event.INFO, source=const.Source.CONNECT, x='x')
 
     command.command = "SEND_INFO"
@@ -110,8 +110,8 @@ def test_call_not_implemented(command, queue):
 
 
 def test_call_exception(command, queue):
-    def handler(caller, args):
-        raise RuntimeError(str(args))
+    def handler(caller):
+        raise RuntimeError(str(caller.args))
 
     command.command = "SEND_INFO"
     command.state = const.Event.ACCEPTED
@@ -134,8 +134,8 @@ def test_unknown(command, queue):
 
 
 def test_command_recall(command, queue):
-    def handler(caller, args):
-        assert len(args) == 0, args
+    def handler(caller):
+        assert len(caller.args) == 0, caller.args
         return dict(event=const.Event.INFO, source=const.Source.CONNECT, x='x')
 
     command.handlers[const.Command.SEND_INFO] = handler

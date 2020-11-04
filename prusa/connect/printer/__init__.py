@@ -173,18 +173,18 @@ class Printer:
                     network_info=self.network_info,
                     sn=self.__sn)
 
-    def send_info(self, caller: Command, args: CommandArgs) -> Dict[str, Any]:
+    def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
         # pylint: disable=unused-argument
         return self.get_info()
 
-    def get_file_info(self, caller: Command, args: CommandArgs) -> Dict[str, Any]:
+    def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""
         # pylint: disable=unused-argument
-        if not args:
+        if not caller.args:
             raise ValueError("SEND_FILE_INFO requires args")
 
-        path = args[0]
+        path = caller.args[0]
         node = self.fs.get(path)
         if node is None:
             raise ValueError(f"File does not exist: {path}")
@@ -198,7 +198,7 @@ class Printer:
         return info
 
     def set_handler(self, command: const.Command,
-                    handler: Callable[[Command, CommandArgs], Dict[str, Any]]):
+                    handler: Callable[[Command], Dict[str, Any]]):
         """Set handler for command.
 
         Handler must return **kwargs dictionary for Command.finish method,
@@ -218,7 +218,7 @@ class Printer:
             def gcode(prn, gcode):
                 ...
         """
-        def wrapper(handler: Callable[["Command", CommandArgs], Dict[str, Any]]):
+        def wrapper(handler: Callable[[Command], Dict[str, Any]]):
             self.set_handler(command, handler)
             return handler
 
