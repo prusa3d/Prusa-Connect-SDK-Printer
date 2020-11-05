@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import typing
+import weakref
 from logging import getLogger
 from datetime import datetime
 from os import path, access, W_OK, stat, walk
@@ -36,9 +37,20 @@ class File:
         """
         self.name = name
         self.is_dir = is_dir
-        self.parent = parent
+        if parent is not None:
+            self._parent: File = weakref.proxy(parent)
+        else:
+            self._parent = None
         self.attrs = attrs
         self.children: dict = {}
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, parent):
+        self._parent = weakref.ref(parent)
 
     def add(self, name: str, is_dir: bool = False, **attrs):
         """Add a file to this File's children.
