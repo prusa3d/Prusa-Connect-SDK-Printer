@@ -38,7 +38,7 @@ class File:
         self.name = name
         self.is_dir = is_dir
         if parent is not None:
-            self._parent: File = weakref.proxy(parent)
+            self._parent: typing.Optional[File] = weakref.proxy(parent)
         else:
             self._parent = None
         self.attrs = attrs
@@ -46,10 +46,26 @@ class File:
 
     @property
     def parent(self):
+        """
+        C: 48, 4: Missing function or method docstring
+        (missing-function-docstring)
+        Well, let me introduce you to the concept of properties.
+        This is a property getter.
+        It retrieves the value of a member variable for you.
+        And when it's a property like this one,
+        you don't even have to use "()"
+        """
         return self._parent
 
     @parent.setter
     def parent(self, parent):
+        """
+        This is a setter, it same as the getter makes it possible
+        to guard access to a variable, this one makes a weak reference
+        of your passed argument and saves it instead of writing
+        straight to the variable, requiring you to convert to a weak
+        reference everywhere you would want to save this field.
+        """
         self._parent = weakref.ref(parent)
 
     def add(self, name: str, is_dir: bool = False, **attrs):
@@ -284,9 +300,10 @@ class Filesystem:
         return self.mounts[mountpoint].tree.get(parts)
 
     def get_os_path(self, abs_path):
+        """Gets the OS file path of the file specified by abs_path"""
         file = self.get(abs_path)
         abs_path = abs_path.strip(self.sep)
-        mount_name, *parts = abs_path.split(self.sep)
+        mount_name = abs_path.split(self.sep)[0]
         mount = self.mounts[mount_name]
         return file.abs_path(mount.path_storage)
 
