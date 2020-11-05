@@ -283,6 +283,13 @@ class Filesystem:
 
         return self.mounts[mountpoint].tree.get(parts)
 
+    def get_os_path(self, abs_path):
+        file = self.get(abs_path)
+        abs_path = abs_path.strip(self.sep)
+        mount_name, *parts = abs_path.split(self.sep)
+        mount = self.mounts[mount_name]
+        return file.abs_path(mount.path_storage)
+
     def to_dict(self):
         """Return all the tree in the representation Connect requires
 
