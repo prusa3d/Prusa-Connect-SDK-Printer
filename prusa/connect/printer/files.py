@@ -138,7 +138,7 @@ class File:
         """:return `self` in the format for Connect Backend"""
         result = {
             "type": "DIR" if self.is_dir else "FILE",
-            "path": self.name,
+            "name": self.name,
         }
         for attr in ("ro", "size", "m_time"):
             if attr in self.attrs:
@@ -290,7 +290,7 @@ class Filesystem:
         """
         root = {
             "type": "DIR",
-            "path": "/",
+            "name": "/",
             "ro": True,
             "children": [m.tree.to_dict() for m in self.mounts.values()]
         }
