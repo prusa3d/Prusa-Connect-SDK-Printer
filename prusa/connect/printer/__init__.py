@@ -21,7 +21,7 @@ from .files import Filesystem, InotifyHandler
 from .command import Command
 from .errors import SDKServerError, SDKConnectionError
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __date__ = "13 Aug 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
@@ -255,13 +255,12 @@ class Printer:
                                             data.get("args"))
                 elif content_type == "text/x.gcode":
                     if self.command.check_state(command_id):
-                        force = ("Force" in res.headers and
-                                 res.headers["Force"] == "1")
+                        force = ("Force" in res.headers
+                                 and res.headers["Force"] == "1")
                         self.command.accept(command_id,
                                             const.Command.GCODE.value,
                                             [res.text],
-                                            force=force
-                                            )
+                                            force=force)
                 else:
                     raise ValueError("Invalid command content type")
             except Exception as e:  # pylint: disable=broad-except
