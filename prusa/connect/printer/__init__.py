@@ -173,6 +173,7 @@ class Printer:
                     subversion=sub,
                     firmware=self.firmware,
                     network_info=self.network_info,
+                    files=self.fs.to_dict(),
                     sn=self.sn)
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
@@ -360,12 +361,12 @@ class Printer:
         self.fs.from_dir(dirpath, mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
 
-    def umount(self, mountpoint: str):
-        """Umount `mountpoint`.
+    def unmount(self, mountpoint: str):
+        """unmount `mountpoint`.
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.umount(mountpoint)
+        self.fs.unmount(mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
 
 

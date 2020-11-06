@@ -231,7 +231,7 @@ class Filesystem:
 
         :sep: Separator on the FS
         :event_cb: SDK's Printer.event_cb method. If set, the FS
-            will call callback to put events to event queue on mount/umount
+            will call callback to put events to event queue on mount/unmount
             operations and the InotifyHandler on changes to the FS.
         """
         self.sep = sep
@@ -267,8 +267,8 @@ class Filesystem:
             payload = {"root": f"{self.sep}{name}", "files": tree.to_dict()}
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
-    def umount(self, name: str):
-        """Umount a mountpoint.
+    def unmount(self, name: str):
+        """unmount a mountpoint.
 
         :param name: The mountpoint
         :raises InvalidMountpointError: if `name` is not mounted
