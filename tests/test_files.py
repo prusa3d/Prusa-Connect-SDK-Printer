@@ -204,14 +204,14 @@ class TestFilesystem:
         with pytest.raises(InvalidMountpointError):
             fs.mount("a", nodes)
 
-    def test_umount(self, fs):
-        fs.umount("a")
+    def test_unmount(self, fs):
+        fs.unmount("a")
         assert len(fs.mounts) == 0
 
-    def test_umount_invalid_mountpoint(self):
+    def test_unmount_invalid_mountpoint(self):
         fs = Filesystem()
         with pytest.raises(ValueError):
-            fs.umount("doesn-not-exist")
+            fs.unmount("doesn-not-exist")
 
     def test_from_dir(self, fs_from_dir, fs):
         b = fs_from_dir.get("/a/b")
@@ -240,13 +240,13 @@ class TestFilesystem:
 
     def test_to_dict(self, fs):
         assert fs.to_dict() == \
-               {'type': 'DIR', 'path': '/', 'ro': True, 'children': [
-                   {'type': 'DIR', 'path': 'a', 'children': [
-                       {'type': 'FILE', 'path': '1.txt'},
-                       {'type': 'DIR', 'path': 'b'},
-                       {'type': 'DIR', 'path': 'c', 'children': [
-                           {'type': 'FILE', 'path': '2.txt'},
-                           {'type': 'FILE', 'path': '3.txt'}]}]}]}
+               {'type': 'DIR', 'name': '/', 'ro': True, 'children': [
+                   {'type': 'DIR', 'name': 'a', 'children': [
+                       {'type': 'FILE', 'name': '1.txt'},
+                       {'type': 'DIR', 'name': 'b'},
+                       {'type': 'DIR', 'name': 'c', 'children': [
+                           {'type': 'FILE', 'name': '2.txt'},
+                           {'type': 'FILE', 'name': '3.txt'}]}]}]}
 
 
 class TestINotify:
@@ -266,7 +266,7 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert len(event.data['file']['m_time']) == 6
-        assert event.data['file']['path'] == "simple.txt"
+        assert event.data['file']['name'] == "simple.txt"
         assert not event.data['file']['ro']
         assert event.data['file']['type'] == "FILE"
         assert event.data['new_path'] == '/test/simple.txt'
@@ -286,7 +286,7 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert len(event.data['file']['m_time']) == 6
-        assert event.data['file']['path'] == "directory"
+        assert event.data['file']['name'] == "directory"
         assert not event.data['file']['ro']
         assert event.data['file']['type'] == "DIR"
         assert event.data['new_path'] == '/test/directory'
@@ -359,7 +359,7 @@ class TestINotify:
         assert event.data['old_path'] == event.data['new_path'] == "/test/"
         assert event.data['file']['type'] == "DIR"
         assert "m_time" not in event.data['file']
-        assert event.data['file']['path'] == "test"
+        assert event.data['file']['name'] == "test"
 
     def test_MOVE_file(self, inotify):
         """Create a file and move it to a different directory"""
@@ -382,7 +382,7 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] is None
-        assert event.data['file']['path'] == "1.txt"
+        assert event.data['file']['name'] == "1.txt"
         assert event.data['new_path'] == "/test/a/c/1.txt"
 
     def test_MODIFY_file(self, inotify):
@@ -406,7 +406,7 @@ class TestINotify:
             event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
-        assert event.data['file']['path'] == "1.txt"
+        assert event.data['file']['name'] == "1.txt"
         assert "m_time" in event.data['file']
         assert event.data['file']['ro']
         assert event.data['old_path'] == "/test/a/1.txt"
