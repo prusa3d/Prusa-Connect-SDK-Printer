@@ -46,27 +46,15 @@ class File:
 
     @property
     def parent(self):
-        """
-        C: 48, 4: Missing function or method docstring
-        (missing-function-docstring)
-        Well, let me introduce you to the concept of properties.
-        This is a property getter.
-        It retrieves the value of a member variable for you.
-        And when it's a property like this one,
-        you don't even have to use "()"
-        """
+        """Gets a parent node"""
         return self._parent
 
     @parent.setter
     def parent(self, parent):
         """
-        This is a setter, it same as the getter makes it possible
-        to guard access to a variable, this one makes a weak reference
-        of your passed argument and saves it instead of writing
-        straight to the variable, requiring you to convert to a weak
-        reference everywhere you would want to save this field.
+        Sets a parent node, uses weakref, to stop the creation of a refloop
         """
-        self._parent = weakref.ref(parent)
+        self._parent = weakref.proxy(parent)
 
     def add(self, name: str, is_dir: bool = False, **attrs):
         """Add a file to this File's children.
@@ -192,19 +180,19 @@ class File:
 class Mount:
     """Represent a mountpoint"""
     def __init__(self, tree: File, mountpoint: str, abs_path_storage: str,
-                 to_inotify=True):
+                 use_inotify=True):
         """
         Initialize a Mount.
 
         :param tree: tree of File instances
         :param mountpoint: mount point on the virtual FS
         :param abs_path_storage: absolute path on the physical storage
-        :param to_inotify: whether to handle this mount point using inotify
+        :param use_inotify: whether to handle this mount point using inotify
         """
         self.tree = tree
         self.mountpoint = mountpoint
         self.path_storage = abs_path_storage
-        self.to_inotify = to_inotify
+        self.use_inotify = use_inotify
 
     def __str__(self):
         return f"Mount({self.mountpoint} -> {self.path_storage})"
@@ -239,13 +227,13 @@ class Filesystem:
         self.event_cb = event_cb
 
     def mount(self, name: str, tree: File, storage_path: str = "",
-              to_inotify=True):
+              use_inotify=True):
         """Mount the a tree under a mountpoint.
 
         :param name: The mountpoint
         :param tree: The tree of `File` instances to be mounted
         :param storage_path: Path on storage
-        :param to_inotify: Whether to use inotify on this mountpoint or not
+        :param use_inotify: Whether to use inotify on this mountpoint or not
         :raises InvalidMountpointError: If the mountpoint is already used,
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
@@ -260,7 +248,7 @@ class Filesystem:
         if name in self.mounts:
             raise InvalidMountpointError(f"`{name}` is already used")
 
-        self.mounts[name] = Mount(tree, name, storage_path, to_inotify)
+        self.mounts[name] = Mount(tree, name, storage_path, use_inotify)
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
@@ -373,7 +361,7 @@ class InotifyHandler:
         self.wds: typing.Dict[int, str] = {}  # watch descriptors
         # init mount watches
         for mount in self.fs.mounts.values():
-            if mount.to_inotify:
+            if mount.use_inotify:
                 self.__init_wd(mount.path_storage, mount.tree)
 
     def __init_wd(self, path_storage, node):
