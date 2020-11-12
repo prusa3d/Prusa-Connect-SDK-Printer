@@ -99,6 +99,10 @@ class Printer:
         """Return printer serial number"""
         return self.__sn
 
+    def is_initialised(self):
+        """Return True if the printer is initialised"""
+        return self.sn and self.fingerprint
+
     def make_headers(self, timestamp: float = None) -> dict:
         """Return request headers from connection variables."""
         timestamp = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
@@ -133,6 +137,8 @@ class Printer:
             kwargs['job_id'] = self.job_id
         event_ = Event(event, source, timestamp, command_id, **kwargs)
         log.debug("Putting event to queue: %s", event_)
+        if not self.is_initialised():
+            log.warning("Printer fingerprint and/or SN is not set")
         self.queue.put(event_)
 
     def telemetry(self,
@@ -142,7 +148,11 @@ class Printer:
         """Create telemetry end push it to queue."""
         if self.job_id:
             kwargs['job_id'] = self.job_id
-        telemetry = Telemetry(state, timestamp, **kwargs)
+        if self.is_initialised():
+            telemetry = Telemetry(state, timestamp, **kwargs)
+        else:
+            telemetry = Telemetry(state, timestamp)
+            log.warning("Printer fingerprint and/or SN is not set")
         self.queue.put(telemetry)
 
     @classmethod
@@ -236,6 +246,12 @@ class Printer:
         When response from connect is command (HTTP Status: 200 OK), it
         will set command object.
         """
+        if not self.is_initialised():
+            msg = "Printer has not been initialized properly"
+            log.warning(msg)
+            self.event_cb(const.Event.REJECTED, const.Source.WUI, reason=msg)
+            return res
+
         if res.status_code == 200:
             command_id: Optional[int] = None
             try:
