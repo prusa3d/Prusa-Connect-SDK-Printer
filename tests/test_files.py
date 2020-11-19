@@ -105,7 +105,7 @@ def inotify(queue, nodes):
 @pytest.fixture
 def fs(nodes):
     fs = Filesystem()
-    fs.mount("a", nodes.a)
+    fs.mount("a", nodes.a, use_inotify=False)
     return fs
 
 
@@ -411,3 +411,10 @@ class TestINotify:
         assert event.data['file']['ro']
         assert event.data['old_path'] == "/test/a/1.txt"
         assert event.data['new_path'] == "/test/a/1.txt"
+
+    def test_connect_302(self, inotify, nodes):
+        inotify.fs.mount("wrong", nodes, storage_path="/t")
+        inotify.fs.mount("right", nodes, storage_path="/tmp")
+
+        mount = inotify.handler.mount_for("/tmp/a/b")
+        assert mount.mountpoint == 'right'
