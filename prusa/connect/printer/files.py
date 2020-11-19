@@ -6,6 +6,7 @@ import weakref
 from logging import getLogger
 from datetime import datetime
 from os import path, access, W_OK, stat, walk
+from collections import Counter
 
 from inotify_simple import INotify, flags  # type: ignore
 
@@ -16,6 +17,21 @@ log = getLogger("connect-printer")
 
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
+
+
+# https://stackoverflow.com/a/18715879
+def common_start(sa, sb):
+    """ returns the longest common substring from the beginning of sa and sb"""
+
+    # pylint: disable=invalid-name
+    def _iter():
+        for a, b in zip(sa, sb):
+            if a == b:
+                yield a
+            else:
+                return
+
+    return ''.join(_iter())
 
 
 class File:
@@ -179,7 +195,10 @@ class File:
 
 class Mount:
     """Represent a mountpoint"""
-    def __init__(self, tree: File, mountpoint: str, abs_path_storage: str,
+    def __init__(self,
+                 tree: File,
+                 mountpoint: str,
+                 abs_path_storage: str = None,
                  use_inotify=True):
         """
         Initialize a Mount.
@@ -189,6 +208,11 @@ class Mount:
         :param abs_path_storage: absolute path on the physical storage
         :param use_inotify: whether to handle this mount point using inotify
         """
+        if use_inotify:
+            if not abs_path_storage:
+                msg = "`use_inotify` requires `abs_path_storage` to be set"
+                raise ValueError(msg)
+        # TODO check other mounts if there is already abs_path_storage used
         self.tree = tree
         self.mountpoint = mountpoint
         self.path_storage = abs_path_storage
@@ -226,7 +250,10 @@ class Filesystem:
         self.mounts: typing.Dict[str, Mount] = {}
         self.event_cb = event_cb
 
-    def mount(self, name: str, tree: File, storage_path: str = "",
+    def mount(self,
+              name: str,
+              tree: File,
+              storage_path: str = "",
               use_inotify=True):
         """Mount the a tree under a mountpoint.
 
@@ -435,9 +462,28 @@ class InotifyHandler:
     # pylint: disable=inconsistent-return-statements
     def mount_for(self, abs_path):
         """Find the proper mount for the `path` in self.fs"""
+        mounts = []
+        # exclude non-applicable mounts
         for mount in self.fs.mounts.values():
-            if abs_path.startswith(mount.path_storage):
-                return mount
+            if not mount.use_inotify:
+                continue
+            if not abs_path.startswith(mount.path_storage):
+                continue
+            mounts.append(mount)
+        # return the mount with the longest match
+        # NOTE this is still not really deterministic. Consider the scenario
+        # mount1:       /tmp/
+        # mount2:       /tmp/a
+        # abs_path:     /tmp/a/d
+        # which one to take in this case?
+        counter = Counter()
+        for mount in mounts:
+            overlap = common_start(mount.path_storage.rstrip(path.sep),
+                                   abs_path)
+            counter[mount] = len(overlap)
+        result = counter.most_common()[0]
+        assert result[1] > 0
+        return result[0]
 
     def __rel_path_parts(self, abs_path, mount) -> typing.List[str]:
         """
