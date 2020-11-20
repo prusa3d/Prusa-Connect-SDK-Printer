@@ -117,7 +117,10 @@ class Printer:
         :source: the initiator of printer state
         """
         self.__state = state
-        self.event_cb(const.Event.STATE_CHANGED, source, **kwargs)
+        self.event_cb(const.Event.STATE_CHANGED,
+                      source,
+                      state=state.value,
+                      **kwargs)
 
     def event_cb(self,
                  event: const.Event,
