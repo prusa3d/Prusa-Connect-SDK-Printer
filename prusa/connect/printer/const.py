@@ -47,6 +47,7 @@ class Source(Enum):
     MARLIN = "MARLIN"
     FIRMWARE = "FIRMWARE"
     HW = "HW"
+    USER = "USER"
 
 
 class Command(Enum):
