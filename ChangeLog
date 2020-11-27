@@ -1,0 +1,6 @@
+ChnageLog
+=========
+
+Version 0.1.3-dev
+
+    * Printer object without sn, fingerprint, server and token
