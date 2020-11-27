@@ -113,7 +113,7 @@ class Printer:
 
     def is_initialised(self):
         """Return True if the printer is initialised"""
-        return self.__sn and self.__fingerprint
+        return bool(self.__sn and self.__fingerprint)
 
     def make_headers(self, timestamp: float = None) -> dict:
         """Return request headers from connection variables."""

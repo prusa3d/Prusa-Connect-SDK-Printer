@@ -59,10 +59,37 @@ def printer():
     return printer
 
 
+@pytest.fixture()
+def printer_no_fp():
+    """Printer without fingerprint."""
+    printer = Printer(const.PrinterType.I3MK3S, SN)
+    printer.server = SERVER
+    printer.token = TOKEN
+    return printer
+
+
 class TestPrinter:
     """Tests for Printer class."""
     def test_init(self, printer):
         assert printer
+
+        assert printer.is_initialised()
+        with pytest.raises(RuntimeError):
+            printer.fingerprint = "foo"
+
+    def test_no_fingerprint(self, printer_no_fp):
+        """Create a use a printer with no fingerprint"""
+        assert printer_no_fp.is_initialised() is False
+
+        # setting fingerprint one time is allowed
+        printer_no_fp.fingerprint = "foo"
+        assert printer_no_fp.fingerprint == "foo"
+
+        # twice is not
+        with pytest.raises(RuntimeError):
+            printer_no_fp.fingerprint = "bar"
+
+        assert printer_no_fp.is_initialised() is True
 
     def test_telemetry(self, printer):
         printer.telemetry(const.State.READY)
@@ -70,6 +97,22 @@ class TestPrinter:
 
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'READY'}
+
+    def test_telemetry_no_fingerprint(self, printer_no_fp):
+        printer_no_fp.telemetry(const.State.READY, temp_bed=1, temp_nozzle=2)
+        item = printer_no_fp.queue.get_nowait()
+        assert isinstance(item, Telemetry)
+        assert item.to_payload() == {'state': 'READY'}
+
+    def test_parse_command_no_fingerprint(self, printer_no_fp):
+        printer_no_fp.parse_command(None)
+        item = printer_no_fp.queue.get_nowait()
+        assert isinstance(item, Event)
+        event_obj = item.to_payload()
+        assert event_obj['event'] == 'REJECTED'
+        assert event_obj['source'] == 'WUI'
+        assert event_obj['data']['reason'] == \
+               'Printer has not been initialized properly'
 
     def test_event(self, printer):
         printer.event_cb(const.Event.INFO, const.Source.WUI)
@@ -163,6 +206,20 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
 
+    def test_loop_no_server(self, requests_mock, printer):
+        printer.server = None
+
+        # put an item to queue
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        # check that no request has been made while server is not set
+        assert not requests_mock.request_history
+
     def test_gcode(self, requests_mock, printer):
         """Test parsing telemetry and call GCODE handler."""
         requests_mock.post(SERVER + "/p/telemetry",
@@ -221,6 +278,12 @@ class TestPrinter:
         with pytest.raises(RuntimeError):
             printer.register()
 
+    def test_register_400_no_server(self, printer):
+        printer.server = None
+
+        with pytest.raises(RuntimeError):
+            printer.register()
+
     def test_get_token(self, requests_mock, printer):
         tmp_code = "f4c8996fb9"
         token = "9TKC0M6mH7WNZTk4NbHG"
@@ -245,6 +308,12 @@ class TestPrinter:
 
         with pytest.raises(RuntimeError):
             printer.get_token(tmp_code)
+
+    def test_get_token_no_server(self, printer):
+        printer.server = None
+
+        with pytest.raises(RuntimeError):
+            printer.get_token("whatever")
 
     def test_load_lan_settings(self, lan_settings_ini):
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
