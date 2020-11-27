@@ -53,7 +53,9 @@ tls=False
 @pytest.fixture()
 def printer():
     """Printer object as fixture."""
-    printer = Printer(const.PrinterType.I3MK3S, SN, SERVER, TOKEN)
+    printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
+    printer.server = SERVER
+    printer.token = TOKEN
     return printer
 
 
@@ -208,7 +210,8 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/register",
                            headers={"Temporary-Code": mock_tmp_code},
                            status_code=200)
-        printer = Printer(const.PrinterType.I3MK3, SN, SERVER)
+        printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
+        printer.server = SERVER
         tmp_code = printer.register()
         assert tmp_code == mock_tmp_code
 
@@ -244,15 +247,17 @@ class TestPrinter:
             printer.get_token(tmp_code)
 
     def test_load_lan_settings(self, lan_settings_ini):
-        printer = Printer.from_config(lan_settings_ini,
-                                      const.PrinterType.I3MK3, SN)
+        printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
+        printer.set_connection(lan_settings_ini)
+
         assert printer.token == TOKEN
         assert printer.server == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 
     def test_from_lan_settings_not_found(self):
+        printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
+
         with pytest.raises(FileNotFoundError):
-            Printer.from_config("some_non-existing_file",
-                                const.PrinterType.I3MK3, SN)
+            printer.set_connection("some_non-existing_file")
 
     def test_inotify(self, printer):
         # create two dirs. This will test if recreating the InotifyHandler

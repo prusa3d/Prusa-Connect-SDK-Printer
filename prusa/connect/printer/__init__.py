@@ -8,7 +8,6 @@ import re
 from logging import getLogger
 from time import time
 from queue import Queue, Empty
-from hashlib import sha256
 from json import JSONDecodeError
 from typing import Optional, List, Any, Callable, Dict, Union, Type
 
@@ -48,16 +47,17 @@ CommandArgs = Optional[List[Any]]
 class Printer:
     """Printer representation object."""
     queue: "Queue[Union[Event, Telemetry]]"
+    server: Optional[str] = None
+    token: Optional[str] = None
 
     def __init__(self,
                  type_: const.PrinterType,
-                 sn: str,
-                 server: str,
-                 token: str = None,
+                 sn: str = None,
+                 fingerprint: str = None,
                  command_class: Type[Command] = Command):
         self.type = type_
         self.__sn = sn
-        self.__fingerprint = sha256(sn.encode()).hexdigest()
+        self.__fingerprint = fingerprint
         self.firmware = None
         self.network_info = {
             "lan_mac": None,
@@ -72,8 +72,6 @@ class Printer:
         self.__state = const.State.BUSY
         self.job_id = None
 
-        self.server = server
-        self.token = token
         self.conn = Session()
         self.queue = Queue()
 
@@ -94,14 +92,28 @@ class Printer:
         """Return printer fingerprint."""
         return self.__fingerprint
 
+    @fingerprint.setter
+    def fingerprint(self, value):
+        """Set fingerprint if is not set."""
+        if self.__fingerprint is not None:
+            raise RuntimeError("Fingerprint is already set.")
+        self.__fingerprint = value
+
     @property
     def sn(self):
         """Return printer serial number"""
         return self.__sn
 
+    @sn.setter
+    def sn(self, value):
+        """Set serial number if is not set."""
+        if self.__sn is not None:
+            raise RuntimeError("Serial number is already set.")
+        self.__sn = value
+
     def is_initialised(self):
         """Return True if the printer is initialised"""
-        return self.sn and self.fingerprint
+        return self.__sn and self.__fingerprint
 
     def make_headers(self, timestamp: float = None) -> dict:
         """Return request headers from connection variables."""
@@ -155,24 +167,24 @@ class Printer:
             log.warning("Printer fingerprint and/or SN is not set")
         self.queue.put(telemetry)
 
-    @classmethod
-    def from_config(cls, path: str, type_: const.PrinterType, sn: str):
-        """Load lan_settings.ini config from `path` and create Printer instance
-           from it.
-        """
+    def set_connection(self, path: str):
+        """Set connection from ini config."""
         if not os.path.exists(path):
             raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
         config = configparser.ConfigParser()
         config.read(path)
-        connect_host = config['connect']['address']
-        connect_port = config['connect'].getint('port')
-        token = config['connect']['token']
-        protocol = "http"
-        if config['connect'].getboolean('tls'):
-            protocol = "https"
-        server = f"{protocol}://{connect_host}:{connect_port}"
-        printer = cls(type_, sn, server, token)
-        return printer
+
+        host = config['connect']['address']
+        tls = config['connect'].getboolean('tls')
+        if tls:
+            protocol = 'https'
+            port = 443
+        else:
+            protocol = 'http'
+            port = 80
+        port = config['connect'].getint('port', fallback=port)
+        self.server = f"{protocol}://{host}:{port}"
+        self.token = config['connect']['token']
 
     def get_info(self) -> Dict[str, Any]:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
@@ -294,6 +306,9 @@ class Printer:
     def register(self):
         """Register the printer with Connect and return a registration
         temporary code, or fail with a RuntimeError."""
+        if not self.server:
+            raise RuntimeError("Server is not set")
+
         data = {
             "sn": self.sn,
             "type": self.type.value[0],
@@ -313,6 +328,9 @@ class Printer:
     # pylint: disable=inconsistent-return-statements
     def get_token(self, tmp_code):
         """If the printer has already been added, return printer token."""
+        if not self.server:
+            raise RuntimeError("Server is not set")
+
         headers = self.make_headers()
         headers["Temporary-Code"] = tmp_code
         res = self.conn.get(self.server + "/p/register", headers=headers)
@@ -337,6 +355,10 @@ class Printer:
                 self.inotify_handler()
 
                 item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
+                if not self.server:
+                    log.warning("Server is not set, skipping item from queue")
+                    continue
+
                 if isinstance(item, Telemetry):
                     headers = self.make_headers(item.timestamp)
                     log.debug("Sending telemetry: %s", item)
