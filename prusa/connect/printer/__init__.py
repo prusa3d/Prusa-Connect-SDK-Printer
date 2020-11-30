@@ -9,7 +9,7 @@ from logging import getLogger
 from time import time
 from queue import Queue, Empty
 from json import JSONDecodeError
-from typing import Optional, List, Any, Callable, Dict, Union, Type
+from typing import Optional, List, Any, Callable, Dict, Union
 
 from requests import Session
 from requests.exceptions import ConnectTimeout
@@ -55,8 +55,7 @@ class Printer:
     def __init__(self,
                  type_: const.PrinterType,
                  sn: str = None,
-                 fingerprint: str = None,
-                 command_class: Type[Command] = Command):
+                 fingerprint: str = None):
         self.type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint
@@ -77,7 +76,7 @@ class Printer:
         self.conn = Session()
         self.queue = Queue()
 
-        self.command = command_class(self.event_cb)
+        self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
 
