@@ -4,7 +4,7 @@ import tempfile
 from typing import Any
 
 import pytest  # type: ignore
-import requests  # noqa pylint: disable=unused-import
+import requests
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Notifications, Command
@@ -105,7 +105,11 @@ class TestPrinter:
         assert item.to_payload() == {'state': 'READY'}
 
     def test_parse_command_no_fingerprint(self, printer_no_fp):
-        printer_no_fp.parse_command(None)
+        res_mock = requests.Response()
+        res_mock.status_code = 200
+        res_mock.headers['Command-Id'] = 42
+
+        printer_no_fp.parse_command(res_mock)
         item = printer_no_fp.queue.get_nowait()
         assert isinstance(item, Event)
         event_obj = item.to_payload()
