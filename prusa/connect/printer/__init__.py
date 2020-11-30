@@ -256,14 +256,8 @@ class Printer:
         """Parse telemetry response.
 
         When response from connect is command (HTTP Status: 200 OK), it
-        will set command object.
+        will set command object, if the printer is initialized properly.
         """
-        if not self.is_initialised():
-            msg = "Printer has not been initialized properly"
-            log.warning(msg)
-            self.event_cb(const.Event.REJECTED, const.Source.WUI, reason=msg)
-            return res
-
         if res.status_code == 200:
             command_id: Optional[int] = None
             try:
@@ -274,6 +268,15 @@ class Printer:
                 self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
                               reason="Invalid Command-Id header")
+                return res
+
+            if not self.is_initialised():
+                msg = "Printer has not been initialized properly"
+                log.warning(msg)
+                self.event_cb(const.Event.REJECTED,
+                              const.Source.WUI,
+                              command_id=command_id,
+                              reason=msg)
                 return res
 
             content_type = res.headers.get("content-type")
