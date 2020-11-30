@@ -50,6 +50,8 @@ class Printer:
     server: Optional[str] = None
     token: Optional[str] = None
 
+    NOT_INITIALISED_MSG = "Printer has not been initialized properly"
+
     def __init__(self,
                  type_: const.PrinterType,
                  sn: str = None,
@@ -81,6 +83,9 @@ class Printer:
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
+
+        if not self.is_initialised():
+            log.warning(self.NOT_INITIALISED_MSG)
 
     @property
     def state(self):
@@ -271,12 +276,10 @@ class Printer:
                 return res
 
             if not self.is_initialised():
-                msg = "Printer has not been initialized properly"
-                log.warning(msg)
                 self.event_cb(const.Event.REJECTED,
                               const.Source.WUI,
                               command_id=command_id,
-                              reason=msg)
+                              reason=self.NOT_INITIALISED_MSG)
                 return res
 
             content_type = res.headers.get("content-type")
