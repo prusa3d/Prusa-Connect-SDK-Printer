@@ -20,8 +20,8 @@ from .files import Filesystem, InotifyHandler
 from .command import Command
 from .errors import SDKServerError, SDKConnectionError
 
-__version__ = "0.1.3-dev"
-__date__ = "27 Nov 2020"  # version date
+__version__ = "0.1.3"
+__date__ = "1 Dec 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
 __author_email__ = "ondrej.tuma@prusa3d.cz"

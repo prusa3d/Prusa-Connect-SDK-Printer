@@ -1,6 +1,7 @@
 ChnageLog
 =========
 
-Version 0.1.3-dev
+0.1.3 (2020-12-01)
 
     * Printer object without sn, fingerprint, server and token
+    * Revert ability to use any Command class as it seems too confusing
