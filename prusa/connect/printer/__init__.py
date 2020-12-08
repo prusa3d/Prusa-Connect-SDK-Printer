@@ -90,6 +90,7 @@ class Printer:
             "wifi_ipv6": None,
             "wifi_ssid": None,
         }
+        self.api_key = None
 
         self.__state = const.State.BUSY
         self.job_id = None
@@ -235,6 +236,7 @@ class Printer:
                     subversion=sub,
                     firmware=self.firmware,
                     network_info=self.network_info,
+                    api_key=self.api_key,
                     files=self.fs.to_dict(),
                     sn=self.sn)
 
