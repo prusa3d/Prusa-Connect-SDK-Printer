@@ -7,7 +7,8 @@ import pytest  # type: ignore
 import requests
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
-from prusa.connect.printer import Printer, const, Notifications, Command
+from prusa.connect.printer import Printer, const, Notifications, Command, \
+    Register
 from prusa.connect.printer.models import Telemetry, Event
 from prusa.connect.printer.errors import SDKServerError, SDKConnectionError
 
@@ -276,6 +277,9 @@ class TestPrinter:
         tmp_code = printer.register()
         assert tmp_code == mock_tmp_code
 
+        item = printer.queue.get()
+        assert item.code == tmp_code
+
     def test_register_400_no_mac(self, requests_mock, printer):
         requests_mock.post(SERVER + "/p/register", status_code=400)
 
@@ -295,29 +299,61 @@ class TestPrinter:
                           headers={"Token": token},
                           status_code=200)
 
-        token_ = printer.get_token(tmp_code)
-        assert token == token_
+        res = printer.get_token(tmp_code)
+        assert res.status_code == 200
+        assert res.headers["Token"] == token
 
-    def test_get_token_202(self, requests_mock, printer):
+    def test_get_token_loop(self, requests_mock, printer):
+        tmp_code = "f4c8996fb9"
+        token = "9TKC0M6mH7WNZTk4NbHG"
+        requests_mock.get(SERVER + "/p/register",
+                          headers={"Token": token},
+                          status_code=200)
+
+        def register_handler(value):
+            assert value == token
+            register_handler.call = 1
+
+        printer.register_handler = register_handler
+        printer.queue.put(Register(tmp_code))
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert (str(
+            requests_mock.request_history[0]) == f"GET {SERVER}/p/register")
+        assert printer.token == token
+        assert register_handler.call == 1
+
+    def test_get_token_202(self, requests_mock):
         """202 - `tmp_code` is fine but the printer has not yet been added to
         Connect."""
+        printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
+        printer.server = SERVER
+
         tmp_code = "f4c8996fb9"
         requests_mock.get(SERVER + "/p/register", status_code=202)
 
-        assert printer.get_token(tmp_code) is None
+        printer.queue.put(Register(tmp_code))
+        try:
+            func_timeout(1.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert (str(
+            requests_mock.request_history[0]) == f"GET {SERVER}/p/register")
+        assert printer.token is None
+        item = printer.queue.get_nowait()
+        assert item.code == tmp_code
 
     def test_get_token_invalid_code(self, requests_mock, printer):
         tmp_code = "invalid_tmp_code"
         requests_mock.get(SERVER + "/p/register", status_code=400)
 
-        with pytest.raises(RuntimeError):
-            printer.get_token(tmp_code)
-
-    def test_get_token_no_server(self, printer):
-        printer.server = None
-
-        with pytest.raises(RuntimeError):
-            printer.get_token("whatever")
+        printer.queue.put(Register(tmp_code))
+        with pytest.raises(SDKConnectionError):
+            printer.loop()
 
     def test_load_lan_settings(self, lan_settings_ini):
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)

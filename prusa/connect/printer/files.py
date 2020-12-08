@@ -17,6 +17,8 @@ log = getLogger("connect-printer")
 
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
+# NOTE: Temporary for pylint with python3.9
+# pylint: disable=unsubscriptable-object
 
 
 # https://stackoverflow.com/a/18715879

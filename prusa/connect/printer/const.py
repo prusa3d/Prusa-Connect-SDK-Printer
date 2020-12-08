@@ -22,6 +22,10 @@ class PrinterType(Enum):
     SL1 = (5, 1, 0)
     MINI = (2, 1, 0)
 
+    def __str__(self):
+        # pylint: disable=not-an-iterable
+        return '.'.join(str(i) for i in self.value)
+
 
 class Event(Enum):
     """Events known by Connect."""
