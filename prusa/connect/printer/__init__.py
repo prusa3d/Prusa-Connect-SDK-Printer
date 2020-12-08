@@ -6,7 +6,7 @@ import os
 import re
 
 from logging import getLogger
-from time import time
+from time import time, sleep
 from queue import Queue, Empty
 from json import JSONDecodeError
 from typing import Optional, List, Any, Callable, Dict, Union
@@ -20,7 +20,7 @@ from .files import Filesystem, InotifyHandler
 from .command import Command
 from .errors import SDKServerError, SDKConnectionError
 
-__version__ = "0.1.3"
+__version__ = "0.1.4.dev"
 __date__ = "1 Dec 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
@@ -35,6 +35,10 @@ __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
+# NOTE: Temporary for pylint with python3.9
+# pylint: disable=unsubscriptable-object
+
+CODE_TIMEOUT = 60 * 30  # 30 min
 
 log = getLogger("connect-printer")
 re_conn_reason = re.compile(r"] (.*)")
@@ -44,9 +48,26 @@ __all__ = ["Printer", "Notifications"]
 CommandArgs = Optional[List[Any]]
 
 
+class Register:
+    """Item for get_token action."""
+    def __init__(self, code):
+        self.code = code
+        self.timeout = int(time()) + CODE_TIMEOUT
+
+
+def default_register_handler(token):
+    """Default register handler.
+
+    It blocks communication with Connect in loop method!
+    """
+    assert token
+
+
 class Printer:
     """Printer representation object."""
-    queue: "Queue[Union[Event, Telemetry]]"
+    # pylint: disable=too-many-public-methods
+
+    queue: "Queue[Union[Event, Telemetry, Register]]"
     server: Optional[str] = None
     token: Optional[str] = None
 
@@ -82,9 +103,27 @@ class Printer:
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
+        # Handler blocks communication with Connect in loop method!
+        self.register_handler = default_register_handler
 
         if not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
+
+    @staticmethod
+    def connect_url(host: str, tls: bool, port: int = 0):
+        """Format url from settings value.
+
+        >>> Printer.connect_url('connect', True)
+        'https://connect'
+        >>> Printer.connect_url('connect', False)
+        'http://connect'
+        >>> Printer.connect_url('connect', False, 8000)
+        'http://connect:8000'
+        """
+        protocol = 'https' if tls else 'http'
+        if port:
+            return f"{protocol}://{host}:{port}"
+        return f"{protocol}://{host}"
 
     @property
     def state(self):
@@ -180,14 +219,8 @@ class Printer:
 
         host = config['connect']['address']
         tls = config['connect'].getboolean('tls')
-        if tls:
-            protocol = 'https'
-            port = 443
-        else:
-            protocol = 'http'
-            port = 80
-        port = config['connect'].getint('port', fallback=port)
-        self.server = f"{protocol}://{host}:{port}"
+        port = config['connect'].getint('port', fallback=0)
+        self.server = Printer.connect_url(host, tls, port)
         self.token = config['connect']['token']
 
     def get_info(self) -> Dict[str, Any]:
@@ -325,29 +358,21 @@ class Printer:
                              headers=self.make_headers(),
                              json=data)
         if res.status_code == 200:
-            return res.headers['Temporary-Code']
+            code = res.headers['Temporary-Code']
+            self.queue.put(Register(code))
+            return code
 
         log.debug("Status code: {res.status_code}")
         raise RuntimeError(res.text)
 
-    # pylint: disable=inconsistent-return-statements
     def get_token(self, tmp_code):
-        """If the printer has already been added, return printer token."""
+        """Prepare request and return response for GET /p/register."""
         if not self.server:
             raise RuntimeError("Server is not set")
 
         headers = self.make_headers()
         headers["Temporary-Code"] = tmp_code
-        res = self.conn.get(self.server + "/p/register", headers=headers)
-        log.debug("get_token: %s", res.text)
-        if res.status_code == 200:
-            self.token = res.headers["Token"]
-            return self.token
-        if res.status_code == 202:
-            return  # printer was not created yet by `/app/printers`
-
-        log.debug("Status code: {res.status_code}")
-        raise RuntimeError(res.text)
+        return self.conn.get(self.server + "/p/register", headers=headers)
 
     def loop(self):
         """This method is responsible for communication with Connect.
@@ -355,6 +380,7 @@ class Printer:
         In a loop it gets an item (Event or Telemetry) from queue and sets
         Printer.command object, when the command is in the answer to telemetry.
         """
+        # pylint: disable=too-many-branches
         while True:
             try:
                 self.inotify_handler()
@@ -372,13 +398,27 @@ class Printer:
                                          json=item.to_payload())
                     log.debug("Telemetry response: %s", res.text)
                     self.parse_command(res)
-                else:
+                elif isinstance(item, Event):
                     log.debug("Sending event: %s", item)
                     res = self.conn.post(self.server + '/p/events',
                                          headers=self.make_headers(
                                              item.timestamp),
                                          json=item.to_payload())
                     log.debug("Event response: %s", res.text)
+                elif isinstance(item, Register):
+                    log.debug("Getting token")
+                    res = self.get_token(item.code)
+                    log.debug("Get register response: (%d) %s",
+                              res.status_code, res.text)
+                    if res.status_code == 200:
+                        self.token = res.headers["Token"]
+                        log.info("New token was set.")
+                        self.register_handler(self.token)
+                    elif res.status_code == 202 and item.timeout > time():
+                        self.queue.put(item)
+                        sleep(1)
+                else:
+                    log.error("Unknown item: %s", str(item))
 
                 if res.status_code >= 400:
                     try:

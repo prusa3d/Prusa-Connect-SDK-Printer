@@ -8,9 +8,11 @@ from .models import EventCallback
 
 log = getLogger("connect-printer")
 
-CommandArgs = Optional[List[Any]]
-
 # pylint: disable=too-many-instance-attributes
+# NOTE: Temporary for pylint with python3.9
+# pylint: disable=unsubscriptable-object
+
+CommandArgs = Optional[List[Any]]
 
 
 class Command:

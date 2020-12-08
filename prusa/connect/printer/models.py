@@ -6,6 +6,9 @@ from mypy_extensions import Arg, DefaultArg, KwArg
 
 from . import const
 
+# NOTE: Temporary for pylint with python3.9
+# pylint: disable=unsubscriptable-object
+
 EventCallback = Callable[[
     Arg(const.Event, 'event'),  # noqa
     Arg(const.Source, 'source'),  # noqa
