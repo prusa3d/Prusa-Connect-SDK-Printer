@@ -5,6 +5,7 @@ ChnageLog
 
     * get_token method called in Printer.loop
     * Python 3.9 check
+    * api_key in INFO event
 
 0.1.3 (2020-12-01)
 
