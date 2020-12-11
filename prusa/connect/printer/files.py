@@ -124,7 +124,7 @@ class File:
     def abs_path(self, prefix: str):
         """Return the absolute path of this File
 
-        :param prefix: prefix as a path to be used for absolute path geneartion
+        :param prefix: prefix as a path to be used for absolute path generation
         """
         if not prefix.startswith(path.sep):
             prefix = path.sep + prefix

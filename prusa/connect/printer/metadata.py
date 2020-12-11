@@ -8,7 +8,6 @@ import re
 import zipfile
 from os import path
 from typing import Dict, Any, List
-from . import log
 
 
 class UnknownGcodeFileType(ValueError):
@@ -178,7 +177,9 @@ class SLMetaData(MetaData):
         try:
             super().load()
         except zipfile.BadZipFile:
-            log.error("%s is not a valid SL1 archive", self.filename)
+            # TODO can't import `log` from __init__.py because of
+            #  circular dependencies
+            print("%s is not a valid SL1 archive", self.filename)
 
     def load_from_file(self, filename: str):
         """Load SL1 metadata
