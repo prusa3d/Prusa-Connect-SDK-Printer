@@ -457,10 +457,10 @@ class TestPrinter:
     def test_send_file_info(self, requests_mock, printer):
         # create directory to be mounted with some content
         dir = tempfile.TemporaryDirectory()
-        with open(f"{dir.name}/hello.txt", "w") as f:
+        with open(f"{dir.name}/hello.gcode", "w") as f:
             f.write("Hello World!")
 
-        filename = '/test/hello.txt'
+        filename = '/test/hello.gcode'
         info = self._send_file_info(dir.name, filename, requests_mock, printer)
         assert info["event"] == "FILE_INFO"
         assert info["source"] == "CONNECT"

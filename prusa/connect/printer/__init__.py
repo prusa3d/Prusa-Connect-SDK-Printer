@@ -15,6 +15,7 @@ from requests import Session
 from requests.exceptions import ConnectTimeout
 
 from . import const
+from .metadata import get_metadata
 from .models import Event, Telemetry
 from .files import Filesystem, InotifyHandler
 from .command import Command
@@ -256,12 +257,15 @@ class Printer:
         if node is None:
             raise ValueError(f"File does not exist: {path}")
 
+        meta = get_metadata(self.fs.get_os_path(path))
+
         info = dict(
             source=const.Source.CONNECT,
             event=const.Event.FILE_INFO,
             path=path,
         )
         info.update(node.attrs)
+        info.update(meta.data)
         return info
 
     def set_handler(self, command: const.Command,
