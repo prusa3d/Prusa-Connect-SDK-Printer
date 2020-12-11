@@ -266,6 +266,15 @@ class Printer:
         )
         info.update(node.attrs)
         info.update(meta.data)
+
+        # include the biggest thumbnail, if available
+        if meta.thumbnails:
+            biggest = ""
+            for _, data in meta.thumbnails.items():
+                if len(data) > len(biggest):
+                    biggest = data
+            info['preview'] = biggest.decode()
+
         return info
 
     def set_handler(self, command: const.Command,

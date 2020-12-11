@@ -458,15 +458,31 @@ class TestPrinter:
         # create directory to be mounted with some content
         dir = tempfile.TemporaryDirectory()
         with open(f"{dir.name}/hello.gcode", "w") as f:
-            f.write("Hello World!")
+            f.write("""
+; thumbnail begin 16x16 524
+; iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABUElEQVR4AZ2Sy0rDUBRF8w2Z+6jiB0
+; iUtuQdkpAnCSSEDIKjqvigIBRHDvwg5w4cqSD4VUf3CTdEGjXthU3a3LvX2eeeSNLAUhSFIGnbBbOq
+; qqRp2uYgGHRdZ7MQ/o8yCoNhGGSaJj/7sF/TYOP1akpLbW9Nb9czWpkTfgK2BhEXZlkWua5LQRBQHM
+; eUpikrSRJ6cA95D2cAQpoOgJjYEKAsy6goCqqqilWWJeV5ziCY0ZqAcBrEchyHK6MizHVd06N/RHfG
+; Pj0vTujl4pRNQjCurEmbBAAk8H2fq6MiAE3TMEBImG3b7tK+38xbAGKhxzAMO0i/BbyLoojOpztsBO
+; jp7LhtAcR7+6CDiEuECS3h9+Lb2L/EwUl4nsdzBxBjgz6XKhs+bud0OdsdHqNYsixzFSTBQSFAodGf
+; NQ4B1P+Uf8x9zAIEd/Fn5LGg/858AcjHJAfMY3ljAAAAAElFTkSuQmCC
+; thumbnail end\n""")
+            f.write("\n")
+            f.write("; temperature = 250\n")
+            f.write("; thin_walls = 0\n")
 
         filename = '/test/hello.gcode'
         info = self._send_file_info(dir.name, filename, requests_mock, printer)
         assert info["event"] == "FILE_INFO"
         assert info["source"] == "CONNECT"
         assert info["data"]['path'] == filename
-        assert info["data"]['size'] == 12
+        assert info["data"]['size'] == 628
         assert "m_time" in info['data']
+
+        # now test for metadata and one valid thumbnail (temperature)
+        assert info['data']['temperature'] == 250
+        assert len(info['data']['preview']) == 524
 
     def test_send_file_info_does_not_exist(self, requests_mock, printer):
         dir = tempfile.TemporaryDirectory()
