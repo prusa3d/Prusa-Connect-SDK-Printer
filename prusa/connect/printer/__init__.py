@@ -428,8 +428,11 @@ class Printer:
 
                 if res.status_code >= 400:
                     try:
-                        message = res.json()["message"]
-                        raise SDKServerError(message)
+                        if res.text:
+                            message = res.json()["message"]
+                            raise SDKServerError(message)
+                        else:
+                            raise SDKServerError()
                     except (JSONDecodeError, KeyError) as err:
                         raise SDKConnectionError("Wrong Connect answer.") \
                             from err

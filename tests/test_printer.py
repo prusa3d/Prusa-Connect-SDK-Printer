@@ -352,7 +352,7 @@ class TestPrinter:
         requests_mock.get(SERVER + "/p/register", status_code=400)
 
         printer.queue.put(Register(tmp_code))
-        with pytest.raises(SDKConnectionError):
+        with pytest.raises(SDKServerError):
             printer.loop()
 
     def test_load_lan_settings(self, lan_settings_ini):
