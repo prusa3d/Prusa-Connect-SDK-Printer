@@ -19,7 +19,6 @@ from .metadata import get_metadata
 from .models import Event, Telemetry
 from .files import Filesystem, InotifyHandler
 from .command import Command
-from .errors import SDKServerError, SDKConnectionError
 
 __version__ = "0.1.4.dev"
 __date__ = "1 Dec 2020"  # version date
@@ -438,20 +437,17 @@ class Printer:
                 if res.status_code >= 400:
                     try:
                         message = res.json()["message"]
-                        raise SDKServerError(message)
-                    except (JSONDecodeError, KeyError) as err:
-                        raise SDKConnectionError("Wrong Connect answer.") \
-                            from err
+                    except (JSONDecodeError, KeyError):
+                        message = "Wrong Connect answer."
+                    Notifications.handler(res.status_code, message)
             except Empty:
                 continue
-
             except ConnectTimeout as err:
-                raise SDKConnectionError(err) from err
-
+                Notifications.handler(599, str(err))
             except ConnectionError as err:
                 reason = err.args[0].reason  # pylint: disable=no-member
                 reason = re_conn_reason.search(str(reason)).groups()[0]
-                raise SDKConnectionError(reason) from err
+                Notifications.handler(599, reason)
 
     def mount(self, dirpath: str, mountpoint: str):
         """Create a listing of `dirpath` and mount it under `mountpoint`.
