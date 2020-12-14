@@ -433,7 +433,7 @@ class InotifyHandler:
                             # i+1: 0 is the DELETE_SELF/DELETE (DIR) event,
                             #  1 is the following event
                             ignorelist[i + 1 + j] = True
-        log.debug("ignore: %s", list(enumerate(ignorelist)))
+        # NOTE DBG: log.debug("ignore: %s", list(enumerate(ignorelist)))
         result = [e for (e, i) in zip(rev_events, ignorelist) if not i]
         return result[::-1]
 
