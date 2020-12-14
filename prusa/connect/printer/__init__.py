@@ -4,21 +4,22 @@ from __future__ import annotations  # noqa
 import configparser
 import os
 import re
-
-from logging import getLogger
-from time import time, sleep
-from queue import Queue, Empty
 from json import JSONDecodeError
+from logging import getLogger
+from queue import Queue, Empty
+from time import time, sleep
 from typing import Optional, List, Any, Callable, Dict, Union
 
 from requests import Session
-from requests.exceptions import ConnectTimeout
+# pylint: disable=redefined-builtin
+from requests.exceptions import ConnectionError
 
 from . import const
+from .command import Command
+from .errors import SDKServerError, SDKConnectionError
+from .files import Filesystem, InotifyHandler
 from .metadata import get_metadata
 from .models import Event, Telemetry
-from .files import Filesystem, InotifyHandler
-from .command import Command
 
 __version__ = "0.1.4.dev"
 __date__ = "1 Dec 2020"  # version date
@@ -268,7 +269,7 @@ class Printer:
 
         # include the biggest thumbnail, if available
         if meta.thumbnails:
-            biggest = ""
+            biggest = b""
             for _, data in meta.thumbnails.items():
                 if len(data) > len(biggest):
                     biggest = data
@@ -439,15 +440,23 @@ class Printer:
                         message = res.json()["message"]
                     except (JSONDecodeError, KeyError):
                         message = "Wrong Connect answer."
-                    Notifications.handler(res.status_code, message)
+                    sdk_err = SDKServerError(res.status_code, message)
+                    self.loop_exc_handler(sdk_err)
             except Empty:
                 continue
-            except ConnectTimeout as err:
-                Notifications.handler(599, str(err))
             except ConnectionError as err:
-                reason = err.args[0].reason  # pylint: disable=no-member
-                reason = re_conn_reason.search(str(reason)).groups()[0]
-                Notifications.handler(599, reason)
+                if err.args:
+                    reason = err.args[0]
+                    sdk_err = SDKConnectionError(reason)
+                else:
+                    sdk_err = SDKConnectionError()
+                self.loop_exc_handler(sdk_err)
+
+    def loop_exc_handler(self, err):
+        """This method is called with the exception that happened
+        in `self.loop` as its argument"""
+        # pylint: disable=no-self-use
+        Notifications.handler(599, str(err))
 
     def mount(self, dirpath: str, mountpoint: str):
         """Create a listing of `dirpath` and mount it under `mountpoint`.

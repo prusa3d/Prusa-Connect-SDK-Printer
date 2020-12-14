@@ -177,7 +177,7 @@ class SLMetaData(MetaData):
         try:
             super().load()
         except zipfile.BadZipFile:
-            # TODO can't import `log` from __init__.py because of
+            # NOTE can't import `log` from __init__.py because of
             #  circular dependencies
             print("%s is not a valid SL1 archive", self.filename)
 
