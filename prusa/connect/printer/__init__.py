@@ -21,8 +21,8 @@ from .files import Filesystem, InotifyHandler
 from .metadata import get_metadata
 from .models import Event, Telemetry
 
-__version__ = "0.1.4.dev"
-__date__ = "1 Dec 2020"  # version date
+__version__ = "0.2.0"
+__date__ = "14 Dec 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
 __author_email__ = "ondrej.tuma@prusa3d.cz"
@@ -236,6 +236,7 @@ class Printer:
                     version=ver,
                     subversion=sub,
                     firmware=self.firmware,
+                    sdk=__version__,
                     network_info=self.network_info,
                     api_key=self.api_key,
                     files=self.fs.to_dict(),
