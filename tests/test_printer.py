@@ -51,12 +51,17 @@ tls=False
     return tmpf.name
 
 
+def loop_exc_handler(exc):
+    raise exc
+
+
 @pytest.fixture()
 def printer():
     """Printer object as fixture."""
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.server = SERVER
     printer.token = TOKEN
+    printer.loop_exc_handler = loop_exc_handler
     return printer
 
 
@@ -66,6 +71,7 @@ def printer_no_fp():
     printer = Printer(const.PrinterType.I3MK3S, SN)
     printer.server = SERVER
     printer.token = TOKEN
+    printer.loop_exc_handler = loop_exc_handler
     return printer
 
 
@@ -352,7 +358,7 @@ class TestPrinter:
         requests_mock.get(SERVER + "/p/register", status_code=400)
 
         printer.queue.put(Register(tmp_code))
-        with pytest.raises(SDKConnectionError):
+        with pytest.raises(SDKServerError):
             printer.loop()
 
     def test_load_lan_settings(self, lan_settings_ini):
@@ -458,15 +464,16 @@ class TestPrinter:
         # create directory to be mounted with some content
         dir = tempfile.TemporaryDirectory()
         with open(f"{dir.name}/hello.gcode", "w") as f:
+            # noqa: E501
             f.write("""
 ; thumbnail begin 16x16 524
-; iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABUElEQVR4AZ2Sy0rDUBRF8w2Z+6jiB0
-; iUtuQdkpAnCSSEDIKjqvigIBRHDvwg5w4cqSD4VUf3CTdEGjXthU3a3LvX2eeeSNLAUhSFIGnbBbOq
-; qqRp2uYgGHRdZ7MQ/o8yCoNhGGSaJj/7sF/TYOP1akpLbW9Nb9czWpkTfgK2BhEXZlkWua5LQRBQHM
-; eUpikrSRJ6cA95D2cAQpoOgJjYEKAsy6goCqqqilWWJeV5ziCY0ZqAcBrEchyHK6MizHVd06N/RHfG
-; Pj0vTujl4pRNQjCurEmbBAAk8H2fq6MiAE3TMEBImG3b7tK+38xbAGKhxzAMO0i/BbyLoojOpztsBO
-; jp7LhtAcR7+6CDiEuECS3h9+Lb2L/EwUl4nsdzBxBjgz6XKhs+bud0OdsdHqNYsixzFSTBQSFAodGf
-; NQ4B1P+Uf8x9zAIEd/Fn5LGg/858AcjHJAfMY3ljAAAAAElFTkSuQmCC
+; iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABUElEQVR4AZ2Sy0rDUBRF8w2Z+6ji
+; B0iUtuQdkpAnCSSEDIKjqvigIBRHDvwg5w4cqSD4VUf3CTdEGjXthU3a3LvX2eeeSNLAUhSFIGnb
+; BbOqqqRp2uYgGHRdZ7MQ/o8yCoNhGGSaJj/7sF/TYOP1akpLbW9Nb9czWpkTfgK2BhEXZlkWua5L
+; QRBQHMeUpikrSRJ6cA95D2cAQpoOgJjYEKAsy6goCqqqilWWJeV5ziCY0ZqAcBrEchyHK6MizHVd
+; 06N/RHfGPj0vTujl4pRNQjCurEmbBAAk8H2fq6MiAE3TMEBImG3b7tK+38xbAGKhxzAMO0i/BbyL
+; oojOpztsBOjp7LhtAcR7+6CDiEuECS3h9+Lb2L/EwUl4nsdzBxBjgz6XKhs+bud0OdsdHqNYsixz
+; FSTBQSFAodGfNQ4B1P+Uf8x9zAIEd/Fn5LGg/858AcjHJAfMY3ljAAAAAElFTkSuQmCC
 ; thumbnail end\n""")
             f.write("\n")
             f.write("; temperature = 250\n")
