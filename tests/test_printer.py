@@ -1,4 +1,5 @@
 """Test for Printer object."""
+import os
 import queue
 import tempfile
 from typing import Any
@@ -459,6 +460,134 @@ class TestPrinter:
         info = requests_mock.request_history[3].json()
         assert info['command_id'] == 42
         return info
+
+    def test_call_delete_directory(self, requests_mock, printer):
+        tmp_dir_mount = tempfile.TemporaryDirectory()
+        # mount
+        printer.mount(tmp_dir_mount.name, "test")
+        # create temp dir in mount
+        path = os.path.join(tmp_dir_mount.name, "test_dir")
+        os.makedirs(path)
+        # MEDIUM_INSERTED event resulting from mounting
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command":"DELETE_DIRECTORY", "args": ["/test/test_dir"]}',
+                           headers={
+                               "Command-Id": "666",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert printer.command.state == const.Event.ACCEPTED
+
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[2].json()
+        assert info["event"] == "FILE_CHANGED"
+        assert info["source"] == "WUI"
+
+        printer.command()  # exec DELETE_DIRECTORY
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert os.path.exists(path) is False
+
+    def test_call_delete_file(self, requests_mock, printer):
+        tmp_dir_mount = tempfile.TemporaryDirectory()
+        tmp_file = "test-file.hex"
+        # mount
+        printer.mount(tmp_dir_mount.name, "test")
+        # create temp file in mount
+        file_path = os.path.join(tmp_dir_mount.name, tmp_file)
+        with open(file_path, 'wb') as file_tmp:
+            file_tmp.write(os.urandom(1))
+        # MEDIUM_INSERTED event resulting from mounting
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command":"DELETE_FILE","args": ["/test/test-file.hex"]}',
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[2].json()
+        assert info["event"] == "FILE_CHANGED"
+        assert info["source"] == "WUI"
+
+        printer.command()  # exec DELETE_FILE
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert os.path.exists(file_path) is False
+
+    def test_call_create_directory(self, requests_mock, printer):
+        tmp_dir = tempfile.TemporaryDirectory()
+        printer.mount(tmp_dir.name, "test")
+        # MEDIUM_INSERTED event resulting from mounting
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+        dir_name = "test_dir"
+        path = os.path.join(tmp_dir.name, dir_name)
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text='{"command":"CREATE_DIRECTORY", '
+                                f'"args": ["/test/test_dir"]}}',
+                           headers={
+                               "Command-Id": "666",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert printer.command.state == const.Event.ACCEPTED
+
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[2].json()
+        assert info["event"] == "ACCEPTED"
+        assert info["source"] == "CONNECT"
+
+        printer.command()  # exec CREATE_DIRECTORY
+
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert os.path.exists(path) is True
 
     def test_send_file_info(self, requests_mock, printer):
         # create directory to be mounted with some content

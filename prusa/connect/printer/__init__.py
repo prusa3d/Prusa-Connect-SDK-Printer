@@ -102,6 +102,9 @@ class Printer:
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
+        self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
+        self.set_handler(const.Command.DELETE_FILE, self.delete_file)
+        self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -277,6 +280,56 @@ class Printer:
             info['preview'] = biggest.decode()
 
         return info
+
+    @staticmethod
+    def __delete(relative_path_parameter, inotify_handler, is_dir):
+        """Delete file or directory.
+
+        :param relative_path_parameter: relative path
+        :type relative_path_parameter: list
+        :param inotify_handler: instance of InotifyHandler
+        :param is_dir: True if directory
+        :return: dict
+
+        """
+        abs_path = inotify_handler.get_abs_os_path(
+            relative_path_parameter)
+
+        if os.path.exists(abs_path):
+            if is_dir:
+                os.rmdir(abs_path)
+            else:
+                os.unlink(abs_path)
+            return dict(source=const.Source.CONNECT)
+
+        raise ValueError(f"{caller.command}."
+                         f" File or directory doesn't exist.")
+
+    def delete_file(self, caller: Command) -> Dict[str, Any]:
+        """Accept command arguments for delete file."""
+        if not caller.args:
+            raise ValueError(f"{caller.command} requires args")
+
+        return self.__delete(caller.args[0], self.inotify_handler, False)
+
+    def delete_directory(self, caller: Command) -> Dict[str, Any]:
+        """Accept command arguments for delete directory."""
+        if not caller.args:
+            raise ValueError(f"{caller.command} requires args")
+
+        return self.__delete(caller.args[0], self.inotify_handler, True)
+
+    def create_directory(self, caller: Command) -> Dict[str, Any]:
+        """Accept command arguments for create directory."""
+        if not caller.args:
+            raise ValueError(f"{caller.command} requires args")
+
+        relative_path_parameter = caller.args[0]
+        abs_path = self.inotify_handler.get_abs_os_path(
+            relative_path_parameter)
+
+        os.makedirs(abs_path)
+        return dict(source=const.Source.CONNECT)
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[Command], Dict[str, Any]]):
@@ -463,9 +516,16 @@ class Printer:
         """Create a listing of `dirpath` and mount it under `mountpoint`.
 
         This requires linux kernel with inotify support enabled to work.
+
+        :param dirpath: path of mount directory
+        :type dirpath: str
+        :param mountpoint: name of mountpoint
+        :type mountpoint: str
         """
-        self.fs.from_dir(dirpath, mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
+        self.inotify_handler.init_wd(dirpath)
+
+        self.fs.from_dir(dirpath, mountpoint)
 
     def unmount(self, mountpoint: str):
         """unmount `mountpoint`.

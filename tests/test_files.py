@@ -356,10 +356,8 @@ class TestINotify:
             event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
-        assert event.data['old_path'] == event.data['new_path'] == "/test/"
-        assert event.data['file']['type'] == "DIR"
-        assert "m_time" not in event.data['file']
-        assert event.data['file']['name'] == "test"
+        assert event.data['old_path'] == "/test/"
+        assert event.data['new_path'] is None
 
     def test_MOVE_file(self, inotify):
         """Create a file and move it to a different directory"""
