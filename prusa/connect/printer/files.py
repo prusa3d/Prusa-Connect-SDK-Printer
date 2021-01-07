@@ -38,6 +38,22 @@ def common_start(sa, sb):
     return ''.join(_iter())
 
 
+def delete(abs_path, is_dir):
+    """Delete file or directory.
+
+    :param abs_path: absolute path
+    :param is_dir: True if directory
+    """
+    if os.path.exists(abs_path):
+        if is_dir:
+            os.rmdir(abs_path)
+        else:
+            os.unlink(abs_path)
+    else:
+        raise FileNotFoundError(f"{abs_path}."
+                                f" File or directory doesn't exist.")
+
+
 class File:
     """A node of a Filesystem representing either a file or a directory"""
     def __init__(self,

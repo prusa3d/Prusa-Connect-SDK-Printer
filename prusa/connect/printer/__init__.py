@@ -17,7 +17,7 @@ from requests.exceptions import ConnectionError
 from . import const
 from .command import Command
 from .errors import SDKServerError, SDKConnectionError
-from .files import Filesystem, InotifyHandler
+from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
 
@@ -102,6 +102,9 @@ class Printer:
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
+        self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
+        self.set_handler(const.Command.DELETE_FILE, self.delete_file)
+        self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -277,6 +280,42 @@ class Printer:
             info['preview'] = biggest.decode()
 
         return info
+
+    def delete_file(self, caller: Command) -> Dict[str, Any]:
+        """Handler for delete file."""
+        if not caller.args:
+            raise ValueError(f"{caller.command} requires args")
+
+        abs_path = self.inotify_handler.get_abs_os_path(
+            caller.args[0])
+
+        delete(abs_path, False)
+
+        return dict(source=const.Source.CONNECT)
+
+    def delete_directory(self, caller: Command) -> Dict[str, Any]:
+        """Handler for delete directory."""
+        if not caller.args:
+            raise ValueError(f"{caller.command} requires args")
+
+        abs_path = self.inotify_handler.get_abs_os_path(
+            caller.args[0])
+
+        delete(abs_path, True)
+
+        return dict(source=const.Source.CONNECT)
+
+    def create_directory(self, caller: Command) -> Dict[str, Any]:
+        """Handler for create directory."""
+        if not caller.args:
+            raise ValueError(f"{caller.command} requires args")
+
+        relative_path_parameter = caller.args[0]
+        abs_path = self.inotify_handler.get_abs_os_path(
+            relative_path_parameter)
+
+        os.makedirs(abs_path)
+        return dict(source=const.Source.CONNECT)
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[Command], Dict[str, Any]]):
