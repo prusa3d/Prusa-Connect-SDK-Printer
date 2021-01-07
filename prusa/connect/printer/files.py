@@ -1,6 +1,8 @@
 """File management"""
 
 from __future__ import annotations
+
+import os
 import typing
 import weakref
 from logging import getLogger
@@ -316,6 +318,30 @@ class Filesystem:
 
         return self.mounts[mountpoint].tree.get(parts)
 
+    @staticmethod
+    def update(abs_paths: list, abs_mount: str, node: File = None):
+        """Update mount.tree structure.
+
+        Add nearest part of real file system to tree.
+
+        Example:
+        Filesystem.update(['/tmp/tmpvbqhald4/directory/a'],
+        '/tmp/tmpvbqhald4/directory', File('test'))
+
+        result is node File('a') is add to File('test')
+
+        :param abs_paths: absolute paths
+        :param abs_mount: absolute path to mount
+        :param node: instance of File
+        """
+        if node:
+            relative_paths = InotifyHandler.get_relative_paths(
+                abs_mount, abs_paths)
+
+            for item in relative_paths:
+                if os.sep not in item and os.sep != item:
+                    node.add(item, is_dir=True)
+
     def get_os_path(self, abs_path):
         """Gets the OS file path of the file specified by abs_path"""
         file = self.get(abs_path)
@@ -390,21 +416,53 @@ class InotifyHandler:
         self.wds: typing.Dict[int, str] = {}  # watch descriptors
         # init mount watches
         for mount in self.fs.mounts.values():
-            if mount.use_inotify:
-                self.__init_wd(mount.path_storage, mount.tree)
+            if mount.use_inotify and mount.path_storage is not None:
+                self.__init_wd(mount.path_storage)
 
-    def __init_wd(self, path_storage, node):
-        # pylint: disable=invalid-name
-        abs_dir = path.join(path_storage, path.sep.join(node.abs_parts()))
-        try:
-            wd = self.inotify.add_watch(abs_dir, self.WATCH_FLAGS)
-            self.wds[wd] = abs_dir
-            log.debug("Added watch (%s) for %s", wd, abs_dir)
-            for child in node.children.values():
-                if child.is_dir:
-                    self.__init_wd(path_storage, child)
-        except PermissionError:
-            pass
+    def update_watch_dir(self, abs_paths: list):
+        """Check if path is watched and if not, it is added.
+
+        :param abs_paths: list of absolute paths
+        """
+        for abs_path in abs_paths:
+            if abs_path not in self.wds.values():
+                watch_dir_id = self.inotify.add_watch(abs_path, self.WATCH_FLAGS)
+                self.wds[watch_dir_id] = abs_path
+                log.debug("Added watch (%s) for %s", watch_dir_id, abs_path)
+
+    @staticmethod
+    def get_relative_paths(relative_point: str, abs_paths: list) -> list:
+        """Return paths relative to relative_point.
+
+        >>> InotifyHandler.get_relative_paths('/tmp/r', ['/tmp/r/directory'])
+        ['directory']
+
+        :param relative_point: relativ point
+        :param abs_paths: absolute patths
+        """
+        relative_paths = [
+            os.path.relpath(abs_path, start=relative_point)
+            for abs_path in abs_paths if relative_point in abs_path]
+
+        if '.' in relative_paths:
+            relative_paths.remove('.')
+
+        return relative_paths
+
+    def __init_wd(self, abs_mount: str, node: File = None):
+        """Update all dirs from root to bottom.
+
+        add all dirs to inotify to watcher.
+
+        :param abs_mount: absolute path to mount
+        :param node: instance of File
+        """
+        walk_mount = os.walk(abs_mount, topdown=True)
+
+        abs_paths = [abs_path for abs_path, _, _ in walk_mount]
+        self.update_watch_dir(abs_paths)
+
+        Filesystem.update(abs_paths, abs_mount, node)
 
     def filter_delete_events(self, events):
         """Because we are adding inotify watch descriptors to all
@@ -454,12 +512,28 @@ class InotifyHandler:
                 if not self.WATCH_FLAGS & flag:
                     log.debug("Ignoring %s", flag.name)
                     continue
+
                 parent_dir = self.wds[event.wd]
                 abs_path = path.join(parent_dir, event.name)
                 log.debug("Flag: %s %s %s", flag.name, abs_path, event)
                 handler = self.HANDLERS[flag.name]
                 log.debug("Calling %s: %s", handler, abs_path)
                 handler(self, abs_path, event.mask & flags.ISDIR)
+
+    def get_abs_os_path(self, relative_path_param):
+        """Relative path to os path.
+
+        '/test/test_dir' -> '/tmp/tmpbvyl_9mr/test_dir'
+        """
+        normal_path = os.path.normpath(relative_path_param)
+        split_path = normal_path.split(os.sep)
+        split_path.remove('')
+        try:
+            split_path[0] = self.fs.mounts[split_path[0]].path_storage
+        except KeyError as error:
+            raise FileNotFoundError("Mount doesn't exist.") from error
+
+        return os.path.join(*split_path)
 
     # pylint: disable=inconsistent-return-statements
     def mount_for(self, abs_path):
@@ -512,7 +586,7 @@ class InotifyHandler:
         node.set_attrs(abs_path)
         if is_dir:
             # add inotify watch
-            self.__init_wd(mount.path_storage, node)  # add inotify watch
+            self.__init_wd(abs_path, node)  # add inotify watch
         self.send_file_changed(file=node,
                                new_path=node.abs_path(mount.mountpoint))
 
