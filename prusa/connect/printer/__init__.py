@@ -21,7 +21,7 @@ from .files import Filesystem, InotifyHandler
 from .metadata import get_metadata
 from .models import Event, Telemetry
 
-__version__ = "0.2.0"
+__version__ = "0.3.0.dev0"
 __date__ = "14 Dec 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
