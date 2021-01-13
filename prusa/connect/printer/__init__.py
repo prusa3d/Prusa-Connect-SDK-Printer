@@ -4,6 +4,7 @@ from __future__ import annotations  # noqa
 import configparser
 import os
 import re
+from enum import IntEnum
 from json import JSONDecodeError
 from logging import getLogger
 from queue import Queue, Empty
@@ -64,6 +65,36 @@ def default_register_handler(token):
     assert token
 
 
+class CommunicationState:
+    """
+    State of the communication between the printer and Connect
+    """
+    class Values(IntEnum):
+        """Valid values for Communication State"""
+        OK = 0
+        ConnectionError = 100
+
+        @classmethod
+        def has_value(cls, value):
+            """Return True if `value` is valid"""
+            # pylint: disable=no-member
+            return value in cls._value2member_map_
+
+    Messages = {Values.OK: "OK", Values.ConnectionError: "Can't reach Connect"}
+
+    def __init__(self):
+        self.state = CommunicationState.Values.OK
+
+    def __str__(self):
+        return self.Messages[self.state]
+
+    def __int__(self):
+        return self.state
+
+    def __bool__(self):
+        return self.state == CommunicationState.Values.OK
+
+
 class Printer:
     """Printer representation object."""
     # pylint: disable=too-many-public-methods
@@ -94,6 +125,7 @@ class Printer:
         self.api_key = None
 
         self.__state = const.State.BUSY
+        self.__comm_state = CommunicationState()
         self.job_id = None
 
         self.conn = Session()
@@ -110,6 +142,19 @@ class Printer:
 
         if not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
+
+    @property
+    def comm_state(self):
+        """Return current state of the communication to Connect"""
+        return self.__comm_state
+
+    @comm_state.setter
+    def comm_state(self, value: CommunicationState.Values):
+        """Set current state of communication to connect. Please use
+        one of `CommunicationState.All.keys()` values as `value`."""
+        if not CommunicationState.Values.has_value(value):
+            raise RuntimeError(f"Invalid CommunicationState {value}")
+        self.__comm_state.state = value
 
     @staticmethod
     def connect_url(host: str, tls: bool, port: int = 0):
@@ -451,6 +496,7 @@ class Printer:
                     sdk_err = SDKConnectionError(reason)
                 else:
                     sdk_err = SDKConnectionError()
+                self.comm_state = CommunicationState.Values.ConnectionError
                 self.loop_exc_handler(sdk_err)
 
     def loop_exc_handler(self, err):
