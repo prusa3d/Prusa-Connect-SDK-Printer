@@ -1,0 +1,37 @@
+@startuml
+
+[*] ---> Port
+[*] ---> Lan
+
+Port --> RPIenabled
+RPIenabled --> IDPrinter
+IDPrinter --> GoodFW
+GoodFW --> ReadSN
+ReadSN --> ValidSN
+ValidSN --> [*]
+
+Lan --> Inet
+Inet --> HTTP
+HTTP --> ConnectProto
+ConnectProto --> [*]
+
+note right
+    All OK if ValidSN and ConnectProto
+end note
+
+note "Error output to: Connect, Printer Display and Printer Web" as ErrorOutput
+
+
+Port: Serial Port exists
+RPIenabled: RPI Port is enabled
+IDPrinter: Identify Prusa Printer
+GoodFW: Firwmare is up-to-date
+ReadSN: SN could be read
+ValidSN: Obtained SN is valid
+
+Lan: Device has assigned IP
+Inet: There is no problem communicating to other hosts in the internet
+HTTP: HTTP traffic to Connect is OK, no 5XX statuses
+ConnectProto: There is no 4XX problems while communicating to Connect
+
+@enduml
