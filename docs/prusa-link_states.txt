@@ -1,0 +1,63 @@
+@startuml
+
+Port --> RPIenabled
+Port: Serial Port exists
+
+RPIenabled --> IDPrinter
+RPIenabled: RPI Port is enabled / Device on serial port
+
+RPIenabled --> LCD
+LCD: Messages on LCD
+
+IDPrinter --> GoodFW
+IDPrinter: Identify allowed Prusa Printer
+
+GoodFW --> ReadSN
+GoodFW: Firwmare is up-to-date
+
+ReadSN --> ValidSN
+ReadSN: SN can be read
+
+ValidSN --> PrinterOk
+ValidSN: Obtained SN is valid
+PrinterOk: Printer detected right
+
+Device --> Phy
+Device: Ethernet or WiFi device exists
+
+Phy --> Lan
+Phy:  Eth|Wifi device connected
+
+Lan --> Internet
+Lan: Device has assigned IP
+
+Lan --> Local
+Local: Messages on printer Web
+
+Internet --> HTTP
+Internet: DNS is working.
+Internet: There is no problem communicating
+Internet: to other hosts in the internet.
+
+HTTP --> ConnectOk
+HTTP: HTTP traffic to Connect is OK, no 5XX statuses
+
+ConnectOk: There is no 4XX problems while communicating to Connect
+
+ConnectOk --> Connect
+Connect: Messages on Connect (with printer token)
+
+note "Error output to: Connect, Printer Display and Printer Web" as ErrorOutput
+
+state Internet #white
+state HTTP #white
+
+state "Printer OK" as PrinterOk #lightgreen
+state "Connection Ok" as ConnectOk #lightgreen
+
+state "Printer Web" as Local #lightblue
+state LCD #lightblue
+state Connect #lightblue
+
+
+@enduml
