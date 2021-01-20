@@ -522,10 +522,8 @@ class Printer:
         :param mountpoint: name of mountpoint
         :type mountpoint: str
         """
-        self.inotify_handler = InotifyHandler(self.fs)
-        self.inotify_handler.init_wd(dirpath)
-
         self.fs.from_dir(dirpath, mountpoint)
+        self.inotify_handler = InotifyHandler(self.fs)
 
     def unmount(self, mountpoint: str):
         """unmount `mountpoint`.
