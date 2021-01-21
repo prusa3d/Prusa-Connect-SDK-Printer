@@ -15,6 +15,16 @@ class State(Enum):
     ATTENTION = "ATTENTION"
 
 
+class JobState(Enum):
+    """Job can be in one of this state."""
+    PRINTING = "PRINTING"
+    PAUSED = "PAUSED"
+    FIN_STOPPED = "FIN_STOPPED"
+    FIN_ERROR = "FIN_ERROR"
+    FIN_OK = "FIN_OK"
+    FIN_HARVESTED = "FIN_HARVESTED"
+
+
 class PrinterType(Enum):
     """Printer Type"""
     I3MK3 = (1, 3, 0)
