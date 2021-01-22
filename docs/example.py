@@ -8,9 +8,23 @@ class State:
         self.name = name
         self.prev = prev
         self.next = None
-        self.ok = False
+        self._ok = False
         self.long_msg = long_msg
         self.short_msg = short_msg or name
+
+    @property
+    def ok(self):
+        return self._ok
+
+    @ok.setter
+    def ok(self, value: bool):
+        if value is self._ok:  # skip updating prev/next if there is no change
+            return
+        self._ok = value
+        if value and self.prev:
+            self.prev.ok = value
+        if not value and self.next:
+            self.next.ok = value
 
     @property
     def prev(self):
@@ -56,9 +70,14 @@ picker_proto = State("picker_proto",
 picker_ok = State("picker_ok", "Device is enabled", prev=picker_proto)
 
 movement_proto.ok = True
+print(movement_ip)
+print(movement_conn)
 print(movement_proto)
 print(movement_ok)
 
-# other end states
-print(connect_ok)
-print(picker_ok)
+print()
+movement_conn.ok = False
+print(movement_ip)
+print(movement_conn)
+print(movement_proto)
+print(movement_ok)
