@@ -4,6 +4,24 @@ from enum import Enum
 TIMESTAMP_PRECISION = 0.1  # 100ms
 
 
+class Name(Enum):
+    """Implicit names of folders and files in filesystem"""
+    SD_CARD_NAME = "SD Card"
+    SD_CARD_SOURCE = SD_CARD_NAME
+    PRUSA_LINK_NAME = "Prusa Link gcodes"
+    PRUSA_LINK_SOURCE = "local"
+    DIR = "DIR"
+    FOLDER = "FOLDER"
+    FILE = "FILE"
+    MACHINECODE = "machinecode"
+    TYPEPATH_FOLDER = ["folder"]
+    TYPEPATH_FILE = ["machinecode", "gcode"]
+
+
+class Extensions(Enum):
+    ALLOWED = [".gcode", ".gco"]
+
+
 class State(Enum):
     """Printer could be in one of this state."""
     READY = "READY"
