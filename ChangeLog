@@ -2,6 +2,7 @@ ChnageLog
 =========
 
 0.3.0.dev0
+    * add error.ErrorState - chained error state infrastructure
 
 0.2.0 (2020-12-14)
 
