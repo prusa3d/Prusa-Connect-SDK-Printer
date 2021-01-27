@@ -6,6 +6,7 @@ ChnageLog
     * add commands DELETE_FILE,DELETE_DIRECTORY,CREATE_DIRECTORY
     * add error.ErrorState - chained error state infrastructure
     * rename metadata.*filaname to metadata.*path where appropriate
+    * check gcode extensions ".gcode", ".gc", ".g", ".gco" for FDM
 
 0.2.0 (2020-12-14)
 
