@@ -13,6 +13,7 @@ install:
 script:
  - pytest -v --mypy tests --log-cli-level=10
  - pytest -v --mypy --pylint --doctest-rst prusa/connect/printer
+ - pytest -v --doctest-plus prusa
 
 before_deploy:
  - python3 setup.py sdist
