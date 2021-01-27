@@ -8,6 +8,7 @@ import re
 import os
 import zipfile
 from typing import Dict, Any, List
+from .const import GCODE_EXTENSIONS
 
 
 class UnknownGcodeFileType(ValueError):
@@ -241,7 +242,7 @@ def get_metadata(path: str):
     # pylint: disable=redefined-outer-name
     fnl = path.lower()
     meta: MetaData
-    if fnl.endswith(".gcode"):
+    if fnl.endswith(GCODE_EXTENSIONS):
         meta = FDMMetaData(path)
     elif fnl.endswith(".sl1"):
         meta = SLMetaData(path)
