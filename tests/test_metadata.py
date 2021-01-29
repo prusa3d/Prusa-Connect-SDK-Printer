@@ -46,7 +46,7 @@ class TestFDNMetaData:
         assert len(meta.thumbnails['16x16']) == 608
         assert len(meta.thumbnails['220x124']) == 11680
 
-    def test_only_filename(self):
+    def test_only_path(self):
         """Only the filename contains metadata. There are no thumbnails."""
         fn = os.path.join(gcodes_dir,
                           "fdn_only_filename_0.25mm_PETG_MINI_2h9m.gcode")
@@ -64,7 +64,7 @@ class TestFDNMetaData:
         meta = get_metadata(fn)
         assert not meta.data
         assert not meta.thumbnails
-        assert meta.filename == fn
+        assert meta.path == fn
 
 
 class TestSLMetaData:

@@ -5,8 +5,8 @@ as well.
 import base64
 import json
 import re
+import os
 import zipfile
-from os import path
 from typing import Dict, Any, List
 
 
@@ -18,32 +18,32 @@ class UnknownGcodeFileType(ValueError):
 class MetaData:
     """Base MetaData class"""
 
-    filename: str
+    path: str
     thumbnails: Dict[str, bytes]  # dimensions: base64(data)
     data: Dict[str, str]  # key: value
 
     Attrs: Dict[str, Any] = {}  # metadata (name, convert_fct)
 
-    def __init__(self, filename: str):
-        self.filename = filename
+    def __init__(self, path: str):
+        self.path = path
         self.thumbnails = {}
         self.data = {}
 
     def load(self):
-        """Extract and set metadata from `self.filename`. Any metadata
-        obtained from the filename will be overwritten by metadata from
+        """Extract and set metadata from `self.path`. Any metadata
+        obtained from the path will be overwritten by metadata from
         the file if the metadata is contained there as well"""
-        self.load_from_filename(self.filename)
-        self.load_from_file(self.filename)
+        self.load_from_path(self.path)
+        self.load_from_file(self.path)
 
-    def load_from_file(self, filename: str):
-        """Load metadata and thumbnails from given `filename`"""
+    def load_from_file(self, path: str):
+        """Load metadata and thumbnails from given `path`"""
         # pylint: disable=no-self-use
         # pylint: disable=unused-argument
         ...
 
-    def load_from_filename(self, filename: str):
-        """Load metadata from given filename (filename, not its content),
+    def load_from_path(self, path: str):
+        """Load metadata from given path (path, not its content),
         if possible.
         """
         # pylint: disable=no-self-use
@@ -60,7 +60,7 @@ class MetaData:
                 self.data[attr] = conv(val)
 
     def __repr__(self):
-        return f"Metadata: {self.filename}, {len(self.data)} items, " \
+        return f"Metadata: {self.path}, {len(self.data)} items, " \
                f"{len(self.thumbnails)} thumbnails"
 
     __str__ = __repr__
@@ -96,12 +96,13 @@ class FDMMetaData(MetaData):
         r"^(?P<name>.*?)_(?P<height>[0-9\.]+)mm_"
         r"(?P<material>\w+)_(?P<printer>\w+)_(?P<time>.*)\.")
 
-    def load_from_filename(self, filename):
-        """Try to obtain any usable metadata from the filename itself"""
+    def load_from_path(self, path):
+        """Try to obtain any usable metadata from the path itself"""
+        filename = os.path.basename(path)
         match = self.FDM_FILENAME_PAT.match(filename)
         if match:
             data = {
-                "name": path.basename(match.group("name")),
+                "name": match.group("name"),
                 "layer_height": match.group("height"),
                 "filament_type": match.group("material"),
                 "printer_model": match.group("printer"),
@@ -109,10 +110,10 @@ class FDMMetaData(MetaData):
             }
             self.set_data(data)
 
-    def load_from_file(self, filename: str):
+    def load_from_file(self, path: str):
         """Load metadata from file
 
-        :filename: Path to the file to load the metadata from
+        :path: Path to the file to load the metadata from
         """
         # pylint: disable=redefined-outer-name
         # pylint: disable=invalid-name
@@ -120,7 +121,7 @@ class FDMMetaData(MetaData):
         thumbnail: List[str] = []
         dimension = ""
         size = None
-        with open(filename) as f:
+        with open(path) as f:
             for line in f.readlines():
                 # thumbnail handling
                 match = self.THUMBNAIL_BEGIN_PAT.match(line)
@@ -179,29 +180,29 @@ class SLMetaData(MetaData):
         except zipfile.BadZipFile:
             # NOTE can't import `log` from __init__.py because of
             #  circular dependencies
-            print("%s is not a valid SL1 archive", self.filename)
+            print("%s is not a valid SL1 archive", self.path)
 
-    def load_from_file(self, filename: str):
+    def load_from_file(self, path: str):
         """Load SL1 metadata
 
-        :filename: path to the file to load the metadata from
+        :path: path to the file to load the metadata from
         """
-        data = self.extract_metadata(filename)
+        data = self.extract_metadata(path)
         self.set_data(data)
 
-        self.thumbnails = self.extract_thumbnails(filename)
+        self.thumbnails = self.extract_thumbnails(path)
 
     @staticmethod
-    def extract_metadata(filename: str) -> Dict[str, str]:
-        """Extract metadata from `filename`.
+    def extract_metadata(path: str) -> Dict[str, str]:
+        """Extract metadata from `path`.
 
-        :param filename: zip file
+        :param path: zip file
         :returns Dictionary with metadata name as key and its
             value as value
         """
         # pylint: disable=invalid-name
         data = {}
-        with zipfile.ZipFile(filename, "r") as zip_file:
+        with zipfile.ZipFile(path, "r") as zip_file:
             for fn in ("config.ini", "prusaslicer.ini"):
                 config_file = zip_file.read(fn).decode("utf-8")
                 for line in config_file.splitlines():
@@ -213,15 +214,15 @@ class SLMetaData(MetaData):
         return data
 
     @staticmethod
-    def extract_thumbnails(filename: str) -> Dict[str, bytes]:
-        """Extract thumbnails from `filename`.
+    def extract_thumbnails(path: str) -> Dict[str, bytes]:
+        """Extract thumbnails from `path`.
 
-        :param filename: zip file
+        :param path: zip file
         :returns Dictionary with thumbnail dimensions as key and base64
             encoded image as value.
         """
         thumbnails: Dict[str, bytes] = {}
-        with zipfile.ZipFile(filename, "r") as zip_file:
+        with zipfile.ZipFile(path, "r") as zip_file:
             for info in zip_file.infolist():
                 if info.filename.startswith("thumbnail/"):
                     data = zip_file.read(info.filename)
@@ -232,20 +233,20 @@ class SLMetaData(MetaData):
         return thumbnails
 
 
-def get_metadata(filename: str):
-    """Return the Metadata for given `filename`
+def get_metadata(path: str):
+    """Return the Metadata for given `path`
 
-    :param filename: Gcode file
+    :param path: Gcode file
     """
     # pylint: disable=redefined-outer-name
-    fnl = filename.lower()
+    fnl = path.lower()
     meta: MetaData
     if fnl.endswith(".gcode"):
-        meta = FDMMetaData(filename)
+        meta = FDMMetaData(path)
     elif fnl.endswith(".sl1"):
-        meta = SLMetaData(filename)
+        meta = SLMetaData(path)
     else:
-        raise UnknownGcodeFileType(filename)
+        raise UnknownGcodeFileType(path)
 
     meta.load()
     return meta
