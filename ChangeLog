@@ -7,6 +7,7 @@ ChnageLog
     * add error.ErrorState - chained error state infrastructure
     * rename metadata.*filaname to metadata.*path where appropriate
     * check gcode extensions ".gcode", ".gc", ".g", ".gco" for FDM
+    * bugfix: don't fail on extracting metadata from non-existing files
 
 0.2.0 (2020-12-14)
 
