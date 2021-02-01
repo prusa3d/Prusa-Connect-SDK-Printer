@@ -14,7 +14,7 @@ from requests import Session
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError
 
-from . import const
+from . import const, errors
 from .command import Command
 from .errors import SDKServerError, SDKConnectionError
 from .files import Filesystem, InotifyHandler, delete
@@ -161,7 +161,10 @@ class Printer:
 
     def is_initialised(self):
         """Return True if the printer is initialised"""
-        return bool(self.__sn and self.__fingerprint)
+        initialised = bool(self.__sn and self.__fingerprint)
+        if not initialised:
+            errors.API.ok = False
+        return initialised
 
     def make_headers(self, timestamp: float = None) -> dict:
         """Return request headers from connection variables."""
@@ -416,8 +419,13 @@ class Printer:
         if res.status_code == 200:
             code = res.headers['Temporary-Code']
             self.queue.put(Register(code))
+            errors.API.ok = True
             return code
 
+        errors.HTTP.ok = True
+        errors.API.ok = False
+        if res.status_code >= 500:
+            errors.HTTP.ok = False
         log.debug("Status code: {res.status_code}")
         raise RuntimeError(res.text)
 
@@ -476,16 +484,20 @@ class Printer:
                 else:
                     log.error("Unknown item: %s", str(item))
 
+                errors.API.ok = True
+
                 if res.status_code >= 400:
                     try:
                         message = res.json()["message"]
                     except (JSONDecodeError, KeyError):
                         message = "Wrong Connect answer."
+                    errors.API.ok = False
                     sdk_err = SDKServerError(res.status_code, message)
                     self.loop_exc_handler(sdk_err)
             except Empty:
                 continue
             except ConnectionError as err:
+                errors.HTTP.ok = False
                 if err.args:
                     reason = err.args[0]
                     sdk_err = SDKConnectionError(reason)

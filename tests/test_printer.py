@@ -9,7 +9,7 @@ import requests
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Notifications, Command, \
-    Register
+    Register, errors
 from prusa.connect.printer.models import Telemetry, Event
 from prusa.connect.printer.errors import SDKServerError, SDKConnectionError
 
@@ -166,12 +166,16 @@ class TestPrinter:
         printer.event_cb(const.Event.INFO, const.Source.WUI)
         with pytest.raises(SDKServerError):
             printer.loop()
+        assert errors.HTTP.ok is True
+        assert errors.API.ok is False
 
         requests_mock.post(SERVER + "/p/events",
                            exc=requests.exceptions.ConnectTimeout)
         printer.event_cb(const.Event.INFO, const.Source.WUI)
         with pytest.raises(SDKConnectionError):
             printer.loop()
+        assert errors.INTERNET.ok is True
+        assert errors.HTTP.ok is False
 
     def test_set_handler(self, printer):
         def send_info(caller: Command) -> Any:
@@ -244,20 +248,19 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR',
-                               'name': 'test',
-                               'ro': False}
+        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
 
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text='{"command":"DELETE_DIRECTORY", "args": ["/test/test_dir"]}',
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json"
-                           },
-                           status_code=200)
+        requests_mock.post(
+            SERVER + "/p/telemetry",
+            text='{"command":"DELETE_DIRECTORY", "args": ["/test/test_dir"]}',
+            headers={
+                "Command-Id": "42",
+                "Content-Type": "application/json"
+            },
+            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
@@ -282,8 +285,11 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'ro': False,
-            'children': [{'name': 'test_dir',
-                          'ro': False, 'type': 'DIR'}]
+            'children': [{
+                'name': 'test_dir',
+                'ro': False,
+                'type': 'DIR'
+            }]
         }
 
         printer.command()  # exec DELETE_DIRECTORY
@@ -296,9 +302,7 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR',
-                               'name': 'test',
-                               'ro': False}
+        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
         # directory is removed
         assert os.path.exists(path) is False
 
@@ -319,20 +323,19 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR',
-                               'name': 'test',
-                               'ro': False}
+        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
 
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text='{"command":"DELETE_FILE","args": ["/test/test-file.hex"]}',
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json"
-                           },
-                           status_code=200)
+        requests_mock.post(
+            SERVER + "/p/telemetry",
+            text='{"command":"DELETE_FILE","args": ["/test/test-file.hex"]}',
+            headers={
+                "Command-Id": "42",
+                "Content-Type": "application/json"
+            },
+            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
@@ -352,13 +355,18 @@ class TestPrinter:
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
-            'name': 'test',
-            'ro': False,
-            'children': [{'name': 'test-file.hex',
-                          'ro': False,
-                          'size': 1,
-                          'type': 'FILE'}]
+            'type':
+            'DIR',
+            'name':
+            'test',
+            'ro':
+            False,
+            'children': [{
+                'name': 'test-file.hex',
+                'ro': False,
+                'size': 1,
+                'type': 'FILE'
+            }]
         }
 
         printer.command()  # exec DELETE_FILE
@@ -370,9 +378,7 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR',
-                               'name': 'test',
-                               'ro': False}
+        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
         assert os.path.exists(file_path) is False
 
     def test_call_create_directory(self, requests_mock, printer):
@@ -390,13 +396,11 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR',
-                               'name': 'test',
-                               'ro': False}
+        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
 
         requests_mock.post(SERVER + "/p/telemetry",
                            text='{"command":"CREATE_DIRECTORY", '
-                                f'"args": ["/test/test_dir"]}}',
+                           '"args": ["/test/test_dir"]}',
                            headers={
                                "Command-Id": "42",
                                "Content-Type": "application/json"
@@ -422,9 +426,7 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR',
-                               'name': 'test',
-                               'ro': False}
+        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
 
         printer.command()  # exec CREATE_DIRECTORY
 
@@ -440,9 +442,11 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'ro': False,
-            'children': [{'name': 'test_dir',
-                          'ro': False,
-                          'type': 'DIR'}]
+            'children': [{
+                'name': 'test_dir',
+                'ro': False,
+                'type': 'DIR'
+            }]
         }
         assert os.path.exists(path) is True
 
@@ -521,11 +525,17 @@ class TestPrinter:
         with pytest.raises(RuntimeError):
             printer.register()
 
+        assert errors.HTTP.ok is True
+        assert errors.API.ok is False
+
     def test_register_400_no_server(self, printer):
         printer.server = None
 
         with pytest.raises(RuntimeError):
             printer.register()
+
+        assert errors.HTTP.ok is True
+        assert errors.API.ok is False
 
     def test_get_token(self, requests_mock, printer):
         tmp_code = "f4c8996fb9"
@@ -589,6 +599,9 @@ class TestPrinter:
         printer.queue.put(Register(tmp_code))
         with pytest.raises(SDKServerError):
             printer.loop()
+
+        assert errors.HTTP.ok is True
+        assert errors.API.ok is False
 
     def test_load_lan_settings(self, lan_settings_ini):
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
