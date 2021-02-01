@@ -19,6 +19,7 @@ class SDKServerError(SDKError):
     """
 
 
+# pylint: disable=too-many-instance-attributes
 class ErrorState:
     """Model chained error states as doubly linked list
 
@@ -92,3 +93,17 @@ class ErrorState:
 
     def __str__(self):
         return f"{self.name}: {self.ok}"
+
+
+# Error chain representing a kind of semaphore signaling the status
+# of the connection to Connect
+INTERNET = ErrorState(
+    "Internet", "DNS does not work, or there are other "
+    "problems in communication to other hosts "
+    "in the Internet.")
+HTTP = ErrorState("HTTP", "HTTP communication to Connect fails, there are "
+                  "5XX statuses",
+                  prev=INTERNET)
+API = ErrorState("API", "Encountered 4XX problems while "
+                 "communicating to Connect",
+                 prev=HTTP)
