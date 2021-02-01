@@ -373,7 +373,7 @@ class Printer:
             content_type = res.headers.get("content-type")
             log.debug("parse_command res: %s", res.text)
             try:
-                if content_type == "application/json":
+                if content_type.startswith("application/json"):
                     data = res.json()
                     if self.command.check_state(command_id):
                         self.command.accept(command_id,
