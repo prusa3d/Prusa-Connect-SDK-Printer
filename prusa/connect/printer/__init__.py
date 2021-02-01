@@ -261,23 +261,26 @@ class Printer:
         if node is None:
             raise ValueError(f"File does not exist: {path}")
 
-        meta = get_metadata(self.fs.get_os_path(path))
-
         info = dict(
             source=const.Source.CONNECT,
             event=const.Event.FILE_INFO,
             path=path,
         )
-        info.update(node.attrs)
-        info.update(meta.data)
 
-        # include the biggest thumbnail, if available
-        if meta.thumbnails:
-            biggest = b""
-            for _, data in meta.thumbnails.items():
-                if len(data) > len(biggest):
-                    biggest = data
-            info['preview'] = biggest.decode()
+        try:
+            meta = get_metadata(self.fs.get_os_path(path))
+            info.update(node.attrs)
+            info.update(meta.data)
+
+            # include the biggest thumbnail, if available
+            if meta.thumbnails:
+                biggest = b""
+                for _, data in meta.thumbnails.items():
+                    if len(data) > len(biggest):
+                        biggest = data
+                info['preview'] = biggest.decode()
+        except FileNotFoundError:
+            log.debug("File not found: %s", path)
 
         return info
 
@@ -286,8 +289,7 @@ class Printer:
         if not caller.args:
             raise ValueError(f"{caller.command} requires args")
 
-        abs_path = self.inotify_handler.get_abs_os_path(
-            caller.args[0])
+        abs_path = self.inotify_handler.get_abs_os_path(caller.args[0])
 
         delete(abs_path, False)
 
@@ -298,8 +300,7 @@ class Printer:
         if not caller.args:
             raise ValueError(f"{caller.command} requires args")
 
-        abs_path = self.inotify_handler.get_abs_os_path(
-            caller.args[0])
+        abs_path = self.inotify_handler.get_abs_os_path(caller.args[0])
 
         delete(abs_path, True)
 
