@@ -30,6 +30,63 @@ class MetaData:
         self.thumbnails = {}
         self.data = {}
 
+    def check_cache_time(self):
+        """If cache is older than file, returns True"""
+        try:
+            cache_time_created = os.path.getctime(self.path + ".cache")
+            file_time_created = os.path.getctime(self.path)
+            if cache_time_created > file_time_created:
+                return True
+        except FileNotFoundError:
+            return True
+
+    def save_cache(self):
+        """Take metadata from source file and save them as JSON to
+        <file_name>.cache file"""
+        try:
+            if self.check_cache_time():
+                def parse_from_bytes(data_input):
+                    """Parse thumbnail from bytes to string format because
+                    of JSON serialization requirements"""
+                    for key, value in data_input.items():
+                        if type(value) is bytes:
+                            data_input[key] = str(value, 'utf-8')
+                    return data_input
+
+                thumbnails = parse_from_bytes(self.thumbnails)
+
+                with open(self.path + ".cache", "w") as file:
+                    dict_data = {
+                        "path": self.path,
+                        "thumbnails": thumbnails,
+                        "data": self.data
+                    }
+                    json.dump(dict_data, file, indent=2)
+        except PermissionError:
+            raise Exception("You don't have permission for save file here")
+
+    def load_cache(self):
+        """Load metadata values from <file_name>.cache file"""
+        try:
+            with open(self.path + ".cache", "r") as file:
+                cache_data = json.load(file)
+
+            def parse_to_bytes(data_input):
+                """Parse thumbnail from string to original bytes format"""
+                for key, value in data_input.items():
+                    if key == "thumbnails":
+                        for key_, value_ in value.items():
+                            value[key_] = bytes(value_, 'utf-8')
+            parse_to_bytes(cache_data)
+
+            self.path = cache_data["path"]
+            self.thumbnails = cache_data["thumbnails"]
+            self.data = cache_data["data"]
+
+        except json.decoder.JSONDecodeError as err:
+            raise ValueError(
+                "JSON data not found or in incorrect format") from err
+
     def load(self):
         """Extract and set metadata from `self.path`. Any metadata
         obtained from the path will be overwritten by metadata from
