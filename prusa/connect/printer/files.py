@@ -442,7 +442,8 @@ class InotifyHandler:
         """
         for abs_path in abs_paths:
             if abs_path not in self.wds.values():
-                watch_dir_id = self.inotify.add_watch(abs_path, self.WATCH_FLAGS)
+                watch_dir_id = self.inotify.add_watch(abs_path,
+                                                      self.WATCH_FLAGS)
                 self.wds[watch_dir_id] = abs_path
                 log.debug("Added watch (%s) for %s", watch_dir_id, abs_path)
 
@@ -458,7 +459,8 @@ class InotifyHandler:
         """
         relative_paths = [
             os.path.relpath(abs_path, start=relative_point)
-            for abs_path in abs_paths if relative_point in abs_path]
+            for abs_path in abs_paths if relative_point in abs_path
+        ]
 
         if '.' in relative_paths:
             relative_paths.remove('.')
