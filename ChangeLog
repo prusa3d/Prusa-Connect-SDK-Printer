@@ -9,6 +9,7 @@ ChnageLog
     * check gcode extensions ".gcode", ".gc", ".g", ".gco" for FDM
     * bugfix: don't fail on extracting metadata from non-existing files
     * introduce basic ErrorState instances in errors.py and use in __init__.py
+    * introduce errors.TOKEN signaling if a token is available
 
 0.2.0 (2020-12-14)
 
