@@ -1,42 +1,37 @@
 """Test for error state functionality"""
-from prusa.connect.printer.errors import ErrorState
+from prusa.connect.printer.errors import TOKEN, API, INTERNET, HTTP
 
 # pylint: disable=missing-function-docstring
 
 
 def test_error_states():
-    internet = ErrorState(
-        "internet", "DNS works and other hosts in the "
-        "internet can be reached")
-    http = ErrorState("http",
-                      "HTTP traffic to Connect is OK, no 5XX statuses",
-                      prev=internet)
-    connect = ErrorState("connect", "There are no 4XX problems while "
-                         "communicating to Connect",
-                         prev=http)
-
     # initial checks
-    assert not internet.ok
-    assert not http.ok
-    assert not connect.ok
+    assert not INTERNET.ok
+    assert not HTTP.ok
+    assert not TOKEN.ok
+    assert not API.ok
 
-    assert internet.prev is None
-    assert connect.next is None
+    assert INTERNET.prev is None
+    assert API.next is None
 
-    assert internet.next is http
-    assert http.next is connect
-    assert connect.prev is http
-    assert http.prev is internet
+    assert INTERNET.next is HTTP
+    assert HTTP.next is TOKEN
+    assert TOKEN.next is API
+    assert API.prev is TOKEN
+    assert TOKEN.prev is HTTP
+    assert HTTP.prev is INTERNET
 
     # state propagation: backward
-    http.ok = True
-    assert internet.ok is True
-    assert http.ok is True
-    assert not connect.ok
+    HTTP.ok = True
+    assert INTERNET.ok is True
+    assert HTTP.ok is True
+    assert not TOKEN.ok
+    assert not API.ok
 
     # forward
-    connect.ok = True
-    http.ok = False
-    assert http.ok is False
-    assert connect.ok is False  # previous state failed so this must fail too
-    assert internet.ok is True  # internet might be OK when HTTP fails
+    API.ok = True
+    HTTP.ok = False
+    assert HTTP.ok is False
+    assert TOKEN.ok is False
+    assert API.ok is False  # previous state failed so this must fail too
+    assert INTERNET.ok is True  # internet might be OK when HTTP fails

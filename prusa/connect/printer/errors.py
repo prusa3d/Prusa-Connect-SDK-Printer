@@ -104,6 +104,10 @@ INTERNET = ErrorState(
 HTTP = ErrorState("HTTP", "HTTP communication to Connect fails, there are "
                   "5XX statuses",
                   prev=INTERNET)
+# Signal if we have a token or not
+TOKEN = ErrorState("Token", "Printer has no valid token, "
+                   "it needs to be registered with Connect.",
+                   prev=HTTP)
 API = ErrorState("API", "Encountered 4XX problems while "
                  "communicating to Connect",
-                 prev=HTTP)
+                 prev=TOKEN)

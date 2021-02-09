@@ -230,6 +230,7 @@ class Printer:
         port = config['connect'].getint('port', fallback=0)
         self.server = Printer.connect_url(host, tls, port)
         self.token = config['connect']['token']
+        errors.TOKEN.ok = True
 
     def get_info(self) -> Dict[str, Any]:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
@@ -445,6 +446,7 @@ class Printer:
         Printer.command object, when the command is in the answer to telemetry.
         """
         # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         while True:
             try:
                 self.inotify_handler()
@@ -476,6 +478,7 @@ class Printer:
                               res.status_code, res.text)
                     if res.status_code == 200:
                         self.token = res.headers["Token"]
+                        errors.TOKEN.ok = True
                         log.info("New token was set.")
                         self.register_handler(self.token)
                     elif res.status_code == 202 and item.timeout > time():
@@ -494,6 +497,8 @@ class Printer:
                     errors.API.ok = False
                     sdk_err = SDKServerError(res.status_code, message)
                     self.loop_exc_handler(sdk_err)
+                    if res.status_code == 401:
+                        errors.TOKEN.ok = False
             except Empty:
                 continue
             except ConnectionError as err:
