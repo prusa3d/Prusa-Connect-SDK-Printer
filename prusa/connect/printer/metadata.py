@@ -9,11 +9,31 @@ import os
 import zipfile
 from typing import Dict, Any, List
 from .const import GCODE_EXTENSIONS
+from logging import getLogger
 
 
 class UnknownGcodeFileType(ValueError):
     # pylint: disable=missing-class-docstring
     ...
+
+
+def thumbnail_from_bytes(data_input):
+    """Parse thumbnail from bytes to string format because
+    of JSON serialization requirements"""
+    converted_data = dict()
+    for key, value in data_input.items():
+        if type(value) is bytes:
+            converted_data[key] = str(value, 'utf-8')
+    return converted_data
+
+
+def thumbnail_to_bytes(data_input):
+    """Parse thumbnail from string to original bytes format"""
+    converted_data = dict()
+    for key, value in data_input.items():
+        if key == "thumbnails":
+            for key_, value_ in value.items():
+                converted_data[key_] = bytes(value_, 'utf-8')
 
 
 class MetaData:
@@ -29,32 +49,24 @@ class MetaData:
         self.path = path
         self.thumbnails = {}
         self.data = {}
+        self.log = getLogger()
 
-    def check_cache_time(self):
-        """If cache is older than file, returns True"""
+    def check_fresh(self):
+        """If cache is fresher than file, returns True"""
+        file_time_created = os.path.getctime(self.path)
         try:
             cache_time_created = os.path.getctime(self.path + ".cache")
-            file_time_created = os.path.getctime(self.path)
-            if cache_time_created > file_time_created:
-                return True
+            return file_time_created < cache_time_created
         except FileNotFoundError:
-            return True
+            return False
 
     def save_cache(self):
         """Take metadata from source file and save them as JSON to
         <file_name>.cache file"""
         try:
-            if self.check_cache_time():
-                def parse_from_bytes(data_input):
-                    """Parse thumbnail from bytes to string format because
-                    of JSON serialization requirements"""
-                    for key, value in data_input.items():
-                        if type(value) is bytes:
-                            data_input[key] = str(value, 'utf-8')
-                    return data_input
-
-                thumbnails = parse_from_bytes(self.thumbnails)
-
+            # If original file is fresher than cache, create a new cache
+            if not self.check_fresh():
+                thumbnails = thumbnail_from_bytes(self.thumbnails)
                 with open(self.path + ".cache", "w") as file:
                     dict_data = {
                         "path": self.path,
@@ -63,27 +75,20 @@ class MetaData:
                     }
                     json.dump(dict_data, file, indent=2)
         except PermissionError:
-            raise Exception("You don't have permission for save file here")
+            self.log.warning("You don't have permission for save file here")
 
     def load_cache(self):
         """Load metadata values from <file_name>.cache file"""
         try:
             with open(self.path + ".cache", "r") as file:
                 cache_data = json.load(file)
-
-            def parse_to_bytes(data_input):
-                """Parse thumbnail from string to original bytes format"""
-                for key, value in data_input.items():
-                    if key == "thumbnails":
-                        for key_, value_ in value.items():
-                            value[key_] = bytes(value_, 'utf-8')
-            parse_to_bytes(cache_data)
-
+            thumbnail_to_bytes(cache_data)
             self.path = cache_data["path"]
             self.thumbnails = cache_data["thumbnails"]
             self.data = cache_data["data"]
 
-        except json.decoder.JSONDecodeError as err:
+        except (json.decoder.JSONDecodeError, FileNotFoundError, KeyError)\
+                as err:
             raise ValueError(
                 "JSON data not found or in incorrect format") from err
 

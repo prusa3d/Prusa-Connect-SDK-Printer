@@ -12,6 +12,7 @@ ChnageLog
     * introduce errors.TOKEN signaling if a token is available
     * add ironing to FDM metadata
     * introduce `File.size` as a settable property
+    * added functions for save/load cache of data
 
 0.2.0 (2020-12-14)
 

@@ -9,6 +9,20 @@ gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
 
 
+def test_save_cache_file():
+    """Test save-cache() with correct data"""
+    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
+    meta = get_metadata(fn)
+    meta.save_cache()
+
+
+def test_load_cache_file():
+    """Test load_cache() with correct data"""
+    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
+    meta = get_metadata(fn)
+    meta.load_cache()
+
+
 def test_get_metadata_file_does_not_exist():
     """Test get_metadata() with a non-existing file"""
     fn = '/somehwere/in/the/rainbow/my.gcode'
@@ -16,9 +30,17 @@ def test_get_metadata_file_does_not_exist():
         get_metadata(fn)
 
 
-def test_load_cache_file_does_not_exist():
-    """Test load_cache() with a non-existing file"""
+def test_save_cache_original_file_does_not_exist():
+    """Test save_cache() with a non-existing original file"""
     with pytest.raises(FileNotFoundError):
+        fn = os.path.join(gcodes_dir, "imaginary_filename.gcode")
+        meta = get_metadata(fn)
+        meta.save_cache()
+
+
+def test_load_cache_file_does_not_exist():
+    """Test load_cache() with a non-existing cache file"""
+    with pytest.raises(ValueError):
         fn = os.path.join(gcodes_dir, "fdn_all_empty.gcode")
         meta = get_metadata(fn)
         meta.load_cache()
@@ -34,39 +56,47 @@ def test_load_cache_empty_file():
         meta.load_cache()
 
 
-def test_save_cache_file():
-    """Test save-cache() with correct data"""
-    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+def test_key_error_load_cache():
+    """test load_cache() with incorrect, or missing key"""
+    fn = os.path.join(gcodes_dir, "fdn_filename_no_key.gcode")
     meta = get_metadata(fn)
-    meta.save_cache()
+    with pytest.raises(ValueError):
+        meta.load_cache()
 
 
-def test_load_cache_file():
-    """Test load_cache() with correct data"""
-    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+def test_check_fresh_fresher():
+    """check_fresh, when cache file is fresher, than original file"""
+    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
     meta = get_metadata(fn)
-    meta.load_cache()
+    assert meta.check_fresh()
+
+
+def test_check_fresh_older():
+    """check_fresh, when cache file is older, than original file"""
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty_old.gcode")
+    meta = get_metadata(fn)
+    assert meta.check_fresh() is False
 
 
 def test_save_and_compare_cache_file():
     """Compare save_cache() file values with default file values"""
-    test_cache = os.path.join(gcodes_dir, "fdn_filename_empty_test.gcode.cache")
+    test_cache = os.path.join(gcodes_dir, "fdn_filename_test.gcode.cache")
 
-    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
     meta = get_metadata(fn)
     meta.save_cache()
-    cache_file = os.path.join(gcodes_dir, "fdn_filename_empty.gcode.cache")
+    cache_file = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
 
     assert filecmp.cmp(cache_file, test_cache, shallow=False)
 
 
 def test_load_and_compare_cache_file():
     """Compare load_cache() file values with default file values"""
-    test_file = os.path.join(gcodes_dir, "fdn_filename_empty_test.gcode")
+    test_file = os.path.join(gcodes_dir, "fdn_filename_test.gcode")
     test_meta = get_metadata(test_file)
     test_meta.load_cache()
 
-    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
     meta = get_metadata(fn)
     meta.load_cache()
 
