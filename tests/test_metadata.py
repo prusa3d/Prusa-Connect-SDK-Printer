@@ -1,6 +1,7 @@
 import os
 import pytest
 import tempfile
+import filecmp
 
 from prusa.connect.printer.metadata import get_metadata, UnknownGcodeFileType
 
@@ -13,6 +14,65 @@ def test_get_metadata_file_does_not_exist():
     fn = '/somehwere/in/the/rainbow/my.gcode'
     with pytest.raises(FileNotFoundError):
         get_metadata(fn)
+
+
+def test_load_cache_file_does_not_exist():
+    """Test load_cache() with a non-existing file"""
+    with pytest.raises(FileNotFoundError):
+        fn = os.path.join(gcodes_dir, "fdn_all_empty.gcode")
+        meta = get_metadata(fn)
+        meta.load_cache()
+
+
+def test_load_cache_empty_file():
+    """Test load_cache() with empty file"""
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    with open(fn + ".cache", "w") as file:
+        pass
+    with pytest.raises(ValueError):
+        meta = get_metadata(fn)
+        meta.load_cache()
+
+
+def test_save_cache_file():
+    """Test save-cache() with correct data"""
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    meta = get_metadata(fn)
+    meta.save_cache()
+
+
+def test_load_cache_file():
+    """Test load_cache() with correct data"""
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    meta = get_metadata(fn)
+    meta.load_cache()
+
+
+def test_save_and_compare_cache_file():
+    """Compare save_cache() file values with default file values"""
+    test_cache = os.path.join(gcodes_dir, "fdn_filename_empty_test.gcode.cache")
+
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    meta = get_metadata(fn)
+    meta.save_cache()
+    cache_file = os.path.join(gcodes_dir, "fdn_filename_empty.gcode.cache")
+
+    assert filecmp.cmp(cache_file, test_cache, shallow=False)
+
+
+def test_load_and_compare_cache_file():
+    """Compare load_cache() file values with default file values"""
+    test_file = os.path.join(gcodes_dir, "fdn_filename_empty_test.gcode")
+    test_meta = get_metadata(test_file)
+    test_meta.load_cache()
+
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
+    meta = get_metadata(fn)
+    meta.load_cache()
+
+    assert test_meta.data == meta.data
+    assert test_meta.path == meta.path
+    assert test_meta.thumbnails == meta.thumbnails
 
 
 def test_get_metadata_invalid_file():
