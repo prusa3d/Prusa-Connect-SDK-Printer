@@ -173,6 +173,10 @@ class TestFile:
         assert fs_from_dir.get("/a/b").size == 0
         assert fs_from_dir.get("/a/1.txt").size == 3044
 
+    def test_m_time(self, fs_from_dir):
+        assert fs_from_dir.get("/a").attrs['m_time'] \
+                == (2020, 7, 30, 16, 40, 5)
+
     def test_to_dict(self, fs_from_dir):
         res = fs_from_dir.get("/a").to_dict()
         assert res == {
