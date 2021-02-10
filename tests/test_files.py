@@ -95,7 +95,7 @@ def inotify(queue, nodes):
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
     assert event.data['root'] == '/test'
-    assert len(event.data['files']) == 5
+    assert len(event.data['files']) == 6
     handler = InotifyHandler(fs)
 
     yield InotifyFixture(tmp_dir.name, handler, fs, queue)
@@ -165,6 +165,63 @@ class TestFile:
 
     def test_parent(self, nodes):
         assert nodes.a.c.parent == nodes.a
+
+    def test_size(self, fs_from_dir):
+        assert fs_from_dir.get("/a").size == 9132
+        assert fs_from_dir.get("/a/c").size == 6088
+        assert fs_from_dir.get("/a/c/2.txt").size == 3044
+        assert fs_from_dir.get("/a/b").size == 0
+        assert fs_from_dir.get("/a/1.txt").size == 3044
+
+    def test_to_dict(self, fs_from_dir):
+        res = fs_from_dir.get("/a").to_dict()
+        assert res == {
+            'type':
+            'DIR',
+            'name':
+            'a',
+            'ro':
+            True,
+            'm_time': (2020, 7, 30, 16, 40, 5),
+            'size':
+            9132,
+            'children': [{
+                'type': 'DIR',
+                'name': 'b',
+                'ro': True,
+                'm_time': (2020, 7, 30, 16, 40, 5),
+                'size': 0
+            }, {
+                'type':
+                'DIR',
+                'name':
+                'c',
+                'ro':
+                True,
+                'm_time': (2020, 7, 30, 16, 40, 5),
+                'size':
+                6088,
+                'children': [{
+                    'type': 'FILE',
+                    'name': '2.txt',
+                    'ro': True,
+                    'm_time': (2020, 7, 30, 16, 40, 5),
+                    'size': 3044
+                }, {
+                    'type': 'FILE',
+                    'name': '3.txt',
+                    'ro': True,
+                    'm_time': (2020, 7, 30, 16, 40, 5),
+                    'size': 3044
+                }]
+            }, {
+                'type': 'FILE',
+                'name': '1.txt',
+                'ro': True,
+                'm_time': (2020, 7, 30, 16, 40, 5),
+                'size': 3044
+            }]
+        }
 
     def test_contains(self, nodes):
         assert "a" in nodes
@@ -241,12 +298,12 @@ class TestFilesystem:
     def test_to_dict(self, fs):
         assert fs.to_dict() == \
                {'type': 'DIR', 'name': '/', 'ro': True, 'children': [
-                   {'type': 'DIR', 'name': 'a', 'children': [
-                       {'type': 'FILE', 'name': '1.txt'},
-                       {'type': 'DIR', 'name': 'b'},
-                       {'type': 'DIR', 'name': 'c', 'children': [
-                           {'type': 'FILE', 'name': '2.txt'},
-                           {'type': 'FILE', 'name': '3.txt'}]}]}]}
+                   {'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
+                       {'type': 'FILE', 'name': '1.txt', 'size': 0},
+                       {'type': 'DIR', 'name': 'b', 'size': 0},
+                       {'type': 'DIR', 'name': 'c', 'size': 0,  'children': [
+                           {'type': 'FILE', 'name': '2.txt', 'size': 0},
+                           {'type': 'FILE', 'name': '3.txt', 'size': 0}]}]}]}
 
 
 class TestINotify:
