@@ -41,7 +41,8 @@ class TestFDNMetaData:
             'nozzle_diameter': 0.4,
             'printer_model': 'MINI',
             'support_material': 0,
-            'temperature': 240
+            'temperature': 240,
+            'ironing': 0
         }
         assert len(meta.thumbnails['16x16']) == 608
         assert len(meta.thumbnails['220x124']) == 11680

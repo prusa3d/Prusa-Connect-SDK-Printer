@@ -85,6 +85,7 @@ class FDMMetaData(MetaData):
         "brim_width": int,
         "temperature": int,
         "support_material": int,
+        "ironing": int,
     }
 
     KEY_VAL_PAT = re.compile("; (?P<key>.*?) = (?P<value>.*)$")
