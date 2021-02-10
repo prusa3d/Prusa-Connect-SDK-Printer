@@ -81,6 +81,24 @@ class File:
         self.children: dict = {}
 
     @property
+    def size(self):
+        """Return `size` from `self.attrs` for a FILE or compute it for
+        a directory.
+        """
+        if not self.is_dir:  # file
+            return self.attrs.get('size', 0)
+
+        # directory
+        size = 0
+        for child in self.children.values():
+            size += child.size
+        return size
+
+    @size.setter
+    def size(self, value):
+        self.attrs['size'] = value
+
+    @property
     def parent(self):
         """Gets a parent node"""
         return self._parent
@@ -180,9 +198,10 @@ class File:
             "type": "DIR" if self.is_dir else "FILE",
             "name": self.name,
         }
-        for attr in ("ro", "size", "m_time"):
+        for attr in ("ro", "m_time"):
             if attr in self.attrs:
                 result[attr] = self.attrs[attr]
+        result['size'] = self.size
         children = [child.to_dict() for child in self.children.values()]
         if children:
             result['children'] = children
@@ -207,7 +226,7 @@ class File:
         stats = stat(abs_path)
         self.attrs["ro"] = not access(abs_path, W_OK)
         if not self.is_dir:
-            self.attrs["size"] = stats.st_size
+            self.size = stats.st_size
         m_datetime = datetime.fromtimestamp(stats.st_mtime)
         m_time = datetime.timetuple(m_datetime)[:6]
         self.attrs["m_time"] = m_time

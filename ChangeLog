@@ -11,6 +11,7 @@ ChnageLog
     * introduce basic ErrorState instances in errors.py and use in __init__.py
     * introduce errors.TOKEN signaling if a token is available
     * add ironing to FDM metadata
+    * introduce `File.size` as a settable property
 
 0.2.0 (2020-12-14)
 

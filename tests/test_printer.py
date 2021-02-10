@@ -248,7 +248,12 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
+        assert file_system == {
+            'type': 'DIR',
+            'name': 'test',
+            'ro': False,
+            'size': 0
+        }
 
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -282,12 +287,18 @@ class TestPrinter:
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
-            'name': 'test',
-            'ro': False,
+            'type':
+            'DIR',
+            'name':
+            'test',
+            'size':
+            0,
+            'ro':
+            False,
             'children': [{
                 'name': 'test_dir',
                 'ro': False,
+                'size': 0,
                 'type': 'DIR'
             }]
         }
@@ -302,7 +313,12 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
+        assert file_system == {
+            'type': 'DIR',
+            'name': 'test',
+            'ro': False,
+            'size': 0
+        }
         # directory is removed
         assert os.path.exists(path) is False
 
@@ -323,7 +339,12 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
+        assert file_system == {
+            'type': 'DIR',
+            'name': 'test',
+            'ro': False,
+            'size': 0
+        }
 
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -361,6 +382,8 @@ class TestPrinter:
             'test',
             'ro':
             False,
+            'size':
+            1,
             'children': [{
                 'name': 'test-file.hex',
                 'ro': False,
@@ -378,7 +401,12 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
+        assert file_system == {
+            'type': 'DIR',
+            'name': 'test',
+            'ro': False,
+            'size': 0
+        }
         assert os.path.exists(file_path) is False
 
     def test_call_create_directory(self, requests_mock, printer):
@@ -396,7 +424,12 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
+        assert file_system == {
+            'type': 'DIR',
+            'name': 'test',
+            'size': 0,
+            'ro': False
+        }
 
         requests_mock.post(SERVER + "/p/telemetry",
                            text='{"command":"CREATE_DIRECTORY", '
@@ -426,7 +459,12 @@ class TestPrinter:
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
-        assert file_system == {'type': 'DIR', 'name': 'test', 'ro': False}
+        assert file_system == {
+            'type': 'DIR',
+            'name': 'test',
+            'size': 0,
+            'ro': False
+        }
 
         printer.command()  # exec CREATE_DIRECTORY
 
@@ -439,13 +477,19 @@ class TestPrinter:
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
-            'name': 'test',
-            'ro': False,
+            'type':
+            'DIR',
+            'name':
+            'test',
+            'size':
+            0,
+            'ro':
+            False,
             'children': [{
                 'name': 'test_dir',
                 'ro': False,
-                'type': 'DIR'
+                'type': 'DIR',
+                'size': 0,
             }]
         }
         assert os.path.exists(path) is True
