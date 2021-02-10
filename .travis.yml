@@ -10,6 +10,9 @@ install:
  - pip3 install -U pytest pytest-pylint pytest-doctestplus requests
    requests_mock pytest-mypy inotify_simple func-timeout
 
+before_script:
+ - export TZ=Europe/Prague
+
 script:
  - pytest -v --mypy tests --log-cli-level=10
  - pytest -v --mypy --pylint --doctest-rst prusa/connect/printer
