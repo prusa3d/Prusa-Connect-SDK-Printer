@@ -2,11 +2,21 @@ import os
 import pytest
 import tempfile
 import filecmp
+import shutil
+import time
+import json
 
 from prusa.connect.printer.metadata import get_metadata, UnknownGcodeFileType
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
+
+
+@pytest.fixture
+def tmp_dir():
+    tmp = tempfile.TemporaryDirectory()
+    yield tmp
+    del tmp
 
 
 def test_save_cache_file():
@@ -49,7 +59,7 @@ def test_load_cache_file_does_not_exist():
 def test_load_cache_empty_file():
     """Test load_cache() with empty file"""
     fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
-    with open(fn + ".cache", "w") as file:
+    with open(fn + ".cache", "w"):
         pass
     with pytest.raises(ValueError):
         meta = get_metadata(fn)
@@ -58,51 +68,63 @@ def test_load_cache_empty_file():
 
 def test_key_error_load_cache():
     """test load_cache() with incorrect, or missing key"""
-    fn = os.path.join(gcodes_dir, "fdn_filename_no_key.gcode")
+    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
     meta = get_metadata(fn)
     with pytest.raises(ValueError):
         meta.load_cache()
 
 
-def test_check_fresh_fresher():
-    """check_fresh, when cache file is fresher, than original file"""
-    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    meta = get_metadata(fn)
-    assert meta.check_fresh()
+def test_is_cache_fresh_fresher(tmp_dir):
+    """is_cache_fresh, when cache file is fresher, than original file"""
+    temp_dir = tmp_dir.name
+    fn_gcode = os.path.join(gcodes_dir, "fdn_filename.gcode")
+    temp_gcode = shutil.copy(fn_gcode, temp_dir)
+
+    # Create the time difference
+    time.sleep(0.01)
+
+    meta = get_metadata(temp_gcode)
+    fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
+    shutil.copy(fn_cache, temp_dir)
+    assert meta.is_cache_fresh()
 
 
-def test_check_fresh_older():
-    """check_fresh, when cache file is older, than original file"""
-    fn = os.path.join(gcodes_dir, "fdn_filename_empty_old.gcode")
-    meta = get_metadata(fn)
-    assert meta.check_fresh() is False
+def test_is_cache_fresh_older(tmp_dir):
+    """is_cache_fresh, when cache file is older, than original file"""
+    temp_dir = tmp_dir.name
+    fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
+    shutil.copy(fn_cache, temp_dir)
+
+    # Create the time difference
+    time.sleep(0.01)
+
+    fn_gcode = os.path.join(gcodes_dir, "fdn_filename.gcode")
+    temp_gcode = shutil.copy(fn_gcode, temp_dir)
+    meta = get_metadata(temp_gcode)
+    assert meta.is_cache_fresh() is False
 
 
-def test_save_and_compare_cache_file():
-    """Compare save_cache() file values with default file values"""
-    test_cache = os.path.join(gcodes_dir, "fdn_filename_test.gcode.cache")
+def test_save_and_compare_cache_file(tmp_dir):
+    """Save data using save_cache() and then compare values from
+    load_cache() with default cache file values"""
+    temp_dir = tmp_dir.name
 
-    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    meta = get_metadata(fn)
-    meta.save_cache()
-    cache_file = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
+    fn_gcode = os.path.join(gcodes_dir, "fdn_filename.gcode")
+    fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
+    meta = get_metadata(fn_gcode)
 
-    assert filecmp.cmp(cache_file, test_cache, shallow=False)
+    temp_gcode = shutil.copy(fn_gcode, temp_dir)
+    temp_cache = os.path.join(temp_dir, "fdn_filename.gcode.cache")
+    get_metadata(temp_gcode).save_cache()
 
+    with open(temp_cache, "r") as file:
+        cache_data = json.load(file)
+        cache_data["path"] = meta.path
 
-def test_load_and_compare_cache_file():
-    """Compare load_cache() file values with default file values"""
-    test_file = os.path.join(gcodes_dir, "fdn_filename_test.gcode")
-    test_meta = get_metadata(test_file)
-    test_meta.load_cache()
+    with open(temp_cache, "w") as file:
+        json.dump(cache_data, file, indent=2)
 
-    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    meta = get_metadata(fn)
-    meta.load_cache()
-
-    assert test_meta.data == meta.data
-    assert test_meta.path == meta.path
-    assert test_meta.thumbnails == meta.thumbnails
+    assert filecmp.cmp(temp_cache, fn_cache, shallow=False)
 
 
 def test_get_metadata_invalid_file():

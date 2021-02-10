@@ -8,8 +8,10 @@ import re
 import os
 import zipfile
 from typing import Dict, Any, List
-from .const import GCODE_EXTENSIONS
 from logging import getLogger
+from .const import GCODE_EXTENSIONS
+
+log = getLogger("connect-printer")
 
 
 class UnknownGcodeFileType(ValueError):
@@ -22,7 +24,7 @@ def thumbnail_from_bytes(data_input):
     of JSON serialization requirements"""
     converted_data = dict()
     for key, value in data_input.items():
-        if type(value) is bytes:
+        if isinstance(value, bytes):
             converted_data[key] = str(value, 'utf-8')
     return converted_data
 
@@ -31,9 +33,8 @@ def thumbnail_to_bytes(data_input):
     """Parse thumbnail from string to original bytes format"""
     converted_data = dict()
     for key, value in data_input.items():
-        if key == "thumbnails":
-            for key_, value_ in value.items():
-                converted_data[key_] = bytes(value_, 'utf-8')
+        converted_data[key] = bytes(value, 'utf-8')
+    return converted_data
 
 
 class MetaData:
@@ -49,9 +50,8 @@ class MetaData:
         self.path = path
         self.thumbnails = {}
         self.data = {}
-        self.log = getLogger()
 
-    def check_fresh(self):
+    def is_cache_fresh(self):
         """If cache is fresher than file, returns True"""
         file_time_created = os.path.getctime(self.path)
         try:
@@ -64,27 +64,29 @@ class MetaData:
         """Take metadata from source file and save them as JSON to
         <file_name>.cache file"""
         try:
-            # If original file is fresher than cache, create a new cache
-            if not self.check_fresh():
-                thumbnails = thumbnail_from_bytes(self.thumbnails)
-                with open(self.path + ".cache", "w") as file:
-                    dict_data = {
-                        "path": self.path,
-                        "thumbnails": thumbnails,
-                        "data": self.data
-                    }
-                    json.dump(dict_data, file, indent=2)
+            dict_data = {
+                "path": None,
+                "thumbnails": None,
+                "data": None
+            }
+            thumbnails = thumbnail_from_bytes(self.thumbnails)
+
+            with open(self.path + ".cache", "w") as file:
+                dict_data["path"] = self.path
+                dict_data["thumbnails"] = thumbnails
+                dict_data["data"] = self.data
+                json.dump(dict_data, file, indent=2)
         except PermissionError:
-            self.log.warning("You don't have permission for save file here")
+            log.warning("You don't have permission for save file here")
 
     def load_cache(self):
         """Load metadata values from <file_name>.cache file"""
         try:
             with open(self.path + ".cache", "r") as file:
                 cache_data = json.load(file)
-            thumbnail_to_bytes(cache_data)
+
             self.path = cache_data["path"]
-            self.thumbnails = cache_data["thumbnails"]
+            self.thumbnails = thumbnail_to_bytes(cache_data["thumbnails"])
             self.data = cache_data["data"]
 
         except (json.decoder.JSONDecodeError, FileNotFoundError, KeyError)\
