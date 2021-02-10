@@ -366,6 +366,11 @@ M73 P100 R0
 ; skirt_distance = 2
 ; skirt_height = 3
 ; skirts = 1
+; ironing = 0
+; ironing_flowrate = 15%
+; ironing_spacing = 0.1
+; ironing_speed = 15
+; ironing_type = top
 ; slice_closing_radius = 0.049
 ; slowdown_below_layer_time = 20
 ; small_perimeter_speed = 25
