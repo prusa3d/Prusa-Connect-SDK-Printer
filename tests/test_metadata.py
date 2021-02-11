@@ -3,7 +3,6 @@ import pytest
 import tempfile
 import shutil
 import time
-import json
 
 from prusa.connect.printer.metadata import get_metadata, UnknownGcodeFileType,\
     MetaData
@@ -12,13 +11,11 @@ gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
 
 
-# přidat tmp.name
 @pytest.fixture
 def tmp_dir():
     temp = tempfile.TemporaryDirectory()
-    tmp = temp.name
-    yield tmp
-    del tmp
+    yield temp.name
+    del temp
 
 
 def test_get_metadata_file_does_not_exist():
@@ -51,7 +48,7 @@ def test_load_cache_file_does_not_exist():
         MetaData(fn).load_cache()
 
 
-def test_key_error_load_cache():
+def test_load_cache_key_error():
     """test load_cache() with incorrect, or missing key"""
     fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
     with pytest.raises(ValueError):
