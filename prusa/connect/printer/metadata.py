@@ -65,16 +65,10 @@ class MetaData:
         <file_name>.cache file"""
         try:
             dict_data = {
-                "path": None,
-                "thumbnails": None,
-                "data": None
+                "thumbnails": thumbnail_from_bytes(self.thumbnails),
+                "data": self.data
             }
-            thumbnails = thumbnail_from_bytes(self.thumbnails)
-
             with open(self.path + ".cache", "w") as file:
-                dict_data["path"] = self.path
-                dict_data["thumbnails"] = thumbnails
-                dict_data["data"] = self.data
                 json.dump(dict_data, file, indent=2)
         except PermissionError:
             log.warning("You don't have permission for save file here")
@@ -84,11 +78,8 @@ class MetaData:
         try:
             with open(self.path + ".cache", "r") as file:
                 cache_data = json.load(file)
-
-            self.path = cache_data["path"]
             self.thumbnails = thumbnail_to_bytes(cache_data["thumbnails"])
             self.data = cache_data["data"]
-
         except (json.decoder.JSONDecodeError, FileNotFoundError, KeyError)\
                 as err:
             raise ValueError(

@@ -1,36 +1,24 @@
 import os
 import pytest
 import tempfile
-import filecmp
 import shutil
 import time
 import json
 
-from prusa.connect.printer.metadata import get_metadata, UnknownGcodeFileType
+from prusa.connect.printer.metadata import get_metadata, UnknownGcodeFileType,\
+    MetaData
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
 
 
+# přidat tmp.name
 @pytest.fixture
 def tmp_dir():
-    tmp = tempfile.TemporaryDirectory()
+    temp = tempfile.TemporaryDirectory()
+    tmp = temp.name
     yield tmp
     del tmp
-
-
-def test_save_cache_file():
-    """Test save-cache() with correct data"""
-    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    meta = get_metadata(fn)
-    meta.save_cache()
-
-
-def test_load_cache_file():
-    """Test load_cache() with correct data"""
-    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    meta = get_metadata(fn)
-    meta.load_cache()
 
 
 def test_get_metadata_file_does_not_exist():
@@ -40,91 +28,56 @@ def test_get_metadata_file_does_not_exist():
         get_metadata(fn)
 
 
-def test_save_cache_original_file_does_not_exist():
-    """Test save_cache() with a non-existing original file"""
-    with pytest.raises(FileNotFoundError):
-        fn = os.path.join(gcodes_dir, "imaginary_filename.gcode")
-        meta = get_metadata(fn)
-        meta.save_cache()
+def test_save_load_and_compare_cache_file(tmp_dir):
+    """Test save-cache() with correct data"""
+    fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
+    meta = get_metadata(fn)
+
+    temp_gcode = shutil.copy(fn, tmp_dir)
+    temp_meta = get_metadata(temp_gcode)
+    temp_meta.save_cache()
+
+    new_meta = MetaData(temp_gcode)
+    new_meta.load_cache()
+
+    assert meta.thumbnails == temp_meta.thumbnails == new_meta.thumbnails
+    assert meta.data == temp_meta.data == new_meta.data
 
 
 def test_load_cache_file_does_not_exist():
     """Test load_cache() with a non-existing cache file"""
     with pytest.raises(ValueError):
         fn = os.path.join(gcodes_dir, "fdn_all_empty.gcode")
-        meta = get_metadata(fn)
-        meta.load_cache()
-
-
-def test_load_cache_empty_file():
-    """Test load_cache() with empty file"""
-    fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
-    with open(fn + ".cache", "w"):
-        pass
-    with pytest.raises(ValueError):
-        meta = get_metadata(fn)
-        meta.load_cache()
+        MetaData(fn).load_cache()
 
 
 def test_key_error_load_cache():
     """test load_cache() with incorrect, or missing key"""
     fn = os.path.join(gcodes_dir, "fdn_filename_empty.gcode")
-    meta = get_metadata(fn)
     with pytest.raises(ValueError):
-        meta.load_cache()
+        MetaData(fn).load_cache()
 
 
 def test_is_cache_fresh_fresher(tmp_dir):
     """is_cache_fresh, when cache file is fresher, than original file"""
-    temp_dir = tmp_dir.name
     fn_gcode = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    temp_gcode = shutil.copy(fn_gcode, temp_dir)
-
+    temp_gcode = shutil.copy(fn_gcode, tmp_dir)
     # Create the time difference
     time.sleep(0.01)
-
-    meta = get_metadata(temp_gcode)
     fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
-    shutil.copy(fn_cache, temp_dir)
-    assert meta.is_cache_fresh()
+    shutil.copy(fn_cache, tmp_dir)
+    assert MetaData(temp_gcode).is_cache_fresh()
 
 
 def test_is_cache_fresh_older(tmp_dir):
     """is_cache_fresh, when cache file is older, than original file"""
-    temp_dir = tmp_dir.name
     fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
-    shutil.copy(fn_cache, temp_dir)
-
+    shutil.copy(fn_cache, tmp_dir)
     # Create the time difference
     time.sleep(0.01)
-
     fn_gcode = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    temp_gcode = shutil.copy(fn_gcode, temp_dir)
-    meta = get_metadata(temp_gcode)
-    assert meta.is_cache_fresh() is False
-
-
-def test_save_and_compare_cache_file(tmp_dir):
-    """Save data using save_cache() and then compare values from
-    load_cache() with default cache file values"""
-    temp_dir = tmp_dir.name
-
-    fn_gcode = os.path.join(gcodes_dir, "fdn_filename.gcode")
-    fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
-    meta = get_metadata(fn_gcode)
-
-    temp_gcode = shutil.copy(fn_gcode, temp_dir)
-    temp_cache = os.path.join(temp_dir, "fdn_filename.gcode.cache")
-    get_metadata(temp_gcode).save_cache()
-
-    with open(temp_cache, "r") as file:
-        cache_data = json.load(file)
-        cache_data["path"] = meta.path
-
-    with open(temp_cache, "w") as file:
-        json.dump(cache_data, file, indent=2)
-
-    assert filecmp.cmp(temp_cache, fn_cache, shallow=False)
+    temp_gcode = shutil.copy(fn_gcode, tmp_dir)
+    assert MetaData(temp_gcode).is_cache_fresh() is False
 
 
 def test_get_metadata_invalid_file():

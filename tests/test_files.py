@@ -16,6 +16,7 @@ from prusa.connect.printer.files import File, Filesystem, \
     InvalidMountpointError, InotifyHandler
 from prusa.connect.printer.models import Event
 
+
 # pylint: disable=missing-function-docstring
 # pylint: disable=no-self-use
 # pylint: disable=invalid-name
@@ -64,6 +65,7 @@ def inotify(queue, nodes):
     directory. This returns the path to the dir on storage, the Inotify
     handler and filesystem as a tuple: (path, handler, filesystem).
     """
+
     def create_on_storage(root_dir, node):
         parts = node.abs_parts()
         parts.insert(0, root_dir)
@@ -111,6 +113,7 @@ def fs(nodes):
 
 class TestFile:
     """Test the methods of the File class"""
+
     def test_add(self):
         root = File("root", is_dir=True)
         assert not root.children
@@ -175,20 +178,20 @@ class TestFile:
 
     def test_m_time(self, fs_from_dir):
         assert fs_from_dir.get("/a").attrs['m_time'] \
-                == (2020, 7, 30, 16, 40, 5)
+               == (2020, 7, 30, 16, 40, 5)
 
     def test_to_dict(self, fs_from_dir):
         res = fs_from_dir.get("/a").to_dict()
         assert res == {
             'type':
-            'DIR',
+                'DIR',
             'name':
-            'a',
+                'a',
             'ro':
-            True,
+                True,
             'm_time': (2020, 7, 30, 16, 40, 5),
             'size':
-            9132,
+                9132,
             'children': [{
                 'type': 'DIR',
                 'name': 'b',
@@ -197,14 +200,14 @@ class TestFile:
                 'size': 0
             }, {
                 'type':
-                'DIR',
+                    'DIR',
                 'name':
-                'c',
+                    'c',
                 'ro':
-                True,
+                    True,
                 'm_time': (2020, 7, 30, 16, 40, 5),
                 'size':
-                6088,
+                    6088,
                 'children': [{
                     'type': 'FILE',
                     'name': '2.txt',
@@ -249,6 +252,7 @@ class TestFile:
 
 class TestFilesystem:
     """Test Filesystem class interface."""
+
     def test_mount(self, fs):
         assert len(fs.mounts) == 1
         assert "a" in fs.mounts
@@ -305,13 +309,14 @@ class TestFilesystem:
                    {'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
                        {'type': 'FILE', 'name': '1.txt', 'size': 0},
                        {'type': 'DIR', 'name': 'b', 'size': 0},
-                       {'type': 'DIR', 'name': 'c', 'size': 0,  'children': [
+                       {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
                            {'type': 'FILE', 'name': '2.txt', 'size': 0},
                            {'type': 'FILE', 'name': '3.txt', 'size': 0}]}]}]}
 
 
 class TestINotify:
     """Test events from Inotify class."""
+
     def test_CREATE_file(self, inotify):
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event
