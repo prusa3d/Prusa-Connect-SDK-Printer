@@ -184,10 +184,7 @@ class Printer:
         :source: the initiator of printer state
         """
         self.__state = state
-        self.event_cb(const.Event.STATE_CHANGED,
-                      source,
-                      state=state.value,
-                      **kwargs)
+        self.event_cb(const.Event.STATE_CHANGED, source, state=state, **kwargs)
 
     def event_cb(self,
                  event: const.Event,
@@ -238,7 +235,7 @@ class Printer:
         type_, ver, sub = self.type.value
         return dict(source=const.Source.CONNECT,
                     event=const.Event.INFO,
-                    state=self.__state.value,
+                    state=self.__state,
                     type=type_,
                     version=ver,
                     subversion=sub,

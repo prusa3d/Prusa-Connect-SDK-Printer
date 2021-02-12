@@ -43,6 +43,7 @@ def filter_null(obj):
     return obj
 
 
+# pylint: disable=too-many-instance-attributes
 class Event:
     """Event object must contain at least Event type and source.
 
@@ -56,17 +57,24 @@ class Event:
     timestamp: float
     data: Dict[str, Any]
 
+    # pylint: disable=too-many-arguments
     def __init__(self,
                  event: const.Event,
                  source: const.Source,
                  timestamp: float = None,
                  command_id: int = None,
+                 job_id: int = None,
+                 reason: str = None,
+                 state: const.State = None,
                  **kwargs):
         self.timestamp = timestamp or int(
             time() * 10) * const.TIMESTAMP_PRECISION
         self.event = event
         self.source = source
         self.command_id = command_id
+        self.job_id = job_id
+        self.reason = reason
+        self.state = state
         self.data = kwargs
 
     def to_payload(self):
@@ -76,8 +84,12 @@ class Event:
             "source": self.source.value,
             "data": filter_null(self.data)
         }
-        if self.command_id:
-            data["command_id"] = self.command_id
+        for attr in ('command_id', 'job_id', 'reason'):
+            value = getattr(self, attr)
+            if value:
+                data[attr] = value
+        if self.state:
+            data["state"] = self.state.value
 
         return data
 

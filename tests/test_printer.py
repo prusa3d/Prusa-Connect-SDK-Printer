@@ -134,7 +134,7 @@ class TestPrinter:
         event_obj = item.to_payload()
         assert event_obj['event'] == 'REJECTED'
         assert event_obj['source'] == 'WUI'
-        assert event_obj['data']['reason'] == \
+        assert event_obj['reason'] == \
                'Printer has not been initialized properly'
 
     def test_event(self, printer):
@@ -778,15 +778,14 @@ class TestPrinter:
         assert len(info['data']['preview']) == 524
 
     def test_send_file_info_does_not_exist(self, requests_mock, printer):
-        dir = tempfile.TemporaryDirectory()
+        directory = tempfile.TemporaryDirectory()
         filename = '/N/A/file.txt'
-        info = self._send_file_info(dir.name, filename, requests_mock, printer)
+        info = self._send_file_info(directory.name, filename, requests_mock,
+                                    printer)
         assert info['event'] == 'REJECTED'
         assert info['source'] == 'WUI'
-        assert info['data'] == {
-            'reason': 'Command error',
-            'error': 'File does not exist: /N/A/file.txt'
-        }
+        assert info['reason'] == 'Command error'
+        assert info['data'] == {'error': 'File does not exist: /N/A/file.txt'}
 
 
 def test_notification_handler():
