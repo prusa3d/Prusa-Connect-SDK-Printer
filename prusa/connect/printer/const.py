@@ -12,6 +12,7 @@ class State(Enum):
     PRINTING = "PRINTING"
     PAUSED = "PAUSED"
     FINISHED = "FINISHED"
+    STOPPED = "STOPPED"
     ERROR = "ERROR"
     ATTENTION = "ATTENTION"
 
