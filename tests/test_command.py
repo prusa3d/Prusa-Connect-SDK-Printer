@@ -99,7 +99,7 @@ def test_call_unknow_command(command, queue):
     command.state = const.Event.ACCEPTED
     command()
     event = check_event(queue, const.Event.REJECTED)
-    assert event.data['reason'] == "Unknown command"
+    assert event.reason == "Unknown command"
 
 
 def test_call_not_implemented(command, queue):
@@ -107,7 +107,7 @@ def test_call_not_implemented(command, queue):
     command.state = const.Event.ACCEPTED
     command()
     event = check_event(queue, const.Event.REJECTED)
-    assert event.data['reason'] == "Not Implemented"
+    assert event.reason == "Not Implemented"
 
 
 def test_call_exception(command, queue):
@@ -119,7 +119,7 @@ def test_call_exception(command, queue):
     command.handlers[const.Command.SEND_INFO] = handler
     command()
     event = check_event(queue, const.Event.REJECTED)
-    assert event.data['reason'] == "Command error"
+    assert event.reason == "Command error"
     assert 'error' in event.data
 
 
