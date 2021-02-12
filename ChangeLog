@@ -15,6 +15,7 @@ ChnageLog
     * added functions for save/load cache of data
     * fix event data structure
     * new STOPPED state
+    * typed package
 
 0.2.0 (2020-12-14)
 
