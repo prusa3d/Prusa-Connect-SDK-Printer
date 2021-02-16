@@ -16,6 +16,7 @@ ChnageLog
     * fix event data structure
     * new STOPPED state
     * typed package
+    * load() function and test_metadata modification
 
 0.2.0 (2020-12-14)
 

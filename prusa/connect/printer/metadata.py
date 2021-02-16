@@ -85,12 +85,17 @@ class MetaData:
             raise ValueError(
                 "JSON data not found or in incorrect format") from err
 
-    def load(self):
+    def load(self, save_cache=True):
         """Extract and set metadata from `self.path`. Any metadata
         obtained from the path will be overwritten by metadata from
         the file if the metadata is contained there as well"""
-        self.load_from_path(self.path)
-        self.load_from_file(self.path)
+        if self.is_cache_fresh():
+            self.load_cache()
+        else:
+            self.load_from_path(self.path)
+            self.load_from_file(self.path)
+            if save_cache:
+                self.save_cache()
 
     def load_from_file(self, path: str):
         """Load metadata and thumbnails from given `path`"""
@@ -230,10 +235,10 @@ class SLMetaData(MetaData):
 
     THUMBNAIL_NAME_PAT = re.compile(r"(?P<dim>\d+x\d+)")
 
-    def load(self):
+    def load(self, save_cache=True):
         """Load metadata"""
         try:
-            super().load()
+            super().load(save_cache)
         except zipfile.BadZipFile:
             # NOTE can't import `log` from __init__.py because of
             #  circular dependencies
@@ -290,10 +295,11 @@ class SLMetaData(MetaData):
         return thumbnails
 
 
-def get_metadata(path: str):
+def get_metadata(path: str, save_cache=True):
     """Return the Metadata for given `path`
 
     :param path: Gcode file
+    :param save_cache: Boolean if cache should be saved
     """
     # pylint: disable=redefined-outer-name
     fnl = path.lower()
@@ -305,7 +311,7 @@ def get_metadata(path: str):
     else:
         raise UnknownGcodeFileType(path)
 
-    meta.load()
+    meta.load(save_cache)
     return meta
 
 
