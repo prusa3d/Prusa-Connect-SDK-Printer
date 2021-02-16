@@ -41,11 +41,12 @@ def test_save_load_and_compare_cache_file(tmp_dir):
     assert meta.data == temp_meta.data == new_meta.data
 
 
-def test_load_cache_file_does_not_exist():
+def test_load_cache_file_does_not_exist(tmp_dir):
     """Test load_cache() with a non-existing cache file"""
     with pytest.raises(ValueError):
         fn = os.path.join(gcodes_dir, "fdn_all_empty.gcode")
-        MetaData(fn).load_cache()
+        temp_gcode = shutil.copy(fn, tmp_dir)
+        MetaData(temp_gcode).load_cache()
 
 
 def test_load_cache_key_error():
@@ -89,7 +90,7 @@ class TestFDNMetaData:
         """Both the file and filename contain metadata. There are thumbnails.
         """
         fn = os.path.join(gcodes_dir, "fdn_full_0.25mm_PETG_MINI_2h9m.gcode")
-        meta = get_metadata(fn)
+        meta = get_metadata(fn, False)
         assert meta.data == {
             'bed_temperature': 90,
             'brim_width': 0,
@@ -113,7 +114,7 @@ class TestFDNMetaData:
         """Only the filename contains metadata. There are no thumbnails."""
         fn = os.path.join(gcodes_dir,
                           "fdn_only_filename_0.25mm_PETG_MINI_2h9m.gcode")
-        meta = get_metadata(fn)
+        meta = get_metadata(fn, False)
         assert meta.data == {
             'estimated printing time (normal mode)': '2h9m',
             'filament_type': 'PETG',
@@ -124,7 +125,7 @@ class TestFDNMetaData:
     def test_fdn_all_empty(self):
         """Only the file contains metadata. There are thumbnails."""
         fn = os.path.join(gcodes_dir, "fdn_all_empty.gcode")
-        meta = get_metadata(fn)
+        meta = get_metadata(fn, False)
         assert not meta.data
         assert not meta.thumbnails
         assert meta.path == fn
@@ -133,7 +134,7 @@ class TestFDNMetaData:
 class TestSLMetaData:
     def test_sl(self):
         fn = os.path.join(gcodes_dir, "pentagonal-hexecontahedron-1.sl1")
-        meta = get_metadata(fn)
+        meta = get_metadata(fn, False)
 
         assert meta.data == {
             'printer_model': 'SL1',
@@ -156,7 +157,7 @@ class TestSLMetaData:
     def test_sl_empty_file(self):
         """Test a file that is empty"""
         fn = os.path.join(gcodes_dir, "empty.sl1")
-        meta = get_metadata(fn)
+        meta = get_metadata(fn, False)
 
         assert not meta.data
         assert not meta.thumbnails
