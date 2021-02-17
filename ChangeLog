@@ -17,6 +17,8 @@ ChnageLog
     * new STOPPED state
     * typed package
     * load() function and test_metadata modification
+    * cache file name modification
+    * if metadata are empty, cache is not created
 
 0.2.0 (2020-12-14)
 

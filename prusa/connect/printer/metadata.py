@@ -51,11 +51,18 @@ class MetaData:
         self.thumbnails = {}
         self.data = {}
 
+    @property
+    def cache_name(self):
+        """Create cache name in format .<filename>.cache"""
+        path_ = os.path.split(self.path)
+        new_path = path_[0] + "/." + path_[1] + ".cache"
+        return new_path
+
     def is_cache_fresh(self):
         """If cache is fresher than file, returns True"""
         file_time_created = os.path.getctime(self.path)
         try:
-            cache_time_created = os.path.getctime(self.path + ".cache")
+            cache_time_created = os.path.getctime(self.cache_name)
             return file_time_created < cache_time_created
         except FileNotFoundError:
             return False
@@ -64,19 +71,20 @@ class MetaData:
         """Take metadata from source file and save them as JSON to
         <file_name>.cache file"""
         try:
-            dict_data = {
-                "thumbnails": thumbnail_from_bytes(self.thumbnails),
-                "data": self.data
-            }
-            with open(self.path + ".cache", "w") as file:
-                json.dump(dict_data, file, indent=2)
+            if self.thumbnails or self.data:
+                dict_data = {
+                    "thumbnails": thumbnail_from_bytes(self.thumbnails),
+                    "data": self.data
+                }
+                with open(self.cache_name, "w") as file:
+                    json.dump(dict_data, file, indent=2)
         except PermissionError:
             log.warning("You don't have permission for save file here")
 
     def load_cache(self):
         """Load metadata values from <file_name>.cache file"""
         try:
-            with open(self.path + ".cache", "r") as file:
+            with open(self.cache_name, "r") as file:
                 cache_data = json.load(file)
             self.thumbnails = thumbnail_to_bytes(cache_data["thumbnails"])
             self.data = cache_data["data"]
