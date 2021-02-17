@@ -4,7 +4,6 @@ from __future__ import annotations  # noqa
 import configparser
 import os
 import re
-from json import JSONDecodeError
 from logging import getLogger
 from queue import Queue, Empty
 from time import time, sleep
@@ -16,12 +15,11 @@ from requests.exceptions import ConnectionError
 
 from . import const, errors
 from .command import Command
-from .errors import SDKServerError, SDKConnectionError
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
 
-__version__ = "0.3.0.dev1"
+__version__ = "0.3.0.dev2"
 __date__ = "14 Dec 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
@@ -44,7 +42,7 @@ CODE_TIMEOUT = 60 * 30  # 30 min
 log = getLogger("connect-printer")
 re_conn_reason = re.compile(r"] (.*)")
 
-__all__ = ["Printer", "Notifications"]
+__all__ = ["Printer"]
 
 CommandArgs = Optional[List[Any]]
 
@@ -487,31 +485,13 @@ class Printer:
                 errors.API.ok = True
 
                 if res.status_code >= 400:
-                    try:
-                        message = res.json()["message"]
-                    except (JSONDecodeError, KeyError):
-                        message = "Wrong Connect answer."
                     errors.API.ok = False
-                    sdk_err = SDKServerError(res.status_code, message)
-                    self.loop_exc_handler(sdk_err)
                     if res.status_code == 401:
                         errors.TOKEN.ok = False
             except Empty:
                 continue
-            except ConnectionError as err:
+            except ConnectionError:
                 errors.HTTP.ok = False
-                if err.args:
-                    reason = err.args[0]
-                    sdk_err = SDKConnectionError(reason)
-                else:
-                    sdk_err = SDKConnectionError()
-                self.loop_exc_handler(sdk_err)
-
-    def loop_exc_handler(self, err):
-        """This method is called with the exception that happened
-        in `self.loop` as its argument"""
-        # pylint: disable=no-self-use
-        Notifications.handler(599, str(err))
 
     def mount(self, dirpath: str, mountpoint: str):
         """Create a listing of `dirpath` and mount it under `mountpoint`.
@@ -528,13 +508,3 @@ class Printer:
         """
         self.fs.unmount(mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
-
-
-def default_notification_handler(code, msg) -> Any:
-    """Library notification handler call print."""
-    print(f"{code}: {msg}")
-
-
-class Notifications:
-    """Notification class."""
-    handler: Callable[[str, str], Any] = default_notification_handler

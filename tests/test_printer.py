@@ -8,10 +8,9 @@ import pytest  # type: ignore
 import requests
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
-from prusa.connect.printer import Printer, const, Notifications, Command, \
+from prusa.connect.printer import Printer, const, Command, \
     Register, errors
 from prusa.connect.printer.models import Telemetry, Event
-from prusa.connect.printer.errors import SDKServerError, SDKConnectionError
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=no-self-use
@@ -164,16 +163,24 @@ class TestPrinter:
                            status_code=400,
                            json={'message': 'No Way'})
         printer.event_cb(const.Event.INFO, const.Source.WUI)
-        with pytest.raises(SDKServerError):
-            printer.loop()
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
         assert errors.HTTP.ok is True
         assert errors.API.ok is False
 
         requests_mock.post(SERVER + "/p/events",
                            exc=requests.exceptions.ConnectTimeout)
         printer.event_cb(const.Event.INFO, const.Source.WUI)
-        with pytest.raises(SDKConnectionError):
-            printer.loop()
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
         assert errors.INTERNET.ok is True
         assert errors.HTTP.ok is False
 
@@ -641,8 +648,11 @@ class TestPrinter:
         requests_mock.get(SERVER + "/p/register", status_code=400)
 
         printer.queue.put(Register(tmp_code))
-        with pytest.raises(SDKServerError):
-            printer.loop()
+
+        try:
+            func_timeout(1.1, printer.loop)
+        except FunctionTimedOut:
+            pass
 
         assert errors.HTTP.ok is True
         assert errors.API.ok is False
@@ -786,17 +796,3 @@ class TestPrinter:
         assert info['source'] == 'WUI'
         assert info['reason'] == 'Command error'
         assert info['data'] == {'error': 'File does not exist: /N/A/file.txt'}
-
-
-def test_notification_handler():
-    code = "SERVICE_UNAVAILABLE"
-    msg = "Service is unavailable at this moment."
-
-    def cb(code, msg):
-        return (code, msg)
-
-    Notifications.handler = cb
-
-    # pylint: disable=assignment-from-no-return
-    res = Notifications.handler(code, msg)
-    assert res == (code, msg)
