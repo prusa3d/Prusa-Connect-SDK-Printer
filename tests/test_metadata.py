@@ -25,6 +25,17 @@ def test_get_metadata_file_does_not_exist():
         get_metadata(fn)
 
 
+def test_save_cache_empty_file():
+    """Test save-cache() with empty file"""
+    fn = os.path.join(gcodes_dir, "fdn_all_empty.gcode")
+    fn_cache = os.path.join(gcodes_dir, ".fdn_all_empty.gcode")
+    meta = get_metadata(fn)
+    meta.save_cache()
+    with pytest.raises(FileNotFoundError):
+        with open(fn_cache, "r"):
+            pass
+
+
 def test_save_load_and_compare_cache_file(tmp_dir):
     """Test save-cache() with correct data"""
     fn = os.path.join(gcodes_dir, "fdn_filename.gcode")
@@ -62,14 +73,14 @@ def test_is_cache_fresh_fresher(tmp_dir):
     temp_gcode = shutil.copy(fn_gcode, tmp_dir)
     # Create the time difference
     time.sleep(0.01)
-    fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
+    fn_cache = os.path.join(gcodes_dir, ".fdn_filename.gcode.cache")
     shutil.copy(fn_cache, tmp_dir)
     assert MetaData(temp_gcode).is_cache_fresh()
 
 
 def test_is_cache_fresh_older(tmp_dir):
     """is_cache_fresh, when cache file is older, than original file"""
-    fn_cache = os.path.join(gcodes_dir, "fdn_filename.gcode.cache")
+    fn_cache = os.path.join(gcodes_dir, ".fdn_filename.gcode.cache")
     shutil.copy(fn_cache, tmp_dir)
     # Create the time difference
     time.sleep(0.01)
