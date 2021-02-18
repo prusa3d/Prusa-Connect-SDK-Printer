@@ -19,7 +19,7 @@ from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
 
-__version__ = "0.3.0.dev2"
+__version__ = "0.3.0.dev3"
 __date__ = "14 Dec 2020"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
@@ -109,7 +109,7 @@ class Printer:
         # Handler blocks communication with Connect in loop method!
         self.register_handler = default_register_handler
 
-        if not self.is_initialised():
+        if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
 
     @staticmethod
@@ -191,6 +191,9 @@ class Printer:
                  command_id: int = None,
                  **kwargs) -> None:
         """Create event and push it to queue."""
+        if not self.token:
+            log.debug("Skipping event, no token: %s", event.value)
+            return
         if self.job_id:
             kwargs['job_id'] = self.job_id
         event_ = Event(event, source, timestamp, command_id, **kwargs)
@@ -204,6 +207,9 @@ class Printer:
                   timestamp: float = None,
                   **kwargs) -> None:
         """Create telemetry end push it to queue."""
+        if not self.token:
+            log.debug("Skipping telemetry, no token.")
+            return
         if self.job_id:
             kwargs['job_id'] = self.job_id
         if self.is_initialised():
@@ -451,7 +457,7 @@ class Printer:
                     log.warning("Server is not set, skipping item from queue")
                     continue
 
-                if isinstance(item, Telemetry):
+                if isinstance(item, Telemetry) and self.token:
                     headers = self.make_headers(item.timestamp)
                     log.debug("Sending telemetry: %s", item)
                     res = self.conn.post(self.server + '/p/telemetry',
@@ -459,7 +465,7 @@ class Printer:
                                          json=item.to_payload())
                     log.debug("Telemetry response: %s", res.text)
                     self.parse_command(res)
-                elif isinstance(item, Event):
+                elif isinstance(item, Event) and self.token:
                     log.debug("Sending event: %s", item)
                     res = self.conn.post(self.server + '/p/events',
                                          headers=self.make_headers(
@@ -480,7 +486,9 @@ class Printer:
                         self.queue.put(item)
                         sleep(1)
                 else:
-                    log.error("Unknown item: %s", str(item))
+                    log.debug("Item `%s` not sent, probably token isn't set.",
+                              item)
+                    continue  # No token - no communication
 
                 errors.API.ok = True
 
