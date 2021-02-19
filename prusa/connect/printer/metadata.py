@@ -53,7 +53,18 @@ class MetaData:
 
     @property
     def cache_name(self):
-        """Create cache name in format .<filename>.cache"""
+        """Create cache name in format .<filename>.cache
+
+        >>> MetaData("/test/a.gcode").cache_name
+        '/test/.a.gcode.cache'
+
+        >>> MetaData("/test/a.txt").cache_name
+        '/test/.a.txt.cache'
+
+        >>> MetaData("x").cache_name
+        '/.x.cache'
+
+        """
         path_ = os.path.split(self.path)
         new_path = path_[0] + "/." + path_[1] + ".cache"
         return new_path

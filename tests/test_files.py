@@ -15,6 +15,10 @@ from prusa.connect.printer import const
 from prusa.connect.printer.files import File, Filesystem, \
     InvalidMountpointError, InotifyHandler
 from prusa.connect.printer.models import Event
+from prusa.connect.printer.metadata import MetaData
+
+gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                          "gcodes", "metadata")
 
 
 # pylint: disable=missing-function-docstring
@@ -28,11 +32,11 @@ def nodes():
     """Create file tree in memory."""
     root = File(None, is_dir=True)
     a = root.add("a", is_dir=True)
-    a.add("1.txt")
+    a.add("1.gcode")
     a.add("b", is_dir=True)
     c = a.add("c", is_dir=True)
-    c.add("2.txt")
-    c.add("3.txt")
+    c.add("2.gcode")
+    c.add("3.gcode")
     return root
 
 
@@ -42,8 +46,8 @@ def nodes():
                                     1599740701, 1596120005, 1596120005)))
 @patch("prusa.connect.printer.files.path.abspath", return_value='/a')
 @patch("prusa.connect.printer.files.walk",
-       return_value=[('/a', ['b', 'c'], ['1.txt']), ('/a/b', [], []),
-                     ('/a/c', [], ['2.txt', '3.txt'])])
+       return_value=[('/a', ['b', 'c'], ['1.gcode']), ('/a/b', [], []),
+                     ('/a/c', [], ['2.gcode', '3.gcode'])])
 def fs_from_dir(*mocks):
     fs = Filesystem()
     fs.from_dir('/somewhere/on/the/disk/a', 'a')
@@ -145,7 +149,7 @@ class TestFile:
         # 1st level
         assert nodes.get(["a"])
         # deeper
-        assert nodes.get(["a", "c", "2.txt"])
+        assert nodes.get(["a", "c", "2.gcode"])
 
     def test_get_str(self, nodes):
         """One cannot call node.get with a string argument"""
@@ -158,9 +162,9 @@ class TestFile:
 
     def test_getitem(self, nodes):
         assert nodes['not found'] is None
-        assert nodes.get(["a"])['1.txt']
-        assert nodes.get(["a", "c"])['2.txt']
-        assert nodes.get(["a", "c"])['3.txt']
+        assert nodes.get(["a"])['1.gcode']
+        assert nodes.get(["a", "c"])['2.gcode']
+        assert nodes.get(["a", "c"])['3.gcode']
 
     def test_getattr(self, nodes):
         assert nodes.a.b.name == 'b'
@@ -172,9 +176,9 @@ class TestFile:
     def test_size(self, fs_from_dir):
         assert fs_from_dir.get("/a").size == 9132
         assert fs_from_dir.get("/a/c").size == 6088
-        assert fs_from_dir.get("/a/c/2.txt").size == 3044
+        assert fs_from_dir.get("/a/c/2.gcode").size == 3044
         assert fs_from_dir.get("/a/b").size == 0
-        assert fs_from_dir.get("/a/1.txt").size == 3044
+        assert fs_from_dir.get("/a/1.gcode").size == 3044
 
     def test_m_time(self, fs_from_dir):
         assert fs_from_dir.get("/a").attrs['m_time'] \
@@ -210,20 +214,20 @@ class TestFile:
                     6088,
                 'children': [{
                     'type': 'FILE',
-                    'name': '2.txt',
+                    'name': '2.gcode',
                     'ro': True,
                     'm_time': (2020, 7, 30, 16, 40, 5),
                     'size': 3044
                 }, {
                     'type': 'FILE',
-                    'name': '3.txt',
+                    'name': '3.gcode',
                     'ro': True,
                     'm_time': (2020, 7, 30, 16, 40, 5),
                     'size': 3044
                 }]
             }, {
                 'type': 'FILE',
-                'name': '1.txt',
+                'name': '1.gcode',
                 'ro': True,
                 'm_time': (2020, 7, 30, 16, 40, 5),
                 'size': 3044
@@ -240,14 +244,14 @@ class TestFile:
         assert str(f) == "filename"
 
     def test_abs_parts(self, nodes):
-        node = nodes.a.c["2.txt"]
-        assert node.abs_parts() == ["a", "c", "2.txt"]
+        node = nodes.a.c["2.gcode"]
+        assert node.abs_parts() == ["a", "c", "2.gcode"]
 
     @pytest.mark.skipif(sys.platform == "win",
                         reason="UINX only tests (depends on path sep)")
     def test_abs_path(self, nodes):
-        node = nodes.a.c["2.txt"]
-        assert node.abs_path("/test") == "/test/a/c/2.txt"
+        node = nodes.a.c["2.gcode"]
+        assert node.abs_path("/test") == "/test/a/c/2.gcode"
 
 
 class TestFilesystem:
@@ -282,9 +286,9 @@ class TestFilesystem:
         b = fs_from_dir.get("/a/b")
         assert not b.children
         assert b.is_dir
-        assert fs_from_dir.get("/a/1.txt")
-        assert fs_from_dir.get("/a/c/2.txt")
-        assert fs_from_dir.get("/a/c/3.txt")
+        assert fs_from_dir.get("/a/1.gcode")
+        assert fs_from_dir.get("/a/c/2.gcode")
+        assert fs_from_dir.get("/a/c/3.gcode")
 
         # test root node
         assert fs_from_dir.get("/a").is_dir is True
@@ -299,19 +303,19 @@ class TestFilesystem:
 
     def test_get_deep(self, fs):
         """Test walking along the file tree using get()"""
-        assert fs.get("a/1.txt")
-        assert fs.get("a/c/2.txt")
-        assert fs.get("a/c/3.txt")
+        assert fs.get("a/1.gcode")
+        assert fs.get("a/c/2.gcode")
+        assert fs.get("a/c/3.gcode")
 
     def test_to_dict(self, fs):
         assert fs.to_dict() == \
                {'type': 'DIR', 'name': '/', 'ro': True, 'children': [
                    {'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
-                       {'type': 'FILE', 'name': '1.txt', 'size': 0},
+                       {'type': 'FILE', 'name': '1.gcode', 'size': 0},
                        {'type': 'DIR', 'name': 'b', 'size': 0},
                        {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
-                           {'type': 'FILE', 'name': '2.txt', 'size': 0},
-                           {'type': 'FILE', 'name': '3.txt', 'size': 0}]}]}]}
+                           {'type': 'FILE', 'name': '2.gcode', 'size': 0},
+                           {'type': 'FILE', 'name': '3.gcode', 'size': 0}]}]}]}
 
 
 class TestINotify:
@@ -321,21 +325,21 @@ class TestINotify:
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event
         """
-        p = os.path.join(inotify.path, "simple.txt")
+        p = os.path.join(inotify.path, "simple.gcode")
         open(p, "w").close()
         inotify.handler()
-        assert inotify.fs.get("/test/simple.txt")
-        assert inotify.fs.get("/test/does-not-exit.txt") is None
+        assert inotify.fs.get("/test/simple.gcode")
+        assert inotify.fs.get("/test/does-not-exit.gcode") is None
 
         # check event to Connect
         event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert len(event.data['file']['m_time']) == 6
-        assert event.data['file']['name'] == "simple.txt"
+        assert event.data['file']['name'] == "simple.gcode"
         assert not event.data['file']['ro']
         assert event.data['file']['type'] == "FILE"
-        assert event.data['new_path'] == '/test/simple.txt'
+        assert event.data['new_path'] == '/test/simple.gcode'
         assert event.data['old_path'] is None
 
     def test_CREATE_dir(self, inotify):
@@ -360,25 +364,25 @@ class TestINotify:
 
         # test that a inotify watch has also been installed for the
         #  newly added dir
-        file_path = os.path.join(p, "file.txt")
+        file_path = os.path.join(p, "file.gcode")
         open(file_path, "w").close()
         inotify.handler()
-        assert inotify.fs.get("/test/directory/file.txt")
+        assert inotify.fs.get("/test/directory/file.gcode")
 
     def test_DELETE_file(self, inotify):
         """Test deleting a file by creating it first, then deleting it and
         requesting it from the Filesystem. Also test that other file(s) were
         not affected
         """
-        p = os.path.join(inotify.path, "simple.txt")
+        p = os.path.join(inotify.path, "simple.gcode")
         open(p, "w").close()
         inotify.handler()
-        assert inotify.fs.get("/test/simple.txt")
+        assert inotify.fs.get("/test/simple.gcode")
 
         os.unlink(p)
         inotify.handler()
-        assert not inotify.fs.get("/test/simple.txt")
-        assert inotify.fs.get("/test/a/c/2.txt")
+        assert not inotify.fs.get("/test/simple.gcode")
+        assert inotify.fs.get("/test/a/c/2.gcode")
 
         # check event to Connect
         event = None
@@ -386,8 +390,23 @@ class TestINotify:
             event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
-        assert event.data['old_path'] == "/test/simple.txt", event.data
+        assert event.data['old_path'] == "/test/simple.gcode", event.data
         assert event.data['new_path'] is None
+
+    def test_CREATE_and_DELETE_cache_file(self, inotify):
+        """Test creating, deleting and requesting .<filename>.cache file"""
+        # Create the gcode file
+        p = os.path.join(gcodes_dir, "fdn_filename.gcode")
+        gcode_file = shutil.copy(p, inotify.path)
+        meta = MetaData(gcode_file).cache_name
+        # Create cache
+        inotify.handler()
+        assert os.path.exists(meta)
+        # Delete the gcode file
+        os.unlink(gcode_file)
+        # Delete cache
+        inotify.handler()
+        assert not os.path.exists(meta)
 
     def test_DELETE_dir(self, inotify):
         """Test that after deleting a directory it is removed from the
@@ -413,7 +432,7 @@ class TestINotify:
         """
         shutil.rmtree(inotify.path)
         inotify.handler()
-        assert not inotify.fs.get("/test/a/1.txt")
+        assert not inotify.fs.get("/test/a/1.gcode")
         assert not inotify.fs.get("/test/a/c")
 
         # check event to Connect
@@ -429,7 +448,7 @@ class TestINotify:
 
     def test_MOVE_file(self, inotify):
         """Create a file and move it to a different directory"""
-        src = inotify.fs.get("/test/a/1.txt")
+        src = inotify.fs.get("/test/a/1.gcode")
         assert src
         src_path = src.abs_path(inotify.path)
 
@@ -439,7 +458,7 @@ class TestINotify:
 
         shutil.move(src_path, dst_path)
         inotify.handler()
-        assert inotify.fs.get("/test/a/c/1.txt")
+        assert inotify.fs.get("/test/a/c/1.gcode")
 
         # check event to Connect
         event = None
@@ -448,12 +467,12 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] is None
-        assert event.data['file']['name'] == "1.txt"
-        assert event.data['new_path'] == "/test/a/c/1.txt"
+        assert event.data['file']['name'] == "1.gcode"
+        assert event.data['new_path'] == "/test/a/c/1.gcode"
 
     def test_MODIFY_file(self, inotify):
         """Write into a file and make sure that the change is reflected"""
-        node = inotify.fs.get("/test/a/1.txt")
+        node = inotify.fs.get("/test/a/1.gcode")
         assert node.attrs['size'] == 0
         assert node.attrs['ro'] is False
         path = node.abs_path(inotify.path)
@@ -462,7 +481,7 @@ class TestINotify:
         os.chmod(path, stat.S_IREAD)
 
         inotify.handler()
-        node = inotify.fs.get("/test/a/1.txt")
+        node = inotify.fs.get("/test/a/1.gcode")
         assert node.attrs['size'] == 11
         assert node.attrs['ro'] is True
 
@@ -472,11 +491,11 @@ class TestINotify:
             event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
-        assert event.data['file']['name'] == "1.txt"
+        assert event.data['file']['name'] == "1.gcode"
         assert "m_time" in event.data['file']
         assert event.data['file']['ro']
-        assert event.data['old_path'] == "/test/a/1.txt"
-        assert event.data['new_path'] == "/test/a/1.txt"
+        assert event.data['old_path'] == "/test/a/1.gcode"
+        assert event.data['new_path'] == "/test/a/1.gcode"
 
     def test_connect_302(self, inotify, nodes):
         inotify.fs.mount("wrong", nodes, storage_path="/t")
