@@ -15,6 +15,8 @@ from inotify_simple import INotify, flags  # type: ignore
 from .models import EventCallback
 from . import const
 
+from prusa.connect.printer.metadata import get_metadata
+
 log = getLogger("connect-printer")
 
 # pylint: disable=fixme
@@ -454,6 +456,20 @@ class InotifyHandler:
             if mount.use_inotify and mount.path_storage is not None:
                 self.__init_wd(mount.path_storage)
 
+    def create_cache(self, new_path):
+        """When file is created, cache file is created"""
+        p = os.path.join(self.get_abs_os_path(new_path))
+        if os.path.exists(p):
+            meta = get_metadata(p)
+            meta.save_cache()
+
+    def delete_cache(self, old_path):
+        """When file is deleted, cache file is deleted"""
+        path_ = os.path.split(self.get_abs_os_path(old_path))
+        cache_path = path_[0] + "/." + path_[1] + ".cache"
+        if os.path.exists(cache_path):
+            os.unlink(cache_path)
+
     def update_watch_dir(self, abs_paths: list):
         """Check if path is watched and if not, it is added.
 
@@ -624,6 +640,8 @@ class InotifyHandler:
         if is_dir:
             # add inotify watch
             self.__init_wd(abs_path, node)  # add inotify watch
+        else:
+            self.create_cache(node.abs_path(mount.mountpoint))
         self.send_file_changed(file=node,
                                new_path=node.abs_path(mount.mountpoint))
 
@@ -640,12 +658,14 @@ class InotifyHandler:
             node.children = dict()
             node.attrs = dict()
             path_ = node.abs_path(mount.mountpoint)
+            self.delete_cache(path_)
             self.send_file_changed(old_path=path_, new_path=path_, file=node)
         else:
             # some watched directory other than top level was deleted
             node = mount.tree.get(parts)
             node.delete()
             path_ = node.abs_path(mount.mountpoint)
+            self.delete_cache(path_)
             self.send_file_changed(old_path=path_)
 
     def process_modify(self, abs_path, is_dir):
