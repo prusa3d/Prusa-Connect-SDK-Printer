@@ -12,10 +12,10 @@ from collections import Counter
 
 from inotify_simple import INotify, flags  # type: ignore
 
-from .models import EventCallback
 from . import const
+from .metadata import get_metadata, UnknownGcodeFileType
+from .models import EventCallback
 
-from prusa.connect.printer.metadata import get_metadata
 
 log = getLogger("connect-printer")
 
@@ -458,10 +458,13 @@ class InotifyHandler:
 
     def create_cache(self, new_path):
         """When file is created, cache file is created"""
-        p = os.path.join(self.get_abs_os_path(new_path))
-        if os.path.exists(p):
-            meta = get_metadata(p)
-            meta.save_cache()
+        path_ = os.path.join(self.get_abs_os_path(new_path))
+        if os.path.exists(path_):
+            try:
+                meta = get_metadata(path_)
+                meta.save_cache()
+            except UnknownGcodeFileType:
+                pass
 
     def delete_cache(self, old_path):
         """When file is deleted, cache file is deleted"""
@@ -568,10 +571,12 @@ class InotifyHandler:
 
                 parent_dir = self.wds[event.wd]
                 abs_path = path.join(parent_dir, event.name)
-                log.debug("Flag: %s %s %s", flag.name, abs_path, event)
-                handler = self.HANDLERS[flag.name]
-                log.debug("Calling %s: %s", handler, abs_path)
-                handler(self, abs_path, event.mask & flags.ISDIR)
+                # Ignore hidden files .<filename>
+                if not event.name.startswith("."):
+                    log.debug("Flag: %s %s %s", flag.name, abs_path, event)
+                    handler = self.HANDLERS[flag.name]
+                    log.debug("Calling %s: %s", handler, abs_path)
+                    handler(self, abs_path, event.mask & flags.ISDIR)
 
     def get_abs_os_path(self, relative_path_param):
         """Relative path to os path.
@@ -659,6 +664,7 @@ class InotifyHandler:
             node.attrs = dict()
             path_ = node.abs_path(mount.mountpoint)
             self.delete_cache(path_)
+            self.create_cache(path_)
             self.send_file_changed(old_path=path_, new_path=path_, file=node)
         else:
             # some watched directory other than top level was deleted

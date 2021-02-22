@@ -35,8 +35,8 @@ def nodes():
     a.add("1.gcode")
     a.add("b", is_dir=True)
     c = a.add("c", is_dir=True)
-    c.add("2.gcode")
-    c.add("3.gcode")
+    c.add("2.sl1")
+    c.add("3.txt")
     return root
 
 
@@ -47,7 +47,7 @@ def nodes():
 @patch("prusa.connect.printer.files.path.abspath", return_value='/a')
 @patch("prusa.connect.printer.files.walk",
        return_value=[('/a', ['b', 'c'], ['1.gcode']), ('/a/b', [], []),
-                     ('/a/c', [], ['2.gcode', '3.gcode'])])
+                     ('/a/c', [], ['2.sl1', '3.txt'])])
 def fs_from_dir(*mocks):
     fs = Filesystem()
     fs.from_dir('/somewhere/on/the/disk/a', 'a')
@@ -149,7 +149,7 @@ class TestFile:
         # 1st level
         assert nodes.get(["a"])
         # deeper
-        assert nodes.get(["a", "c", "2.gcode"])
+        assert nodes.get(["a", "c", "2.sl1"])
 
     def test_get_str(self, nodes):
         """One cannot call node.get with a string argument"""
@@ -163,8 +163,8 @@ class TestFile:
     def test_getitem(self, nodes):
         assert nodes['not found'] is None
         assert nodes.get(["a"])['1.gcode']
-        assert nodes.get(["a", "c"])['2.gcode']
-        assert nodes.get(["a", "c"])['3.gcode']
+        assert nodes.get(["a", "c"])['2.sl1']
+        assert nodes.get(["a", "c"])['3.txt']
 
     def test_getattr(self, nodes):
         assert nodes.a.b.name == 'b'
@@ -176,7 +176,7 @@ class TestFile:
     def test_size(self, fs_from_dir):
         assert fs_from_dir.get("/a").size == 9132
         assert fs_from_dir.get("/a/c").size == 6088
-        assert fs_from_dir.get("/a/c/2.gcode").size == 3044
+        assert fs_from_dir.get("/a/c/2.sl1").size == 3044
         assert fs_from_dir.get("/a/b").size == 0
         assert fs_from_dir.get("/a/1.gcode").size == 3044
 
@@ -214,13 +214,13 @@ class TestFile:
                     6088,
                 'children': [{
                     'type': 'FILE',
-                    'name': '2.gcode',
+                    'name': '2.sl1',
                     'ro': True,
                     'm_time': (2020, 7, 30, 16, 40, 5),
                     'size': 3044
                 }, {
                     'type': 'FILE',
-                    'name': '3.gcode',
+                    'name': '3.txt',
                     'ro': True,
                     'm_time': (2020, 7, 30, 16, 40, 5),
                     'size': 3044
@@ -244,14 +244,14 @@ class TestFile:
         assert str(f) == "filename"
 
     def test_abs_parts(self, nodes):
-        node = nodes.a.c["2.gcode"]
-        assert node.abs_parts() == ["a", "c", "2.gcode"]
+        node = nodes.a.c["2.sl1"]
+        assert node.abs_parts() == ["a", "c", "2.sl1"]
 
     @pytest.mark.skipif(sys.platform == "win",
                         reason="UINX only tests (depends on path sep)")
     def test_abs_path(self, nodes):
-        node = nodes.a.c["2.gcode"]
-        assert node.abs_path("/test") == "/test/a/c/2.gcode"
+        node = nodes.a.c["2.sl1"]
+        assert node.abs_path("/test") == "/test/a/c/2.sl1"
 
 
 class TestFilesystem:
@@ -287,8 +287,8 @@ class TestFilesystem:
         assert not b.children
         assert b.is_dir
         assert fs_from_dir.get("/a/1.gcode")
-        assert fs_from_dir.get("/a/c/2.gcode")
-        assert fs_from_dir.get("/a/c/3.gcode")
+        assert fs_from_dir.get("/a/c/2.sl1")
+        assert fs_from_dir.get("/a/c/3.txt")
 
         # test root node
         assert fs_from_dir.get("/a").is_dir is True
@@ -304,8 +304,8 @@ class TestFilesystem:
     def test_get_deep(self, fs):
         """Test walking along the file tree using get()"""
         assert fs.get("a/1.gcode")
-        assert fs.get("a/c/2.gcode")
-        assert fs.get("a/c/3.gcode")
+        assert fs.get("a/c/2.sl1")
+        assert fs.get("a/c/3.txt")
 
     def test_to_dict(self, fs):
         assert fs.to_dict() == \
@@ -314,8 +314,8 @@ class TestFilesystem:
                        {'type': 'FILE', 'name': '1.gcode', 'size': 0},
                        {'type': 'DIR', 'name': 'b', 'size': 0},
                        {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
-                           {'type': 'FILE', 'name': '2.gcode', 'size': 0},
-                           {'type': 'FILE', 'name': '3.gcode', 'size': 0}]}]}]}
+                           {'type': 'FILE', 'name': '2.sl1', 'size': 0},
+                           {'type': 'FILE', 'name': '3.txt', 'size': 0}]}]}]}
 
 
 class TestINotify:
@@ -382,7 +382,7 @@ class TestINotify:
         os.unlink(p)
         inotify.handler()
         assert not inotify.fs.get("/test/simple.gcode")
-        assert inotify.fs.get("/test/a/c/2.gcode")
+        assert inotify.fs.get("/test/a/c/2.sl1")
 
         # check event to Connect
         event = None
@@ -398,13 +398,40 @@ class TestINotify:
         # Create the gcode file
         p = os.path.join(gcodes_dir, "fdn_filename.gcode")
         gcode_file = shutil.copy(p, inotify.path)
-        meta = MetaData(gcode_file).cache_name
+        cache = MetaData(gcode_file).cache_name
+
+        # Cache not in fs, nor inotify tree
+        assert not os.path.exists(cache)
+        assert not inotify.fs.get(cache)
+
         # Create cache
         inotify.handler()
-        assert os.path.exists(meta)
+
+        # Cache in fs, not in inotify tree
+        assert os.path.exists(cache)
+        assert not inotify.fs.get(cache)
+
         # Delete the gcode file
         os.unlink(gcode_file)
         # Delete cache
+        inotify.handler()
+
+        # Cache not in fs, nor inotify tree
+        assert not os.path.exists(cache)
+        assert not inotify.fs.get(cache)
+
+
+
+    def test_inotify_ignore_hidden_files(self, inotify):
+        """Test that inotify handler ignores hidden .<filename> files"""
+        # Create the gcode files
+        p = os.path.join(gcodes_dir, ".hidden_fdn_filename.gcode")
+        shutil.copy(p, inotify.path)
+
+        # Get .<filename>.cache name
+        meta = MetaData(p).cache_name
+
+        # Try to create cache
         inotify.handler()
         assert not os.path.exists(meta)
 
