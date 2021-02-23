@@ -273,17 +273,19 @@ class Printer:
         )
 
         try:
-            meta = get_metadata(self.fs.get_os_path(path))
-            info.update(node.attrs)
-            info.update(meta.data)
+            path_ = os.path.split(self.fs.get_os_path(path))
+            if not path_[1].startswith("."):
+                meta = get_metadata(self.fs.get_os_path(path))
+                info.update(node.attrs)
+                info.update(meta.data)
 
-            # include the biggest thumbnail, if available
-            if meta.thumbnails:
-                biggest = b""
-                for _, data in meta.thumbnails.items():
-                    if len(data) > len(biggest):
-                        biggest = data
-                info['preview'] = biggest.decode()
+                # include the biggest thumbnail, if available
+                if meta.thumbnails:
+                    biggest = b""
+                    for _, data in meta.thumbnails.items():
+                        if len(data) > len(biggest):
+                            biggest = data
+                    info['preview'] = biggest.decode()
         except FileNotFoundError:
             log.debug("File not found: %s", path)
 
