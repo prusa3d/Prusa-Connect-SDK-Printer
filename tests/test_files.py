@@ -126,6 +126,13 @@ class TestFile:
         assert "child" in root
         assert not root.child.is_dir
 
+    def test_add_hidden_file(self):
+        root = File("root", is_dir=True)
+        assert not root.children
+        assert root.is_dir
+        root.add(".child")
+        assert ".child" not in root
+
     def test_add_to_file(self):
         file = File("file")
         assert not file.is_dir

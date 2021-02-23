@@ -125,7 +125,9 @@ class File:
         if not self.is_dir:
             raise ValueError("You can add only to directories")
         node = File(name, is_dir=is_dir, parent=self, **attrs)
-        self.children[node.name] = node
+        # Ignore hidden files and folders .<filename> / .<foldername>
+        if not node.name.startswith("."):
+            self.children[node.name] = node
         return node
 
     def get(self, parts: typing.Iterable[str]):

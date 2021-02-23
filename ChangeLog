@@ -22,8 +22,7 @@ ChangeLog
     * No notification handler
     * No communication without token
     * automatically creating and delete cache using inotify handler
-    * inotify ignores hidden .<filename> files
-    * get_files_info ignores hidden .<filename> files
+    * SDK ignores hidden .<filename> files
 
 0.2.0 (2020-12-14)
 
