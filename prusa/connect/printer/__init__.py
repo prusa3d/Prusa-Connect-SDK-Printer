@@ -281,6 +281,9 @@ class Printer:
         if node is None:
             raise ValueError(f"File does not exist: {path}")
 
+        if node.is_dir:
+            raise ValueError("FILE_INFO doesn't work for directories")
+
         info = dict(
             source=const.Source.CONNECT,
             event=const.Event.FILE_INFO,
