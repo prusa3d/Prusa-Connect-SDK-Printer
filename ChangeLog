@@ -33,6 +33,7 @@ ChangeLog
     * Added last_updated attribute to Mount class
     * new stop_loop method
     * inotify_handler is not call in Printer.loop
+    * get_file_info` raises a ValueError for dirs
 
 0.2.0 (2020-12-14)
 
