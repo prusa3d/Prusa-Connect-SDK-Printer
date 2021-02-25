@@ -23,6 +23,7 @@ ChangeLog
     * No communication without token
     * automatically creating and delete cache using inotify handler
     * SDK ignores hidden .<filename> files
+    * SDK ignores hidden .<foldername> folders and files inside
 
 0.2.0 (2020-12-14)
 

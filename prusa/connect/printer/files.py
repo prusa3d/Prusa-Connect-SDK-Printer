@@ -418,6 +418,11 @@ class Filesystem:
 
         for abs_dir, dirs, files in walk(dirpath):
             dirname = abs_dir[len(dirpath):]
+
+            # skip hidden folders
+            if dirname.startswith("."):
+                continue
+
             if not dirname:
                 parent = root
             else:
