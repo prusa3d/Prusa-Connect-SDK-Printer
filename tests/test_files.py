@@ -34,6 +34,9 @@ def nodes():
     a = root.add("a", is_dir=True)
     a.add("1.gcode")
     a.add("b", is_dir=True)
+    h = root.add(".h", is_dir=True)
+    h.add("2.gcode")
+    h.add(".hidden.gcode")
     c = a.add("c", is_dir=True)
     c.add("2.sl1")
     c.add("3.txt")
@@ -301,6 +304,13 @@ class TestFilesystem:
         assert fs_from_dir.get("/a").is_dir is True
         assert fs_from_dir.get("/a/").name == "a"
         assert fs_from_dir.get("/a/").parent is None
+
+    def test_from_hidden_dir(self, fs_from_dir, fs):
+        h = fs_from_dir.get("/.h")
+        assert not fs_from_dir.get("/.h/2.gcode")
+        assert not fs_from_dir.get("/.h/.hidden.gcode")
+        with pytest.raises(AttributeError):
+            assert not h.is_dir
 
     def test_get_root(self, fs):
         a = fs.get("a")
