@@ -137,7 +137,10 @@ class MetaData:
         for attr, conv in self.Attrs.items():
             val = data.get(attr)
             if val:
-                self.data[attr] = conv(val)
+                try:
+                    self.data[attr] = conv(val)
+                except ValueError:
+                    log.warning("Could not convert using %s: %s", conv, val)
 
     def __repr__(self):
         return f"Metadata: {self.path}, {len(self.data)} items, " \
