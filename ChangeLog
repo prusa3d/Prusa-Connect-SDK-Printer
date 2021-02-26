@@ -24,6 +24,7 @@ ChangeLog
     * automatically creating and delete cache using inotify handler
     * SDK ignores hidden .<filename> files
     * SDK ignores hidden .<foldername> folders and files inside
+    * Don't throw an exception on processing invalid metadata
 
 0.2.0 (2020-12-14)
 
