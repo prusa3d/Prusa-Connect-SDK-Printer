@@ -12,6 +12,7 @@
     "filament_type": "PETG",
     "nozzle_diameter": 0.4,
     "printer_model": "MINI",
+    "layer_height": 0.25,
     "fill_density": "0%",
     "bed_temperature": 90,
     "brim_width": 0,

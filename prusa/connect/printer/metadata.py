@@ -162,6 +162,7 @@ class FDMMetaData(MetaData):
         "filament_type": str,
         "nozzle_diameter": float,
         "printer_model": str,
+        "layer_height": float,
         "fill_density": str,
         "bed_temperature": int,
         "brim_width": int,

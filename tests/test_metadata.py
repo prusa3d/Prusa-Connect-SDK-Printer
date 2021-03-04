@@ -114,6 +114,7 @@ class TestFDNMetaData:
             'fill_density': '0%',
             'nozzle_diameter': 0.4,
             'printer_model': 'MINI',
+            'layer_height': 0.25,
             'support_material': 0,
             'temperature': 240,
             'ironing': 0
@@ -129,7 +130,8 @@ class TestFDNMetaData:
         assert meta.data == {
             'estimated printing time (normal mode)': '2h9m',
             'filament_type': 'PETG',
-            'printer_model': 'MINI'
+            'printer_model': 'MINI',
+            'layer_height': 0.25,
         }
         assert not meta.thumbnails
 
