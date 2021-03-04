@@ -25,6 +25,7 @@ ChangeLog
     * SDK ignores hidden .<filename> files
     * SDK ignores hidden .<foldername> folders and files inside
     * Don't throw an exception on processing invalid metadata
+    * layer_height attribute added to FDM metadata
 
 0.2.0 (2020-12-14)
 
