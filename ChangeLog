@@ -28,6 +28,7 @@ ChangeLog
     * layer_height attribute added to FDM metadata
     * estimated_to_seconds function
     * Added function for check free space of storage
+    * Send `Clock-Adjusted: 1` header on clock adjustments
 
 0.2.0 (2020-12-14)
 

@@ -18,6 +18,7 @@ from .command import Command
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
+from .clock import ClockWatcher
 
 __version__ = "0.3.0.dev4"
 __date__ = "14 Dec 2020"  # version date
@@ -109,6 +110,8 @@ class Printer:
         # Handler blocks communication with Connect in loop method!
         self.register_handler = default_register_handler
 
+        self.clock_watcher = ClockWatcher()
+
         if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
 
@@ -174,6 +177,12 @@ class Printer:
         }
         if self.token:
             headers['Token'] = self.token
+
+        if self.clock_watcher.clock_adjusted():
+            log.debug("Clock adjustment detected. Resetting watcher")
+            headers['Clock-Adjusted'] = "1"
+            self.clock_watcher.reset()
+
         return headers
 
     def set_state(self, state: const.State, source: const.Source, **kwargs):
@@ -469,9 +478,9 @@ class Printer:
                     self.parse_command(res)
                 elif isinstance(item, Event) and self.token:
                     log.debug("Sending event: %s", item)
+                    headers = self.make_headers(item.timestamp)
                     res = self.conn.post(self.server + '/p/events',
-                                         headers=self.make_headers(
-                                             item.timestamp),
+                                         headers=headers,
                                          json=item.to_payload())
                     log.debug("Event response: %s", res.text)
                 elif isinstance(item, Register):
