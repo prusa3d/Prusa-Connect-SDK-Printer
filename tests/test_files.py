@@ -114,7 +114,7 @@ def inotify(queue, nodes):
 @pytest.fixture
 def fs(nodes):
     fs = Filesystem()
-    fs.mount("a", nodes.a, use_inotify=False)
+    fs.mount("a", nodes.a, storage_path="/tmp", use_inotify=False)
     return fs
 
 
@@ -282,6 +282,9 @@ class TestFilesystem:
     def test_mount_already_used(self, fs, nodes):
         with pytest.raises(InvalidMountpointError):
             fs.mount("a", nodes)
+
+    def test_get_free_space(self, fs):
+        assert fs.mounts["a"].get_free_space() > 0
 
     def test_unmount(self, fs):
         fs.unmount("a")
