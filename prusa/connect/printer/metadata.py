@@ -12,6 +12,10 @@ from logging import getLogger
 from .const import GCODE_EXTENSIONS
 
 log = getLogger("connect-printer")
+RE_ESTIMATED = re.compile(r"((?P<days>[0-9]+)d\s*)?"
+                          r"((?P<hours>[0-9]+)h\s*)?"
+                          r"((?P<minutes>[0-9]+)m\s*)?"
+                          r"(?P<seconds>[0-9]+)s")
 
 
 class UnknownGcodeFileType(ValueError):
@@ -35,6 +39,34 @@ def thumbnail_to_bytes(data_input):
     for key, value in data_input.items():
         converted_data[key] = bytes(value, 'utf-8')
     return converted_data
+
+
+def estimated_to_seconds(value: str):
+    """Convert string value to seconds.
+
+    >>> estimated_to_seconds("2s")
+    2
+    >>> estimated_to_seconds("2m 2s")
+    122
+    >>> estimated_to_seconds("2h 2m 2s")
+    7322
+    >>> estimated_to_seconds("2d 2h 2m 2s")
+    180122
+    >>> estimated_to_seconds("bad value")
+    Traceback (most recent call last):
+    ...
+    ValueError: Value `bad value` can't be parsed.
+    """
+    match = RE_ESTIMATED.match(value)
+    if not match:
+        raise ValueError(f"Value `{value}` can't be parsed.")
+    values = match.groupdict()
+    retval = int(values['days'] or 0) * 60 * 60 * 24
+    retval += int(values['hours'] or 0) * 60 * 60
+    retval += int(values['minutes'] or 0) * 60
+    retval += int(values['seconds'])
+
+    return retval
 
 
 class MetaData:
