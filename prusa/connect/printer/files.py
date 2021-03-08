@@ -261,6 +261,12 @@ class Mount:
         self.path_storage = abs_path_storage
         self.use_inotify = use_inotify
 
+    def get_free_space(self):
+        """Returns free space of mountpoint in bytes"""
+        path_ = os.statvfs(self.path_storage)
+        free_space = path_.f_bavail * path_.f_bsize
+        return free_space
+
     def __str__(self):
         return f"Mount({self.mountpoint} -> {self.path_storage})"
 
