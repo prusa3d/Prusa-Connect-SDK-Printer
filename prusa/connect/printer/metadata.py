@@ -53,13 +53,10 @@ def estimated_to_seconds(value: str):
     >>> estimated_to_seconds("2d 2h 2m 2s")
     180122
     >>> estimated_to_seconds("bad value")
-    Traceback (most recent call last):
-    ...
-    ValueError: Value `bad value` can't be parsed.
     """
     match = RE_ESTIMATED.match(value)
     if not match:
-        raise ValueError(f"Value `{value}` can't be parsed.")
+        return None
     values = match.groupdict()
     retval = int(values['days'] or 0) * 60 * 60 * 24
     retval += int(values['hours'] or 0) * 60 * 60
