@@ -33,6 +33,8 @@ class ErrorState:
         self._ok = None  # None = unknown, True = OK, False = NOK
         self.long_msg = long_msg
         self.short_msg = short_msg or name
+        self.detected_cb = lambda: None
+        self.resolved_cb = lambda: None
 
     def __bool__(self):
         """Shorthand for `self.ok`. NOTE that this returns False
@@ -56,10 +58,14 @@ class ErrorState:
         if value is self._ok:  # skip updating prev/next if there is no change
             return
         self._ok = value
-        if value and self._prev is not None:
-            self.prev.ok = value
-        if not value and self.next is not None:
-            self.next.ok = value
+        if value:
+            self.resolved_cb()
+            if self._prev is not None:
+                self.prev.ok = value
+        if not value:
+            self.detected_cb()
+            if self.next is not None:
+                self.next.ok = value
 
     @property
     def prev(self):
