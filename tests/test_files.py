@@ -104,7 +104,7 @@ def inotify(queue, nodes):
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
     assert event.data['root'] == '/test'
-    assert len(event.data['files']) == 6
+    assert len(event.data['files']) == 7
     handler = InotifyHandler(fs)
 
     yield InotifyFixture(tmp_dir.name, handler, fs, queue)
