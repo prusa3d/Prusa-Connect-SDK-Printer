@@ -267,6 +267,14 @@ class Mount:
         free_space = path_.f_bavail * path_.f_bsize
         return free_space
 
+    def to_dict(self):
+        """Add attribute free_space to tree, if available"""
+        tree = self.tree.to_dict()
+        free_space = self.get_free_space()
+        if free_space:
+            tree["free_space"] = free_space
+        return tree
+
     def __str__(self):
         return f"Mount({self.mountpoint} -> {self.path_storage})"
 
@@ -404,7 +412,7 @@ class Filesystem:
             "type": "DIR",
             "name": "/",
             "ro": True,
-            "children": [m.tree.to_dict() for m in self.mounts.values()]
+            "children": [m.to_dict() for m in self.mounts.values()],
         }
         return root
 

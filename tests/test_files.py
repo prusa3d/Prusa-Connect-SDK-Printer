@@ -328,14 +328,19 @@ class TestFilesystem:
         assert fs.get("a/c/3.txt")
 
     def test_to_dict(self, fs):
-        assert fs.to_dict() == \
+        fs_dict = fs.to_dict()
+        assert fs_dict['children'][0]['free_space'] > 0
+
+        fs_dict['children'][0]['free_space'] = 0
+        assert fs_dict == \
                {'type': 'DIR', 'name': '/', 'ro': True, 'children': [
                    {'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
                        {'type': 'FILE', 'name': '1.gcode', 'size': 0},
                        {'type': 'DIR', 'name': 'b', 'size': 0},
                        {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
                            {'type': 'FILE', 'name': '2.sl1', 'size': 0},
-                           {'type': 'FILE', 'name': '3.txt', 'size': 0}]}]}]}
+                           {'type': 'FILE', 'name': '3.txt', 'size': 0}]}],
+                    'free_space': 0}]}
 
 
 class TestINotify:
