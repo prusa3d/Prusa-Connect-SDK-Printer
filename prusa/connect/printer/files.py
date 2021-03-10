@@ -263,9 +263,10 @@ class Mount:
 
     def get_free_space(self):
         """Returns free space of mountpoint in bytes"""
-        path_ = os.statvfs(self.path_storage)
-        free_space = path_.f_bavail * path_.f_bsize
-        return free_space
+        if os.path.exists(self.path_storage):
+            path_ = os.statvfs(self.path_storage)
+            free_space = path_.f_bavail * path_.f_bsize
+            return free_space
 
     def to_dict(self):
         """Add attribute free_space to tree, if available"""
@@ -336,7 +337,10 @@ class Filesystem:
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
-            payload = {"root": f"{self.sep}{name}", "files": tree.to_dict()}
+            payload = {
+                "root": f"{self.sep}{name}",
+                "files": self.mounts[name].to_dict()
+            }
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
     def unmount(self, name: str):
