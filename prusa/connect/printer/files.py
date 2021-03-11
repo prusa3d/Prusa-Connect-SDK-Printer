@@ -267,6 +267,7 @@ class Mount:
             path_ = os.statvfs(self.path_storage)
             free_space = path_.f_bavail * path_.f_bsize
             return free_space
+        return None
 
     def to_dict(self):
         """Add attribute free_space to tree, if available"""
@@ -460,6 +461,10 @@ class Filesystem:
         """Send an event to connect if `self.events` is set"""
         if self.event_cb:
             self.event_cb(event, const.Source.WUI, **data)
+            if event == const.Event.FILE_CHANGED:
+                for mountpoint in self.mounts.values():
+                    if mountpoint.get_free_space():
+                        data["free_space"] = mountpoint.get_free_space()
 
 
 class InotifyHandler:
