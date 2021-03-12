@@ -6,6 +6,7 @@ import os
 import typing
 import weakref
 from logging import getLogger
+from time import time
 from datetime import datetime
 from os import path, access, W_OK, stat, walk
 from collections import Counter
@@ -260,6 +261,7 @@ class Mount:
         self.mountpoint = mountpoint
         self.path_storage = abs_path_storage
         self.use_inotify = use_inotify
+        self.last_updated = time()
 
     def get_free_space(self):
         """Returns free space of mountpoint in bytes"""
@@ -589,6 +591,10 @@ class InotifyHandler:
         events = self.inotify.read(timeout=timeout)
         events = self.filter_delete_events(events)
         for event in events:
+            parent_dir = self.wds[event.wd]
+            for mount in self.fs.mounts.values():
+                if mount.path_storage == parent_dir:
+                    mount.last_updated = time()
             for flag in flags.from_mask(event.mask):
                 # remove wds that are no longer needed
                 if flag.name == "IGNORED":
@@ -599,7 +605,6 @@ class InotifyHandler:
                     log.debug("Ignoring %s", flag.name)
                     continue
 
-                parent_dir = self.wds[event.wd]
                 abs_path = path.join(parent_dir, event.name)
                 # Ignore hidden files .<filename>
                 if not event.name.startswith("."):
