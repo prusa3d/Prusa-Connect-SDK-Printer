@@ -555,3 +555,12 @@ class TestINotify:
 
         mount = inotify.handler.mount_for("/tmp/a/b")
         assert mount.mountpoint == 'right'
+
+    def test_timestamp(self, fs, inotify, nodes):
+        inotify.fs.mount("b", nodes.a.b, storage_path="/tmp/b")
+        inotify.fs.mount("c", nodes.a.c, storage_path="/tmp/c")
+
+        first = inotify.handler.mount_for("/tmp/b")
+        second = inotify.handler.mount_for("/tmp/c")
+
+        assert first.last_updated < second.last_updated

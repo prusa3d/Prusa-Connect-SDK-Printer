@@ -30,6 +30,7 @@ ChangeLog
     * Added function for check free space of storage
     * Send `Clock-Adjusted: 1` header on clock adjustments
     * Added free_space attribute for INFO, MEDIUM_INSERTED and FILE_CHANGED events
+    * Added last_updated attribute to Mount class
 
 0.2.0 (2020-12-14)
 
