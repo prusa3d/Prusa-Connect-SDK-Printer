@@ -9,7 +9,7 @@ from queue import Queue, Empty
 from time import time, sleep
 from typing import Optional, List, Any, Callable, Dict, Union
 
-from requests import Session
+from requests import Session, RequestException
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError
 
@@ -114,6 +114,8 @@ class Printer:
 
         if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
+
+        self.__running_loop = False
 
     @staticmethod
     def connect_url(host: str, tls: bool, port: int = 0):
@@ -459,7 +461,8 @@ class Printer:
         """
         # pylint: disable=too-many-branches
         # pylint: disable=too-many-statements
-        while True:
+        self.__running_loop = True
+        while self.__running_loop:
             try:
                 self.inotify_handler()
 
@@ -509,8 +512,19 @@ class Printer:
                         errors.TOKEN.ok = False
             except Empty:
                 continue
-            except ConnectionError:
+            except ConnectionError as err:
                 errors.HTTP.ok = False
+                log.error(err)
+            except RequestException as err:
+                errors.INTERNET.ok = False
+                log.error(err)
+            except Exception:  # pylint: disable=broad-except
+                errors.INTERNET.ok = False
+                log.exception('Unhandled error')
+
+    def stop_loop(self):
+        """Set internal variable, to stop the loop method."""
+        self.__running_loop = False
 
     def mount(self, dirpath: str, mountpoint: str):
         """Create a listing of `dirpath` and mount it under `mountpoint`.
