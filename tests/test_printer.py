@@ -51,10 +51,6 @@ tls=False
     return tmpf.name
 
 
-def loop_exc_handler(exc):
-    raise exc
-
-
 def remove_m_time(file_data):
     """Remove 'm_time' key from file structure."""
     for key in list(file_data):
@@ -72,7 +68,6 @@ def printer():
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.server = SERVER
     printer.token = TOKEN
-    printer.loop_exc_handler = loop_exc_handler
     return printer
 
 
@@ -82,7 +77,6 @@ def printer_no_fp():
     printer = Printer(const.PrinterType.I3MK3S, SN)
     printer.server = SERVER
     printer.token = TOKEN
-    printer.loop_exc_handler = loop_exc_handler
     return printer
 
 
