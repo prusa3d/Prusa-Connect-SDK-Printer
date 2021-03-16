@@ -64,7 +64,11 @@ def default_register_handler(token):
 
 
 class Printer:
-    """Printer representation object."""
+    """Printer representation object.
+
+    To process inotify_handler, please create your own thread
+    calling printer.inotify_handler() in a loop.
+    """
     # pylint: disable=too-many-public-methods
 
     queue: "Queue[Union[Event, Telemetry, Register]]"
@@ -464,8 +468,6 @@ class Printer:
         self.__running_loop = True
         while self.__running_loop:
             try:
-                self.inotify_handler()
-
                 item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
                 if not self.server:
                     log.warning("Server is not set, skipping item from queue")
