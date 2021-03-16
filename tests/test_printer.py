@@ -270,6 +270,7 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
+        printer.inotify_handler()
 
         try:
             func_timeout(0.1, printer.loop)
@@ -305,6 +306,7 @@ class TestPrinter:
         }
 
         printer.command()  # exec DELETE_DIRECTORY
+        printer.inotify_handler()
 
         try:
             func_timeout(0.1, printer.loop)
@@ -361,6 +363,7 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
+        printer.inotify_handler()
 
         try:
             func_timeout(0.1, printer.loop)
@@ -394,6 +397,7 @@ class TestPrinter:
         }
 
         printer.command()  # exec DELETE_FILE
+        printer.inotify_handler()
 
         try:
             func_timeout(0.1, printer.loop)
@@ -443,6 +447,7 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
+        printer.inotify_handler()
 
         try:
             func_timeout(0.1, printer.loop)
@@ -468,6 +473,7 @@ class TestPrinter:
         }
 
         printer.command()  # exec CREATE_DIRECTORY
+        printer.inotify_handler()
 
         try:
             func_timeout(0.1, printer.loop)
