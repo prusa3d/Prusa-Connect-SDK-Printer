@@ -34,6 +34,7 @@ ChangeLog
     * new stop_loop method
     * inotify_handler is not call in Printer.loop
     * get_file_info` raises a ValueError for dirs
+    * fingerprint in INFO event
 
 0.2.0 (2020-12-14)
 

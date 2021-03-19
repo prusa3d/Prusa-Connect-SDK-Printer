@@ -263,7 +263,8 @@ class Printer:
                     network_info=self.network_info,
                     api_key=self.api_key,
                     files=self.fs.to_dict(),
-                    sn=self.sn)
+                    sn=self.sn,
+                    fingerprint=self.fingerprint)
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
@@ -430,6 +431,7 @@ class Printer:
 
         data = {
             "sn": self.sn,
+            "fingerprint": self.fingerprint,
             "type": self.type.value[0],
             "version": self.type.value[1],
             "subversion": self.type.value[2],
