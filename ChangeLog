@@ -1,7 +1,7 @@
 ChangeLog
 =========
 
-0.3.0.dev
+0.3.0 (2021-03-22)
     * fix update file structure
     * add commands DELETE_FILE,DELETE_DIRECTORY,CREATE_DIRECTORY
     * add error.ErrorState - chained error state infrastructure
