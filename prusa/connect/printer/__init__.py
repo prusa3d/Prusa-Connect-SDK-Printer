@@ -20,8 +20,8 @@ from .metadata import get_metadata
 from .models import Event, Telemetry
 from .clock import ClockWatcher
 
-__version__ = "0.3.0"
-__date__ = "22 Mar 2021"  # version date
+__version__ = "0.4.0.dev0"
+__date__ = "23 Mar 2021"  # version date
 __copyright__ = "(c) 2020 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
 __author_email__ = "ondrej.tuma@prusa3d.cz"
@@ -439,7 +439,8 @@ class Printer:
         }
         res = self.conn.post(self.server + "/p/register",
                              headers=self.make_headers(),
-                             json=data)
+                             json=data,
+                             timeout=const.CONNECTION_TIMEOUT)
         if res.status_code == 200:
             code = res.headers['Temporary-Code']
             self.queue.put(Register(code))
@@ -460,7 +461,9 @@ class Printer:
 
         headers = self.make_headers()
         headers["Temporary-Code"] = tmp_code
-        return self.conn.get(self.server + "/p/register", headers=headers)
+        return self.conn.get(self.server + "/p/register",
+                             headers=headers,
+                             timeout=const.CONNECTION_TIMEOUT)
 
     def loop(self):
         """This method is responsible for communication with Connect.
@@ -483,7 +486,8 @@ class Printer:
                     log.debug("Sending telemetry: %s", item)
                     res = self.conn.post(self.server + '/p/telemetry',
                                          headers=headers,
-                                         json=item.to_payload())
+                                         json=item.to_payload(),
+                                         timeout=const.CONNECTION_TIMEOUT)
                     log.debug("Telemetry response: %s", res.text)
                     self.parse_command(res)
                 elif isinstance(item, Event) and self.token:
@@ -491,7 +495,8 @@ class Printer:
                     headers = self.make_headers(item.timestamp)
                     res = self.conn.post(self.server + '/p/events',
                                          headers=headers,
-                                         json=item.to_payload())
+                                         json=item.to_payload(),
+                                         timeout=const.CONNECTION_TIMEOUT)
                     log.debug("Event response: %s", res.text)
                 elif isinstance(item, Register):
                     log.debug("Getting token")

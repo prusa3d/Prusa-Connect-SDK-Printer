@@ -2,8 +2,9 @@
 from enum import Enum
 
 TIMESTAMP_PRECISION = 0.1  # 100ms
+CONNECTION_TIMEOUT = 30  # 30s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
-SL_EXTENSIONS = (".sl1",)
+SL_EXTENSIONS = (".sl1", )
 
 
 class State(Enum):
