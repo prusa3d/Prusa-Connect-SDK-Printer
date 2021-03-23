@@ -94,8 +94,9 @@ class Event:
         return data
 
     def __repr__(self):
-        return (f"<Event::{self.event} at {id(self)}>::{self.command_id}"
-                f" [{self.source}], {self.data}")
+        data = self.to_payload()
+        return (f"<Event::{self.event} at {id(self)}>"
+                f" [{self.source}], {data}")
 
 
 class Telemetry:
