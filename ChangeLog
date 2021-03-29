@@ -4,6 +4,7 @@ ChangeLog
 0.4.0.dev0
     * new CONNECTION_TIOMEOUT constant set to 30s
     * better Event repr
+    * estimated_to_seconds do not need seconds
 
 0.3.0 (2021-03-22)
     * fix update file structure
