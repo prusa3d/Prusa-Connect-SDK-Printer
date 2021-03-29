@@ -15,7 +15,7 @@ log = getLogger("connect-printer")
 RE_ESTIMATED = re.compile(r"((?P<days>[0-9]+)d\s*)?"
                           r"((?P<hours>[0-9]+)h\s*)?"
                           r"((?P<minutes>[0-9]+)m\s*)?"
-                          r"(?P<seconds>[0-9]+)s")
+                          r"((?P<seconds>[0-9]+)s)?")
 
 
 class UnknownGcodeFileType(ValueError):
@@ -48,22 +48,24 @@ def estimated_to_seconds(value: str):
     2
     >>> estimated_to_seconds("2m 2s")
     122
+    >>> estimated_to_seconds("2M")
+    120
     >>> estimated_to_seconds("2h 2m 2s")
     7322
     >>> estimated_to_seconds("2d 2h 2m 2s")
     180122
     >>> estimated_to_seconds("bad value")
     """
-    match = RE_ESTIMATED.match(value)
+    match = RE_ESTIMATED.match(value.lower())
     if not match:
         return None
     values = match.groupdict()
     retval = int(values['days'] or 0) * 60 * 60 * 24
     retval += int(values['hours'] or 0) * 60 * 60
     retval += int(values['minutes'] or 0) * 60
-    retval += int(values['seconds'])
+    retval += int(values['seconds'] or 0)
 
-    return retval
+    return retval or None
 
 
 class MetaData:
