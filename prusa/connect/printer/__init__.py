@@ -20,15 +20,15 @@ from .metadata import get_metadata
 from .models import Event, Telemetry
 from .clock import ClockWatcher
 
-__version__ = "0.4.0.dev0"
-__date__ = "23 Mar 2021"  # version date
-__copyright__ = "(c) 2020 Prusa 3D"
+__version__ = "0.4.0"
+__date__ = "30 Mar 2021"  # version date
+__copyright__ = "(c) 2021 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
 __author_email__ = "ondrej.tuma@prusa3d.cz"
 __author__ = f"{__author_name__} <{__author_email__}>"
 __description__ = "Python printer library for Prusa Connect"
 
-__credits__ = "Ondřej Tůma, Martin Užák, Jan Pilař"
+__credits__ = "Ondřej Tůma, Martin Užák, Michal Zoubek, Jan Pilař"
 __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 
 # pylint: disable=invalid-name
