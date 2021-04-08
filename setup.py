@@ -46,7 +46,7 @@ setup(name="prusa.connect.sdk.printer",
           "Programming Language :: Python :: 3 :: Only",
           "Topic :: Software Development :: Libraries :: Python Modules"
       ],
-      python_requires=">=3.7",
+      python_requires=">=3.6",
       install_requires=REQUIRES,
       tests_require=[
           'pytest', 'requests_mock', 'pytest-mypy-plugins', 'func-timeout'

@@ -1,5 +1,4 @@
 """Connect printer data models."""
-from __future__ import annotations
 from time import time
 from typing import Dict, Any, Callable, Optional
 from mypy_extensions import Arg, DefaultArg, KwArg

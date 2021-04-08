@@ -1,7 +1,5 @@
 """File management"""
 
-from __future__ import annotations
-
 import os
 import typing
 import weakref
@@ -16,7 +14,6 @@ from inotify_simple import INotify, flags  # type: ignore
 from . import const
 from .metadata import get_metadata, UnknownGcodeFileType
 from .models import EventCallback
-
 
 log = getLogger("connect-printer")
 

@@ -1,5 +1,4 @@
 """Python printer library for Prusa Connect."""
-from __future__ import annotations  # noqa
 
 import configparser
 import os
