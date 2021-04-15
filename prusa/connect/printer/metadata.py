@@ -1,17 +1,20 @@
 """Metadata parser for Prusa Slicer gcode files. Extracts preview pictures
 as well.
 """
+from time import time, sleep
 
 import base64
 import json
 import re
 import os
 import zipfile
-from typing import Dict, Any, List
+from typing import Dict, Any
 from logging import getLogger
 from .const import GCODE_EXTENSIONS
 
 log = getLogger("connect-printer")
+
+TOLERATED_COUNT = 2
 RE_ESTIMATED = re.compile(r"((?P<days>[0-9]+)d\s*)?"
                           r"((?P<hours>[0-9]+)h\s*)?"
                           r"((?P<minutes>[0-9]+)m\s*)?"
@@ -66,6 +69,15 @@ def estimated_to_seconds(value: str):
     retval += int(values['seconds'] or 0)
 
     return retval or None
+
+
+class ParsedData:
+    """Container for state sharing between FDM parsing methods"""
+    def __init__(self):
+        self.dimension = ""
+        self.image_data = []
+        self.size = None
+        self.meta = {}
 
 
 class MetaData:
@@ -226,43 +238,151 @@ class FDMMetaData(MetaData):
             }
             self.set_data(data)
 
-    def load_from_file(self, path: str):
+    @staticmethod
+    def reverse_readline(fd, buf_size=8192):
+        """
+        A generator that returns the lines of a file in reverse order
+        """
+        segment = None
+        offset = 0
+        fd.seek(0, os.SEEK_END)
+        file_size = remaining_size = fd.tell()
+        while remaining_size > 0:
+            offset = min(file_size, offset + buf_size)
+            fd.seek(file_size - offset)
+            buffer = fd.read(min(remaining_size, buf_size))
+            remaining_size -= buf_size
+            lines = buffer.split('\n')
+            # The first line of the buffer is probably not a complete line so
+            # we'll save it and append it to the last line of the next buffer
+            # we read
+            if segment is not None:
+                # If the previous chunk starts right from the beginning of
+                # line do not concat the segment to the last line of new
+                # chunk. Instead, yield the segment first
+                if buffer[-1] != '\n':
+                    lines[-1] += segment
+                else:
+                    yield segment
+            segment = lines[0]
+            for index in range(len(lines) - 1, 0, -1):
+                if lines[index]:
+                    yield lines[index]
+        # Don't yield None if the file was empty
+        if segment is not None:
+            yield segment
+
+    def from_line(self, data, line):
+        """
+        Parses data out of a given line
+        data variable is used to store all temporary data
+        """
+        # thumbnail handling
+        match = self.THUMBNAIL_BEGIN_PAT.match(line)
+        if match:
+            data.dimension = match.group("dim")
+            data.size = int(match.group("size"))
+            data.thumbnail = []
+            return
+
+        match = self.THUMBNAIL_END_PAT.match(line)
+        if match:
+            data.image_data = "".join(data.thumbnail)
+            self.thumbnails[data.dimension] = data.image_data.encode()
+            assert len(data.image_data) == data.size, len(data.image_data)
+            data.thumbnail = []
+            data.dimension = ""
+            return
+        if data.dimension:
+            data.image_data = line[2:].strip()
+            data.thumbnail.append(data.image_data)
+        else:  # looking for metadata
+            match = self.KEY_VAL_PAT.match(line)
+            if match:
+                key, val = match.groups()
+                data.meta[key] = val
+
+    def load_from_file(self, path):
         """Load metadata from file
+        Tries to use the quick_parse function, if it keeps failing,
+        tries the old technique of parsing
 
         :path: Path to the file to load the metadata from
         """
         # pylint: disable=redefined-outer-name
         # pylint: disable=invalid-name
-        meta = {}
-        thumbnail: List[str] = []
-        dimension = ""
-        size = None
-        with open(path) as f:
-            for line in f.readlines():
-                # thumbnail handling
-                match = self.THUMBNAIL_BEGIN_PAT.match(line)
-                if match:
-                    dimension = match.group("dim")
-                    size = int(match.group("size"))
-                    thumbnail = []
-                    continue
-                match = self.THUMBNAIL_END_PAT.match(line)
-                if match:
-                    data = "".join(thumbnail)
-                    self.thumbnails[dimension] = data.encode()
-                    assert len(data) == size, len(data)
-                    thumbnail = []
-                    dimension = ""
-                    continue
-                if dimension:
-                    data = line[2:].strip()
-                    thumbnail.append(data)
-                else:  # looking for metadata
-                    match = self.KEY_VAL_PAT.match(line)
-                    if match:
-                        key, val = match.groups()
-                        meta[key] = val
-        self.set_data(meta)
+        started_at = time()
+        data = ParsedData()
+
+        retries = 10
+        while retries:
+            with open(path, "r") as fd:
+                if self.quick_parse(data, fd, retries == 1):
+                    break
+                else:
+                    retries -= 1
+                    sleep(0.2)
+
+        with open(path, "r") as fd:
+            if not retries:
+                fd.seek(0, 0)
+                for line in fd:
+                    self.from_line(data, line)
+
+        self.set_data(data.meta)
+        log.debug("Caching took %s", time() - started_at)
+
+    def quick_parse(self, data, fd, is_last_retry=False):
+        """
+        Parse metadata by looking at comment blocks in the beginning
+        and at the end of a file
+        returns True if it thinks parsing succeeded
+        """
+        for line in fd:
+            if not line.strip():
+                continue
+            elif not line.startswith(";"):
+                break
+            self.from_line(data, line)
+
+        comment_lines = 0
+        for line in self.reverse_readline(fd):
+            if not line.strip():
+                continue
+            elif not line.startswith(";"):
+                break
+            comment_lines += 1
+            self.from_line(data, line)
+
+        wanted = set(self.Attrs.keys())
+        got = set(data.meta.keys())
+        missed = wanted - got
+        log.debug("Wanted: %s", wanted)
+        log.debug("Parsed: %s", got)
+
+        log.debug("By not reading the whole file, "
+                  "we have managed to miss %s",
+                  missed)
+
+        # --- Was parsing successful? ---
+
+        if comment_lines < 10:
+            log.warning("Not enough comments discovered, "
+                        "file not uploaded yet?")
+            return False
+
+        if missed and is_last_retry:
+            if len(missed) == len(wanted):
+                log.warning("No metadata parsed!")
+            else:
+                log.warning("Metadata missing %s", missed)
+            if len(missed) <= TOLERATED_COUNT:
+                log.warning("Missing meta tolerated, missing count < %s",
+                            TOLERATED_COUNT)
+            else:
+                return False
+
+        return True
 
 
 class SLMetaData(MetaData):
