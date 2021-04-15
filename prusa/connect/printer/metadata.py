@@ -73,11 +73,13 @@ def estimated_to_seconds(value: str):
 
 class ParsedData:
     """Container for state sharing between FDM parsing methods"""
+    # pylint: disable=too-few-public-methods
+
     def __init__(self):
         self.dimension = ""
-        self.image_data = []
         self.size = None
         self.meta = {}
+        self.thumbnail = []
 
 
 class MetaData:
@@ -239,18 +241,18 @@ class FDMMetaData(MetaData):
             self.set_data(data)
 
     @staticmethod
-    def reverse_readline(fd, buf_size=8192):
+    def reverse_readline(file_descriptor, buf_size=8192):
         """
         A generator that returns the lines of a file in reverse order
         """
         segment = None
         offset = 0
-        fd.seek(0, os.SEEK_END)
-        file_size = remaining_size = fd.tell()
+        file_descriptor.seek(0, os.SEEK_END)
+        file_size = remaining_size = file_descriptor.tell()
         while remaining_size > 0:
             offset = min(file_size, offset + buf_size)
-            fd.seek(file_size - offset)
-            buffer = fd.read(min(remaining_size, buf_size))
+            file_descriptor.seek(file_size - offset)
+            buffer = file_descriptor.read(min(remaining_size, buf_size))
             remaining_size -= buf_size
             lines = buffer.split('\n')
             # The first line of the buffer is probably not a complete line so
@@ -294,8 +296,8 @@ class FDMMetaData(MetaData):
             data.dimension = ""
             return
         if data.dimension:
-            data.image_data = line[2:].strip()
-            data.thumbnail.append(data.image_data)
+            line = line[2:].strip()
+            data.thumbnail.append(line)
         else:  # looking for metadata
             match = self.KEY_VAL_PAT.match(line)
             if match:
@@ -316,43 +318,58 @@ class FDMMetaData(MetaData):
 
         retries = 10
         while retries:
-            with open(path, "r") as fd:
-                if self.quick_parse(data, fd, retries == 1):
+            with open(path, "r") as file_descriptor:
+                if self.quick_parse(data, file_descriptor, retries == 1):
                     break
-                else:
-                    retries -= 1
-                    sleep(0.2)
+                retries -= 1
+                sleep(0.2)
 
-        with open(path, "r") as fd:
-            if not retries:
-                fd.seek(0, 0)
-                for line in fd:
+        if not retries:
+            with open(path, "r") as file_descriptor:
+                data = ParsedData()
+                file_descriptor.seek(0, 0)
+                for line in file_descriptor:
                     self.from_line(data, line)
 
         self.set_data(data.meta)
         log.debug("Caching took %s", time() - started_at)
 
-    def quick_parse(self, data, fd, is_last_retry=False):
+    def quick_parse(self, data, file_descriptor, is_last_retry=False):
         """
         Parse metadata by looking at comment blocks in the beginning
         and at the end of a file
         returns True if it thinks parsing succeeded
         """
-        for line in fd:
+        # pylint: disable=too-many-branches
+        for line in file_descriptor:
             if not line.strip():
                 continue
-            elif not line.startswith(";"):
+            if not line.startswith(";"):
                 break
             self.from_line(data, line)
 
         comment_lines = 0
-        for line in self.reverse_readline(fd):
+        parsing_image = False
+        reverse_image = []
+        for line in self.reverse_readline(file_descriptor):
             if not line.strip():
                 continue
-            elif not line.startswith(";"):
+            if not line.startswith(";"):
                 break
             comment_lines += 1
-            self.from_line(data, line)
+
+            # Images cannot be parsed on reverse
+            # so lets reverse them beforehand
+            if self.THUMBNAIL_END_PAT.match(line):
+                parsing_image = True
+            if parsing_image:
+                reverse_image.append(line)
+            else:
+                self.from_line(data, line)
+            if self.THUMBNAIL_BEGIN_PAT.match(line):
+                parsing_image = False
+                for image_line in reversed(reverse_image):
+                    self.from_line(data, image_line)
 
         wanted = set(self.Attrs.keys())
         got = set(data.meta.keys())
@@ -362,7 +379,7 @@ class FDMMetaData(MetaData):
 
         log.debug("By not reading the whole file, "
                   "we have managed to miss %s",
-                  missed)
+                  list(missed))
 
         # --- Was parsing successful? ---
 
