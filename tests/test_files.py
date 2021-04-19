@@ -30,7 +30,7 @@ gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 @pytest.fixture
 def nodes():
     """Create file tree in memory."""
-    root = File(None, is_dir=True)
+    root = File('mount-point', is_dir=True)
     a = root.add("a", is_dir=True)
     a.add("1.gcode")
     a.add("b", is_dir=True)
@@ -114,7 +114,7 @@ def inotify(queue, nodes):
 @pytest.fixture
 def fs(nodes):
     fs = Filesystem()
-    fs.mount("a", nodes.a, storage_path="/tmp", use_inotify=False)
+    fs.mount("mount-point", nodes, storage_path="/tmp", use_inotify=False)
     return fs
 
 
@@ -269,7 +269,7 @@ class TestFilesystem:
 
     def test_mount(self, fs):
         assert len(fs.mounts) == 1
-        assert "a" in fs.mounts
+        assert "mount-point" in fs.mounts
 
     def test_mount_empty(self, fs, nodes):
         with pytest.raises(InvalidMountpointError):
@@ -281,13 +281,13 @@ class TestFilesystem:
 
     def test_mount_already_used(self, fs, nodes):
         with pytest.raises(InvalidMountpointError):
-            fs.mount("a", nodes)
+            fs.mount("mount-point", nodes)
 
     def test_get_free_space(self, fs):
-        assert fs.mounts["a"].get_free_space() > 0
+        assert fs.mounts["mount-point"].get_free_space() > 0
 
     def test_unmount(self, fs):
-        fs.unmount("a")
+        fs.unmount("mount-point")
         assert len(fs.mounts) == 0
 
     def test_unmount_invalid_mountpoint(self):
@@ -316,31 +316,37 @@ class TestFilesystem:
             assert not h.is_dir
 
     def test_get_root(self, fs):
-        a = fs.get("a")
-        assert a.name == "a"
+        a = fs.get("mount-point")
+        assert a.name == "mount-point"
         assert a.is_dir
-        assert len(a.children) == 3
+        assert len(a.children) == 1
 
     def test_get_deep(self, fs):
         """Test walking along the file tree using get()"""
-        assert fs.get("a/1.gcode")
-        assert fs.get("a/c/2.sl1")
-        assert fs.get("a/c/3.txt")
+        assert fs.get("mount-point/a/1.gcode")
+        assert fs.get("mount-point/a/c/2.sl1")
+        assert fs.get("mount-point/a/c/3.txt")
 
     def test_to_dict(self, fs):
         fs_dict = fs.to_dict()
         assert fs_dict['children'][0]['free_space'] > 0
 
         fs_dict['children'][0]['free_space'] = 0
-        assert fs_dict == \
-               {'type': 'DIR', 'name': '/', 'ro': True, 'children': [
-                   {'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
-                       {'type': 'FILE', 'name': '1.gcode', 'size': 0},
-                       {'type': 'DIR', 'name': 'b', 'size': 0},
-                       {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
-                           {'type': 'FILE', 'name': '2.sl1', 'size': 0},
-                           {'type': 'FILE', 'name': '3.txt', 'size': 0}]}],
-                    'free_space': 0}]}
+        assert fs_dict == {
+            'name': '/', 'ro': True, 'type': 'DIR',
+            'children': [
+                {'type': 'DIR', 'name': 'mount-point', 'size':0, 'children':
+                    [{'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
+                        {'type': 'FILE', 'name': '1.gcode', 'size': 0},
+                        {'type': 'DIR', 'name': 'b', 'size': 0},
+                        {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
+                            {'type': 'FILE', 'name': '2.sl1', 'size': 0},
+                            {'type': 'FILE', 'name': '3.txt', 'size': 0}]}],
+                     }],
+                    'free_space': 0
+                 }
+            ],
+        }
 
 
 class TestINotify:
@@ -548,6 +554,7 @@ class TestINotify:
         assert event.data['file']['ro']
         assert event.data['old_path'] == "/test/a/1.gcode"
         assert event.data['new_path'] == "/test/a/1.gcode"
+        assert event.data['free_space'] > 0
 
     def test_connect_302(self, inotify, nodes):
         inotify.fs.mount("wrong", nodes, storage_path="/t")
@@ -557,8 +564,10 @@ class TestINotify:
         assert mount.mountpoint == 'right'
 
     def test_timestamp(self, fs, inotify, nodes):
-        inotify.fs.mount("b", nodes.a.b, storage_path="/tmp/b")
-        inotify.fs.mount("c", nodes.a.c, storage_path="/tmp/c")
+        mount_b = File('mount-point', is_dir=True)
+        mount_c = File('mount-point', is_dir=True)
+        inotify.fs.mount("b", mount_b, storage_path="/tmp/b")
+        inotify.fs.mount("c", mount_c, storage_path="/tmp/c")
 
         first = inotify.handler.mount_for("/tmp/b")
         second = inotify.handler.mount_for("/tmp/c")
