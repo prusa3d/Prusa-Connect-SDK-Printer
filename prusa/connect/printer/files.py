@@ -460,10 +460,6 @@ class Filesystem:
         """Send an event to connect if `self.events` is set"""
         if self.event_cb:
             self.event_cb(event, const.Source.WUI, **data)
-            if event == const.Event.FILE_CHANGED:
-                for mountpoint in self.mounts.values():
-                    if mountpoint.get_free_space():
-                        data["free_space"] = mountpoint.get_free_space()
 
 
 class InotifyHandler:
@@ -680,7 +676,8 @@ class InotifyHandler:
         else:
             self.create_cache(node.abs_path(mount.mountpoint))
         self.send_file_changed(file=node,
-                               new_path=node.abs_path(mount.mountpoint))
+                               new_path=node.abs_path(mount.mountpoint),
+                               free_space=mount.get_free_space())
 
     def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
@@ -697,14 +694,16 @@ class InotifyHandler:
             path_ = node.abs_path(mount.mountpoint)
             self.delete_cache(path_)
             self.create_cache(path_)
-            self.send_file_changed(old_path=path_, new_path=path_, file=node)
+            self.send_file_changed(old_path=path_, new_path=path_, file=node,
+                                   free_space=mount.get_free_space())
         else:
             # some watched directory other than top level was deleted
             node = mount.tree.get(parts)
             node.delete()
             path_ = node.abs_path(mount.mountpoint)
             self.delete_cache(path_)
-            self.send_file_changed(old_path=path_)
+            self.send_file_changed(old_path=path_,
+                                   free_space=mount.get_free_space())
 
     def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
@@ -716,12 +715,14 @@ class InotifyHandler:
         node = mount.tree.get(parts)
         node.set_attrs(abs_path)
         path_ = node.abs_path(mount.mountpoint)
-        self.send_file_changed(old_path=path_, new_path=path_, file=node)
+        self.send_file_changed(old_path=path_, new_path=path_, file=node,
+                               free_space=mount.get_free_space())
 
     def send_file_changed(self,
                           old_path: str = None,
                           new_path: str = None,
-                          file: File = None):
+                          file: File = None,
+                          free_space = None):
         """If self.fs.events is set, put FIlE_CHANGED event to event queue.
 
         :raises ValueError: if both old_path and new_path are not set
@@ -735,6 +736,8 @@ class InotifyHandler:
         }
         if file:
             data["file"] = file.to_dict()
+        if free_space is not None:
+            data["free_space"] = free_space
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
 
     # handlers for inotify file events
