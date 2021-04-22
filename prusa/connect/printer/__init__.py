@@ -92,6 +92,9 @@ class Printer:
             "wifi_ipv4": None,
             "wifi_ipv6": None,
             "wifi_ssid": None,
+            "hostname": None,
+            "username": None,
+            "digest": None
         }
         self.api_key = None
 
