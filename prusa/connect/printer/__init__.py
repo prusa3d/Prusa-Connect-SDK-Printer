@@ -18,6 +18,7 @@ from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
 from .clock import ClockWatcher
+from .download import DownloadMgr
 
 __version__ = "0.4.0"
 __date__ = "30 Mar 2021"  # version date
@@ -110,6 +111,8 @@ class Printer:
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
+
+        self.download_mgr = DownloadMgr()
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)

@@ -1,3 +1,4 @@
 requests
 inotify_simple
 mypy-extensions
+responses
