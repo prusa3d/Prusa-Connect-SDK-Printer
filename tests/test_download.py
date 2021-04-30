@@ -1,7 +1,13 @@
+import os
+import time
+
 import pytest
 import responses
-import os
+
 from prusa.connect.printer.download import Download
+from .test_printer import printer
+
+assert printer
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name
@@ -9,7 +15,7 @@ from prusa.connect.printer.download import Download
 GCODE_URL = "http://prusaprinters.org/my_example.gcode"
 
 
-class Loop:
+class DownloadMock:
     def __init__(self, counter):
         self.counter = counter
 
@@ -17,47 +23,89 @@ class Loop:
         self.counter -= 1
         return self.counter == 0
 
+    @staticmethod
+    def patch(loops, buffer_size=1024):
+        Download._stop_requested = DownloadMock(loops)
+        Download.BufferSize = buffer_size
+
 
 @responses.activate
 @pytest.fixture
-def gcode():
-    responses.add(
-        responses.GET,
-        GCODE_URL,
-        body=os.urandom(1024 * 1024),
-        headers={'Content-length': str(1024 * 1024)},
-        status=200,
-        content_type="application/octet-stream",
-        stream=True,
-    )
+def gcode(printer):
+    responses.add(responses.GET,
+                  GCODE_URL,
+                  body=os.urandom(1024 * 1024),
+                  status=200,
+                  content_type="application/octet-stream",
+                  stream=True)
 
 
-def patch_download_loop(count):
-    Download._stop_requested = Loop(count)
-
-
-def test_download_ok(printer, gcode):
-    patch_download_loop(3)
-    printer.download_mgr.start(GCODE_URL)
-
-    dl = printer.download_mgr.current
-    assert dl
-
+@pytest.fixture
+def download_mgr(printer):
+    yield printer.download_mgr
     if printer.download_mgr.current:
         os.remove(printer.download_mgr.current.filename)
 
 
-def test_download_invalid_url():
-    pass
+def test_download_ok_3_iterations(download_mgr, gcode):
+    assert download_mgr.current is None
+
+    DownloadMock.patch(3, buffer_size=2)
+    download_mgr.start(GCODE_URL)
+
+    dl = download_mgr.current
+    assert dl
+    assert dl.progress > 0
+    assert dl.filename == "./my_example.gcode"
+    assert dl.to_print is False
+    assert dl.to_select is False
+    assert dl.start_ts <= time.time()
+    assert dl.end_ts is None
+    assert dl.downloaded > 0
 
 
-def test_download_to_print():
-    pass
+def test_download_to_print(gcode, download_mgr):
+    download_mgr.start(GCODE_URL, to_print=True)
+    assert download_mgr.current.to_print is True
 
 
-def test_download_to_select():
-    pass
+def test_download_to_select(gcode, download_mgr):
+    download_mgr.start(GCODE_URL, to_select=True)
+
+    assert download_mgr.current.to_select is True
 
 
-def test_download_stop():
-    pass
+def test_download_time_remaining(gcode, download_mgr):
+    DownloadMock.patch(3, buffer_size=1)
+    download_mgr.start(GCODE_URL)
+
+    dl = download_mgr.current
+    assert dl.time_remaining() > 0
+
+
+def test_download_stop(gcode, download_mgr):
+    DownloadMock.patch(3, buffer_size=1)
+
+    dl = download_mgr.start(GCODE_URL)
+    dl.stop()
+
+    assert dl.end_ts is None
+    assert dl.stop_ts is not None
+    assert dl.time_remaining() is None
+
+
+def test_download_info(gcode, download_mgr):
+    DownloadMock.patch(3, buffer_size=16)
+    dl = download_mgr.start(GCODE_URL, to_select=True)
+    info = dl.to_dict()
+
+    assert info['filename'] == "./my_example.gcode"
+    assert info['downloaded'] > 0
+    assert info['start'] <= time.time()
+    assert info['progress'] > 0
+    assert info['to_print'] is False
+    assert info['to_select'] is True
+    assert info['stopped'] is None
+    assert info['end'] is None
+    assert info['time_remaining'] > 0
+    assert info['total'] > 0
