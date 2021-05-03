@@ -1,12 +1,13 @@
 """Download functionality infrastructure."""
+import os
+import time
 from logging import getLogger
-from .const import DOWNLOAD_DIR
-from urllib.parse import urlparse
 from os.path import normpath, abspath, basename, dirname
+from urllib.parse import urlparse
 
 import requests
-import time
-import os
+
+from .const import DOWNLOAD_DIR
 
 log = getLogger("connect-printer")
 
@@ -16,10 +17,12 @@ log = getLogger("connect-printer")
 
 
 class DownloadRunningError(Exception):
-    pass
+    """Exception thrown when a download is already in progress"""
 
 
-# XXX allow from prusa printers only?
+# XXX DOWNLOAD_INFO
+# XXX DOWNLOAD
+# XXX STOP_DEVELOPMENT
 
 
 class DownloadMgr:
@@ -27,12 +30,13 @@ class DownloadMgr:
 
     Dir = DOWNLOAD_DIR
 
-    def __init__(self, printer):
+    def __init__(self, conn_details_cb):
         self.current = None
-        # XXX ugly: DownloadMgr knows about printer and vice versa
-        self.printer = printer
+        self.conn_details_cb = conn_details_cb
 
     def start(self, url, filename=None, to_print=False, to_select=False):
+        """Start a download"""
+
         if self.current:
             raise DownloadRunningError()
 
@@ -50,30 +54,33 @@ class DownloadMgr:
 
         # make dir (in case filename contains a subdir)
         try:
-            dir = dirname(filename)
-            os.makedirs(dir)
+            dir_ = dirname(filename)
+            os.makedirs(dir_)
         except FileExistsError:
-            log.debug(f"{dir} already exists")
+            log.debug("%s already exists", dir_)
 
         try:
-            token = None
-            if self.printer.server and self.printer.token and \
-                    url.lower().startswith(self.printer.server.lower()):
-                token = self.printer.token
-            dl = self.current = Download(url,
-                                         filename=filename,
-                                         to_print=to_print,
-                                         to_select=to_select,
-                                         token=token)
-            dl()
-            return dl
+            server, token = self.conn_details_cb()
+            # server is not connect server, set token to None
+            if not (server and token
+                    and url.lower().startswith(server.lower())):
+                token = None
+            download = self.current = Download(url,
+                                               filename=filename,
+                                               to_print=to_print,
+                                               to_select=to_select,
+                                               token=token)
+            download()
+            return download
         finally:
             self.current = None
 
     def stop(self):
+        """Stop current download"""
         self.current.stop()
 
     def info(self):
+        """Return important info on Download Manager"""
         return {
             'current': self.current and self.current.to_dict(),
             'download_dir': self.Dir,
@@ -81,8 +88,11 @@ class DownloadMgr:
 
 
 class Download:
+    """Model a single download"""
+
     BufferSize = 1024
 
+    # pylint: disable=too-many-arguments
     def __init__(self,
                  url,
                  filename=None,
@@ -114,7 +124,10 @@ class Download:
             elapsed = time.time() - self.start_ts
             return self.total / self.downloaded * elapsed
 
+        return None
+
     def stop(self):
+        """Stop download"""
         self.stop_ts = time.time()
 
     def __call__(self):
@@ -125,6 +138,7 @@ class Download:
         response = requests.get(self.url, stream=True, headers=headers)
         self.total = response.headers.get('Content-Length')
 
+        # pylint: disable=invalid-name
         with open(self.filename, 'wb') as f:
             if self.total is None:
                 f.write(response.content)
@@ -143,6 +157,7 @@ class Download:
         return self.stop_ts is not None
 
     def to_dict(self):
+        """Marshall a download instance"""
         return {
             "filename": self.filename,
             "total": self.total,

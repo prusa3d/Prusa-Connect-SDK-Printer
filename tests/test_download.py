@@ -5,6 +5,7 @@ import pytest
 import responses
 
 from prusa.connect.printer.download import Download
+from prusa.connect.printer import const
 from .test_printer import printer
 
 assert printer
@@ -132,3 +133,16 @@ def test_download_no_token(printer):
     responses.add(responses.GET, url, status=200)
     dl = printer.download_mgr.start(url, to_select=True)
     assert not dl.token
+
+
+def test_telemetry_sends_download_info(printer, gcode, download_mgr):
+    DownloadMock.patch(3, buffer_size=16)
+    dl = download_mgr.start(GCODE_URL, to_print=True)
+    download_mgr.current = dl
+
+    printer.telemetry(const.State.READY)
+    item = printer.queue.get_nowait()
+
+    telemetry = item.to_payload()
+    assert "download_progress" in telemetry
+    assert "download_time_remaining" in telemetry
