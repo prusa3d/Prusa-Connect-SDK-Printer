@@ -112,7 +112,7 @@ class Printer:
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
 
-        self.download_mgr = DownloadMgr()
+        self.download_mgr = DownloadMgr(self)  # XXX ugly self ref
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -269,7 +269,8 @@ class Printer:
                     api_key=self.api_key,
                     files=self.fs.to_dict(),
                     sn=self.sn,
-                    fingerprint=self.fingerprint)
+                    fingerprint=self.fingerprint,
+                    download=self.download_mgr.info())
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""

@@ -51,10 +51,8 @@ def test_download_ok_3_iterations(download_mgr, gcode):
     assert download_mgr.current is None
 
     DownloadMock.patch(3, buffer_size=2)
-    download_mgr.start(GCODE_URL)
+    dl = download_mgr.start(GCODE_URL)
 
-    dl = download_mgr.current
-    assert dl
     assert dl.progress > 0
     assert dl.filename == "./my_example.gcode"
     assert dl.to_print is False
@@ -65,21 +63,20 @@ def test_download_ok_3_iterations(download_mgr, gcode):
 
 
 def test_download_to_print(gcode, download_mgr):
-    download_mgr.start(GCODE_URL, to_print=True)
-    assert download_mgr.current.to_print is True
+    dl = download_mgr.start(GCODE_URL, to_print=True)
+    assert dl.to_print is True
 
 
 def test_download_to_select(gcode, download_mgr):
-    download_mgr.start(GCODE_URL, to_select=True)
+    dl = download_mgr.start(GCODE_URL, to_select=True)
 
-    assert download_mgr.current.to_select is True
+    assert dl.to_select is True
 
 
 def test_download_time_remaining(gcode, download_mgr):
     DownloadMock.patch(3, buffer_size=1)
-    download_mgr.start(GCODE_URL)
+    dl = download_mgr.start(GCODE_URL)
 
-    dl = download_mgr.current
     assert dl.time_remaining() > 0
 
 
@@ -109,3 +106,29 @@ def test_download_info(gcode, download_mgr):
     assert info['end'] is None
     assert info['time_remaining'] > 0
     assert info['total'] > 0
+
+
+def test_info_contains_download(printer, download_mgr, gcode):
+    DownloadMock.patch(3, buffer_size=16)
+    dl = download_mgr.start(GCODE_URL, to_select=True)
+    download_mgr.current = dl
+
+    info = printer.get_info()
+    assert info['download']['current']
+    assert info['download']['download_dir']
+
+
+@responses.activate
+def test_download_from_connect_server_has_token(printer):
+    url = printer.server + "/path/here"
+    responses.add(responses.GET, url, status=200)
+    dl = printer.download_mgr.start(url, to_select=True)
+    assert dl.token
+
+
+@responses.activate
+def test_download_no_token(printer):
+    url = "http://somewhere.else/path"
+    responses.add(responses.GET, url, status=200)
+    dl = printer.download_mgr.start(url, to_select=True)
+    assert not dl.token
