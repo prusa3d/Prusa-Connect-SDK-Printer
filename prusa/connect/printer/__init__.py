@@ -111,6 +111,9 @@ class Printer:
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
+        self.set_handler(const.Command.DOWNLOAD, self.download)
+        self.set_handler(const.Command.DOWNLOAD_STOP, self.download_stop)
+        self.set_handler(const.Command.DOWNLOAD_INFO, self.download_info)
 
         self.download_mgr = DownloadMgr(self.get_connection_details)
 
@@ -277,13 +280,37 @@ class Printer:
                     api_key=self.api_key,
                     files=self.fs.to_dict(),
                     sn=self.sn,
-                    fingerprint=self.fingerprint,
-                    download=self.download_mgr.info())
+                    fingerprint=self.fingerprint)
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
         # pylint: disable=unused-argument
         return self.get_info()
+
+    def download(self, caller: Command) -> Dict[str, Any]:
+        """Download an URL specified by url, to_select and to_print flags
+        in `caller`"""
+        if not caller.args or len(caller.args) != 3:
+            raise ValueError(f"{const.Command.DOWNLOAD} requires "
+                             f"three args (url, select, print)")
+
+        url, to_select, to_print = caller.args
+        self.download_mgr.start(url, to_select=to_select, to_print=to_print)
+
+        return dict(source=const.Source.CONNECT)
+
+    def download_stop(self, caller: Command) -> Dict[str, Any]:
+        """Stop current download, if any"""
+        # pylint: disable=unused-argument
+        self.download_mgr.stop()
+        return dict(source=const.Source.CONNECT)
+
+    def download_info(self, caller: Command) -> Dict[str, Any]:
+        """Provide info on the running download"""
+        # pylint: disable=unused-argument
+        info = self.download_mgr.info()
+        info['source'] = const.Source.CONNECT
+        return info
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""

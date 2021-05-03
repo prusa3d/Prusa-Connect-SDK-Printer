@@ -109,16 +109,6 @@ def test_download_info(gcode, download_mgr):
     assert info['total'] > 0
 
 
-def test_info_contains_download(printer, download_mgr, gcode):
-    DownloadMock.patch(3, buffer_size=16)
-    dl = download_mgr.start(GCODE_URL, to_select=True)
-    download_mgr.current = dl
-
-    info = printer.get_info()
-    assert info['download']['current']
-    assert info['download']['download_dir']
-
-
 @responses.activate
 def test_download_from_connect_server_has_token(printer):
     url = printer.server + "/path/here"

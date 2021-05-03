@@ -1,6 +1,8 @@
 """Test for Printer object."""
 import os
+import io
 import queue
+import time
 import tempfile
 from typing import Any
 
@@ -10,6 +12,7 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Command, \
     Register, errors
+from prusa.connect.printer.download import Download
 from prusa.connect.printer.models import Telemetry, Event
 
 # pylint: disable=missing-function-docstring
@@ -796,3 +799,115 @@ class TestPrinter:
         assert info['source'] == 'WUI'
         assert info['reason'] == 'Command error'
         assert info['data'] == {'error': 'File does not exist: /N/A/file.txt'}
+
+    def test_download(self, requests_mock, printer):
+        url = "http://prusaprinters.org/my.gcode"
+        cmd = '{"command":"DOWNLOAD", ' \
+              '"args": ["%s", true, false]}' % url
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.get(url,
+                          body=io.BytesIO(os.urandom(16)),
+                          status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        # get the command from telemetry
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        # exec download
+        printer.command()
+
+        # check the file is on the disk
+        downloaded_file = os.path.join(printer.download_mgr.Dir, "my.gcode")
+        assert os.path.exists(downloaded_file)
+        os.remove(downloaded_file)
+
+    def test_download_info(self, printer, requests_mock):
+        # prepare command and mocks
+        cmd = '{"command":"DOWNLOAD_INFO"}'
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        # send telemetry - obtain download info command
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        # mock printer.download_mgr.current
+        now = time.time() - 1
+        printer.download_mgr.current = Download("http://server/path",
+                                                to_select=True)
+        printer.download_mgr.current.start_ts = now
+        printer.download_mgr.current.total = 1000
+        printer.download_mgr.current.downloaded = 100
+        assert not printer.download_mgr.current.stop_ts
+
+        # exec download info
+        printer.command()
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[2].json()
+
+        assert info["event"] == "FINISHED"
+        assert info["source"] == "CONNECT"
+        assert info["command_id"] == 42
+
+        assert info["data"]['current']['total'] == 1000
+        assert info["data"]['current']['downloaded'] == 100
+        assert info["data"]['current']['start'] == now
+        assert info["data"]['current']['time_remaining'] >= 10
+        assert info["data"]['current']['to_print'] is False
+        assert info["data"]['current']['to_select'] is True
+        assert info["data"]['download_dir'] == "."
+
+    def test_download_stop(self, requests_mock, printer):
+        # post telemetry - obtain command
+        cmd = '{"command":"DOWNLOAD_STOP"}'
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry(const.State.READY)
+
+        # pretend we're downloading
+        printer.download_mgr.current = Download("http://server/path")
+        assert not printer.download_mgr.current.stop_ts
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        # exec the command from telemetry - `cmd
+        printer.command()
+
+        assert printer.download_mgr.current.stop_ts
