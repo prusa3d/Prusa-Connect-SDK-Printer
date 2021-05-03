@@ -20,11 +20,6 @@ class DownloadRunningError(Exception):
     """Exception thrown when a download is already in progress"""
 
 
-# XXX DOWNLOAD_INFO
-# XXX DOWNLOAD
-# XXX STOP_DEVELOPMENT
-
-
 class DownloadMgr:
     """Download manager."""
 
@@ -77,7 +72,8 @@ class DownloadMgr:
 
     def stop(self):
         """Stop current download"""
-        self.current.stop()
+        if self.current:
+            self.current.stop()
 
     def info(self):
         """Return important info on Download Manager"""
