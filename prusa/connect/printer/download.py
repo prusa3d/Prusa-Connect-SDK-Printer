@@ -19,9 +19,7 @@ class DownloadRunningError(Exception):
     pass
 
 
-# XXX send token
 # XXX allow from prusa printers only?
-# XXX adapt send_info()
 
 
 class DownloadMgr:
@@ -29,8 +27,10 @@ class DownloadMgr:
 
     Dir = DOWNLOAD_DIR
 
-    def __init__(self):
+    def __init__(self, printer):
         self.current = None
+        # XXX ugly: DownloadMgr knows about printer and vice versa
+        self.printer = printer
 
     def start(self, url, filename=None, to_print=False, to_select=False):
         if self.current:
@@ -55,12 +55,20 @@ class DownloadMgr:
         except FileExistsError:
             log.debug(f"{dir} already exists")
 
-        dl = self.current = Download(url,
-                                     filename=filename,
-                                     to_print=to_print,
-                                     to_select=to_select)
-        dl()
-        return dl
+        try:
+            token = None
+            if self.printer.server and self.printer.token and \
+                    url.lower().startswith(self.printer.server.lower()):
+                token = self.printer.token
+            dl = self.current = Download(url,
+                                         filename=filename,
+                                         to_print=to_print,
+                                         to_select=to_select,
+                                         token=token)
+            dl()
+            return dl
+        finally:
+            self.current = None
 
     def stop(self):
         self.current.stop()
@@ -75,7 +83,12 @@ class DownloadMgr:
 class Download:
     BufferSize = 1024
 
-    def __init__(self, url, filename=None, to_print=False, to_select=False):
+    def __init__(self,
+                 url,
+                 filename=None,
+                 to_print=False,
+                 to_select=False,
+                 token=None):
         self.url = url
         self.filename = filename
         self.to_print = to_print
@@ -86,6 +99,7 @@ class Download:
         self.progress = 0  # percentage, values: 0 to 1
         self.total = 0
         self.downloaded = 0
+        self.token = token
 
     def time_remaining(self):
         """Return the estimated time remaining for the download in seconds.
@@ -105,7 +119,10 @@ class Download:
 
     def __call__(self):
         self.start_ts = time.time()
-        response = requests.get(self.url, stream=True)
+        headers = {}
+        if self.token:
+            headers['Token'] = self.token
+        response = requests.get(self.url, stream=True, headers=headers)
         self.total = response.headers.get('Content-Length')
 
         with open(self.filename, 'wb') as f:
