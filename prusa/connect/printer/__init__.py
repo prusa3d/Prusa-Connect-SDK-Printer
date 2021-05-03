@@ -112,7 +112,7 @@ class Printer:
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
 
-        self.download_mgr = DownloadMgr(self)  # XXX ugly self ref
+        self.download_mgr = DownloadMgr(self.get_connection_details)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -232,6 +232,10 @@ class Printer:
             return
         if self.job_id:
             kwargs['job_id'] = self.job_id
+        if self.download_mgr.current:
+            download = self.download_mgr.current
+            kwargs['download_progress'] = download.progress
+            kwargs['download_time_remaining'] = download.time_remaining()
         if self.is_initialised():
             telemetry = Telemetry(state, timestamp, **kwargs)
         else:
@@ -252,6 +256,10 @@ class Printer:
         self.server = Printer.connect_url(host, tls, port)
         self.token = config['connect']['token']
         errors.TOKEN.ok = True
+
+    def get_connection_details(self):
+        """Return currently set server and token"""
+        return (self.server, self.token)
 
     def get_info(self) -> Dict[str, Any]:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
