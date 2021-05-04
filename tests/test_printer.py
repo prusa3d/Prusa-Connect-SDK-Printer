@@ -867,3 +867,14 @@ class TestPrinter:
         assert isinstance(item, Event)
         assert item.event == const.Event.REJECTED
         assert item.source == const.Source.CONNECT
+
+    def test_download_aborted(self, printer):
+        url = "http://invalid-server-address.cz/my.gcode"
+        printer.download_mgr.start(url)
+
+        run_loop(printer.download_mgr.loop, timeout=.5)
+
+        item = printer.queue.get_nowait()
+        assert isinstance(item, Event)
+        assert item.event == const.Event.DOWNLOAD_ABORTED
+        assert item.source == const.Source.CONNECT

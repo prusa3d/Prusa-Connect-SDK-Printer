@@ -16,7 +16,6 @@ log = getLogger("connect-printer")
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
 
-# XXX DOWNLOAD_ABORTED event on wrong URL or other problems
 # XXX save into .part and then rename??
 
 
@@ -87,6 +86,9 @@ class DownloadMgr:
                         self.current = None
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
+                self.event_cb(const.Event.DOWNLOAD_ABORTED,
+                              const.Source.CONNECT,
+                              reason=str(err))
 
     def stop_loop(self):
         """Set internal variable to stop the download loop."""
@@ -137,6 +139,10 @@ class Download:
 
         # finished or aborted
         if self.end_ts is not None or self.stop_ts is not None:
+            return None
+
+        # no content-length specified
+        if self.total is None:
             return None
 
         if self.start_ts is not None:
