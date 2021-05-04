@@ -857,3 +857,13 @@ class TestPrinter:
         printer.command()
 
         assert printer.download_mgr.current.stop_ts
+
+    def test_download_rejected(self, printer):
+        url = "http://prusaprinters.org/my.gcode"
+        printer.download_mgr.start(url)
+        printer.download_mgr.start(url)
+
+        item = printer.queue.get_nowait()
+        assert isinstance(item, Event)
+        assert item.event == const.Event.REJECTED
+        assert item.source == const.Source.CONNECT
