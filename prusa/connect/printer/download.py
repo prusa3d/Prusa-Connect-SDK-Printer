@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from prusa.connect.printer import const
+from . import const
 
 log = getLogger("connect-printer")
 
