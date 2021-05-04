@@ -83,6 +83,13 @@ def printer_no_fp():
     return printer
 
 
+def run_loop(fct, timeout=0.1):
+    try:
+        func_timeout(timeout, fct)
+    except FunctionTimedOut:
+        pass
+
+
 class TestPrinter:
     """Tests for Printer class."""
     def test_init(self, printer):
@@ -173,10 +180,7 @@ class TestPrinter:
                            exc=requests.exceptions.ConnectTimeout)
         printer.event_cb(const.Event.INFO, const.Source.WUI)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert errors.INTERNET.ok is True
         assert errors.HTTP.ok is False
@@ -210,10 +214,7 @@ class TestPrinter:
 
         printer.telemetry(const.State.READY)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert printer.command.state == const.Event.ACCEPTED
         assert (str(
@@ -225,10 +226,7 @@ class TestPrinter:
 
         printer.command()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert (str(
             requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
@@ -275,10 +273,7 @@ class TestPrinter:
         printer.telemetry(const.State.READY)
         printer.inotify_handler()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert printer.command.state == const.Event.ACCEPTED
 
@@ -311,10 +306,7 @@ class TestPrinter:
         printer.command()  # exec DELETE_DIRECTORY
         printer.inotify_handler()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         # check file structure
         file_system = mount.tree.to_dict()
@@ -368,10 +360,7 @@ class TestPrinter:
         printer.telemetry(const.State.READY)
         printer.inotify_handler()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert str(requests_mock.request_history[2]) == \
                f"POST {SERVER}/p/events"
@@ -402,10 +391,8 @@ class TestPrinter:
         printer.command()  # exec DELETE_FILE
         printer.inotify_handler()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
+
         # check file structure
         file_system = mount.tree.to_dict()
         remove_m_time(file_system)
@@ -452,10 +439,7 @@ class TestPrinter:
         printer.telemetry(const.State.READY)
         printer.inotify_handler()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert printer.command.state == const.Event.ACCEPTED
 
@@ -478,10 +462,7 @@ class TestPrinter:
         printer.command()  # exec CREATE_DIRECTORY
         printer.inotify_handler()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         # check file structure
         file_system = mount.tree.to_dict()
@@ -510,10 +491,7 @@ class TestPrinter:
         # put an item to queue
         printer.telemetry(const.State.READY)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         # check that no request has been made while server is not set
         assert not requests_mock.request_history
@@ -537,10 +515,7 @@ class TestPrinter:
 
         printer.telemetry(const.State.READY)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert (str(
             requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
@@ -550,10 +525,7 @@ class TestPrinter:
 
         printer.command()
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert (str(
             requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
@@ -615,10 +587,7 @@ class TestPrinter:
 
         printer.register_handler = register_handler
         printer.queue.put(Register(tmp_code))
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert (str(
             requests_mock.request_history[0]) == f"GET {SERVER}/p/register")
@@ -635,10 +604,7 @@ class TestPrinter:
         requests_mock.get(SERVER + "/p/register", status_code=202)
 
         printer.queue.put(Register(tmp_code))
-        try:
-            func_timeout(1.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop, timeout=1.1)
 
         assert (str(
             requests_mock.request_history[0]) == f"GET {SERVER}/p/register")
@@ -652,10 +618,7 @@ class TestPrinter:
 
         printer.queue.put(Register(tmp_code))
 
-        try:
-            func_timeout(1.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop, timeout=1.1)
 
         assert errors.HTTP.ok is True
         assert errors.API.ok is False
@@ -731,10 +694,7 @@ class TestPrinter:
 
         printer.telemetry(const.State.READY)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert printer.command.state == const.Event.ACCEPTED
 
@@ -747,10 +707,7 @@ class TestPrinter:
 
         printer.command()  # exec SEND_FILE_INFO
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         requests_mock.post(SERVER + "/p/events", status_code=204)
         assert (str(
@@ -819,13 +776,11 @@ class TestPrinter:
         # get the command from telemetry
         printer.telemetry(const.State.READY)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         # exec download
         printer.command()
+        run_loop(printer.download_mgr.loop)
 
         # check the file is on the disk
         downloaded_file = os.path.join(printer.download_mgr.Dir, "my.gcode")
@@ -847,10 +802,7 @@ class TestPrinter:
         # send telemetry - obtain download info command
         printer.telemetry(const.State.READY)
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         # mock printer.download_mgr.current
         now = time.time() - 1
@@ -863,10 +815,7 @@ class TestPrinter:
 
         # exec download info
         printer.command()
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         assert str(requests_mock.request_history[2]) == \
                f"POST {SERVER}/p/events"
@@ -902,10 +851,7 @@ class TestPrinter:
         printer.download_mgr.current = Download("http://server/path")
         assert not printer.download_mgr.current.stop_ts
 
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         # exec the command from telemetry - `cmd
         printer.command()
