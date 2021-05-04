@@ -1,12 +1,14 @@
 """Download functionality infrastructure."""
 import os
 import time
+
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
 from urllib.parse import urlparse
-from prusa.connect.printer import const
 
 import requests
+
+from prusa.connect.printer import const
 
 log = getLogger("connect-printer")
 
@@ -14,7 +16,6 @@ log = getLogger("connect-printer")
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
 
-# XXX Download on running Download -> REJECTED
 # XXX DOWNLOAD_ABORTED event on wrong URL or other problems
 # XXX save into .part and then rename??
 
@@ -40,8 +41,8 @@ class DownloadMgr:
         if self.current:
             self.event_cb(const.Event.REJECTED,
                           const.Source.CONNECT,
-                          reason="Invalid Command-Id header")
-            return
+                          reason="Another download in progress")
+            return None
 
         # take filename from `url` if not set
         if filename is None:
@@ -81,9 +82,10 @@ class DownloadMgr:
                 download = self.current
                 if download:
                     download()
+                    # pylint: disable=protected-access
                     if download._test_loops is None:  # not a test
                         self.current = None
-            except Exception as err:
+            except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
 
     def stop_loop(self):
