@@ -77,18 +77,19 @@ class DownloadMgr:
         """Download loop"""
         self.__running_loop = True
         while self.__running_loop:
+            download = self.current
             try:
-                download = self.current
                 if download:
                     download()
-                    # pylint: disable=protected-access
-                    if download._test_loops is None:  # not a test
-                        self.current = None
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
                 self.event_cb(const.Event.DOWNLOAD_ABORTED,
                               const.Source.CONNECT,
                               reason=str(err))
+            finally:
+                # pylint: disable=protected-access
+                if download and download._test_loops is None:  # not a test
+                    self.current = None
 
     def stop_loop(self):
         """Set internal variable to stop the download loop."""
@@ -165,8 +166,10 @@ class Download:
         response = requests.get(self.url, stream=True, headers=headers)
         self.total = response.headers.get('Content-Length')
 
+        tmp_filename = self.tmp_filename()
+
         # pylint: disable=invalid-name
-        with open(self.filename, 'wb') as f:
+        with open(tmp_filename, 'wb') as f:
             if self.total is None:
                 f.write(response.content)
             else:
@@ -184,6 +187,13 @@ class Download:
                             return
                         self._test_loops -= 1
         self.end_ts = time.time()
+
+        os.rename(tmp_filename, self.filename)
+
+    def tmp_filename(self):
+        dir_ = os.path.dirname(self.filename)
+        base = os.path.basename(self.filename)
+        return os.path.join(dir_, ".%s.part" % base)
 
     def to_dict(self):
         """Marshall a download instance"""

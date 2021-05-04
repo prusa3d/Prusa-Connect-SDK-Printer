@@ -859,7 +859,7 @@ class TestPrinter:
         assert printer.download_mgr.current.stop_ts
 
     def test_download_rejected(self, printer):
-        url = "http://prusaprinters.org/my.gcode"
+        url = "http://prusaprinters.org/test-download-rejected.gcode"
         printer.download_mgr.start(url)
         printer.download_mgr.start(url)
 
@@ -867,9 +867,11 @@ class TestPrinter:
         assert isinstance(item, Event)
         assert item.event == const.Event.REJECTED
         assert item.source == const.Source.CONNECT
+        with pytest.raises(queue.Empty):
+            printer.queue.get_nowait()
 
     def test_download_aborted(self, printer):
-        url = "http://invalid-server-address.cz/my.gcode"
+        url = "http://invalid-server-address.cz/test-download-aborted.gcode"
         printer.download_mgr.start(url)
 
         run_loop(printer.download_mgr.loop, timeout=.5)
@@ -878,3 +880,5 @@ class TestPrinter:
         assert isinstance(item, Event)
         assert item.event == const.Event.DOWNLOAD_ABORTED
         assert item.source == const.Source.CONNECT
+        with pytest.raises(queue.Empty):
+            printer.queue.get_nowait()
