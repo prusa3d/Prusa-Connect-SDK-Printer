@@ -48,12 +48,13 @@ def test_download_ok(download_mgr, gcode):
     dl = download_mgr.start(GCODE_URL)
     run_loop(download_mgr)
 
-    assert dl.progress > 0
+    assert dl.progress >= 0
     assert dl.filename == "./my_example.gcode"
     assert dl.to_print is False
     assert dl.to_select is False
-    assert dl.start_ts <= time.time()
-    assert dl.downloaded > 0
+    if dl.start_ts is not None:
+        assert dl.start_ts <= time.time()
+    assert dl.downloaded >= 0
 
 
 def test_download_to_print(gcode, download_mgr):
@@ -94,15 +95,15 @@ def test_download_info(gcode, download_mgr):
 
     info = dl.to_dict()
     assert info['filename'] == "./my_example.gcode"
-    assert info['downloaded'] > 0
+    assert info['downloaded'] >= 0
     assert info['start'] <= time.time()
-    assert info['progress'] > 0
+    assert info['progress'] >= 0
     assert info['to_print'] is False
     assert info['to_select'] is True
     assert info['stopped'] is None
     assert info['end'] is None
     assert info['time_remaining'] > 0
-    assert info['total'] > 0
+    assert info['total'] >= 0
 
 
 @responses.activate
