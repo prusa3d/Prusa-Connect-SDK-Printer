@@ -57,6 +57,8 @@ class Event(Enum):
     FILE_INFO = "FILE_INFO"
     JOB_INFO = "JOB_INFO"
 
+    DOWNLOAD_ABORTED = "DOWNLOAD_ABORTED"
+
 
 class Source(Enum):
     """Printer event source."""
