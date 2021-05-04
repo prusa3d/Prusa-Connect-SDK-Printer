@@ -4,16 +4,19 @@ import time
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
 from urllib.parse import urlparse
+from prusa.connect.printer import const
 
 import requests
-
-from .const import DOWNLOAD_DIR
 
 log = getLogger("connect-printer")
 
 # pylint: disable=too-many-instance-attributes
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
+
+# XXX Download on running Download -> REJECTED
+# XXX DOWNLOAD_ABORTED event on wrong URL or other problems
+# XXX save into .part and then rename??
 
 
 class DownloadRunningError(Exception):
@@ -23,17 +26,22 @@ class DownloadRunningError(Exception):
 class DownloadMgr:
     """Download manager."""
 
-    Dir = DOWNLOAD_DIR
+    Dir = const.DOWNLOAD_DIR
 
-    def __init__(self, conn_details_cb):
-        self.current = None
+    def __init__(self, conn_details_cb, event_cb):
         self.conn_details_cb = conn_details_cb
+        self.event_cb = event_cb
+        self.__running_loop = False
+        self.current = None
 
     def start(self, url, filename=None, to_print=False, to_select=False):
         """Start a download"""
 
         if self.current:
-            raise DownloadRunningError()
+            self.event_cb(const.Event.REJECTED,
+                          const.Source.CONNECT,
+                          reason="Invalid Command-Id header")
+            return
 
         # take filename from `url` if not set
         if filename is None:
@@ -54,21 +62,33 @@ class DownloadMgr:
         except FileExistsError:
             log.debug("%s already exists", dir_)
 
-        try:
-            server, token = self.conn_details_cb()
-            # server is not connect server, set token to None
-            if not (server and token
-                    and url.lower().startswith(server.lower())):
-                token = None
-            download = self.current = Download(url,
-                                               filename=filename,
-                                               to_print=to_print,
-                                               to_select=to_select,
-                                               token=token)
-            download()
-            return download
-        finally:
-            self.current = None
+        server, token = self.conn_details_cb()
+        # server is not connect server, set token to None
+        if not (server and token and url.lower().startswith(server.lower())):
+            token = None
+        download = self.current = Download(url,
+                                           filename=filename,
+                                           to_print=to_print,
+                                           to_select=to_select,
+                                           token=token)
+        return download
+
+    def loop(self):
+        """Download loop"""
+        self.__running_loop = True
+        while self.__running_loop:
+            try:
+                download = self.current
+                if download:
+                    download()
+                    if download._test_loops is None:  # not a test
+                        self.current = None
+            except Exception as err:
+                log.error(err)
+
+    def stop_loop(self):
+        """Set internal variable to stop the download loop."""
+        self.__running_loop = False
 
     def stop(self):
         """Stop current download"""
@@ -106,6 +126,7 @@ class Download:
         self.total = 0
         self.downloaded = 0
         self.token = token
+        self._test_loops = None
 
     def time_remaining(self):
         """Return the estimated time remaining for the download in seconds.
@@ -118,6 +139,8 @@ class Download:
 
         if self.start_ts is not None:
             elapsed = time.time() - self.start_ts
+            if elapsed == 0 or self.downloaded == 0:
+                return float("inf")
             return self.total / self.downloaded * elapsed
 
         return None
@@ -142,15 +165,17 @@ class Download:
                 self.downloaded = 0
                 self.total = int(self.total)
                 for data in response.iter_content(chunk_size=self.BufferSize):
-                    if self._stop_requested():
+                    if self.stop_ts is not None:
                         return
                     self.downloaded += len(data)
                     f.write(data)
                     self.progress = self.downloaded / self.total
+                    # test relevant part
+                    if self._test_loops is not None:
+                        if self._test_loops == 0:
+                            return
+                        self._test_loops -= 1
         self.end_ts = time.time()
-
-    def _stop_requested(self):
-        return self.stop_ts is not None
 
     def to_dict(self):
         """Marshall a download instance"""

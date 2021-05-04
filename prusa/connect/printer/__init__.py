@@ -115,7 +115,8 @@ class Printer:
         self.set_handler(const.Command.DOWNLOAD_STOP, self.download_stop)
         self.set_handler(const.Command.DOWNLOAD_INFO, self.download_info)
 
-        self.download_mgr = DownloadMgr(self.get_connection_details)
+        self.download_mgr = DownloadMgr(self.get_connection_details,
+                                        self.event_cb)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
