@@ -16,8 +16,6 @@ log = getLogger("connect-printer")
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
 
-# XXX save into .part and then rename??
-
 
 class DownloadRunningError(Exception):
     """Exception thrown when a download is already in progress"""
@@ -81,15 +79,15 @@ class DownloadMgr:
             try:
                 if download:
                     download()
+                    # pylint: disable=protected-access
+                    if download._test_loops is None:
+                        self.current = None
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
                 self.event_cb(const.Event.DOWNLOAD_ABORTED,
                               const.Source.CONNECT,
                               reason=str(err))
-            finally:
-                # pylint: disable=protected-access
-                if download and download._test_loops is None:  # not a test
-                    self.current = None
+                self.current = None
 
     def stop_loop(self):
         """Set internal variable to stop the download loop."""
@@ -191,6 +189,7 @@ class Download:
         os.rename(tmp_filename, self.filename)
 
     def tmp_filename(self):
+        """Generate a temporary filename for download"""
         dir_ = os.path.dirname(self.filename)
         base = os.path.basename(self.filename)
         return os.path.join(dir_, ".%s.part" % base)
