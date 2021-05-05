@@ -122,6 +122,7 @@ class Download:
     BUFFER_SIZE = 1024
 
     # pylint: disable=too-many-arguments
+    # pylint: disable=dangerous-default-value
     def __init__(self,
                  url,
                  filename=None,
