@@ -6,7 +6,7 @@ import responses
 
 from prusa.connect.printer import const
 from .test_printer import printer
-from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
+from prusa.connect.printer.download import Download
 
 assert printer
 
@@ -35,18 +35,22 @@ def download_mgr(printer):
             os.remove(printer.download_mgr.current.filename)
 
 
-def run_loop(download_mgr, timeout=0.5):
-    try:
-        func_timeout(timeout, download_mgr.loop)
-    except FunctionTimedOut:
-        pass
+def run_dl_mgr(download_mgr, loops=1, buffersize=1):
+    """NOTE this is a SPECIAL function to run DownloadMgr/Download in a
+    testing infrastructure. If set, `buffersize` will be adapted for
+    `Download` class and there will be only `loops` executed while
+    downloading. Also, `self.loop()` will exit after one download."""
+    download_mgr._is_unittest = True
+    download_mgr.current._exit_after_loops = loops
+    Download.BufferSize = buffersize
+    download_mgr.loop()
 
 
 def test_download_ok(download_mgr, gcode):
     assert download_mgr.current is None
 
     dl = download_mgr.start(GCODE_URL)
-    run_loop(download_mgr)
+    run_dl_mgr(download_mgr)
 
     assert dl.progress >= 0
     assert dl.filename == "./my_example.gcode"
@@ -69,17 +73,15 @@ def test_download_to_select(gcode, download_mgr):
 
 def test_download_time_remaining(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL)
-    dl._test_loops = 1
-    dl.BufferSize = 1
-    run_loop(download_mgr)
+    run_dl_mgr(download_mgr)
 
     assert dl.time_remaining() > 0
 
 
 def test_download_stop(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL)
-    dl._test_loops = 1
-    dl.BufferSize = 1
+    # dl._test_loops = 1
+    # dl.BufferSize = 1
     dl.stop()
 
     assert dl.end_ts is None
@@ -89,9 +91,7 @@ def test_download_stop(gcode, download_mgr):
 
 def test_download_info(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL, to_select=True)
-    dl._test_loops = 1
-    dl.BufferSize = 1
-    run_loop(download_mgr)
+    run_dl_mgr(download_mgr)
 
     info = dl.to_dict()
     assert info['filename'] == "./my_example.gcode"
@@ -107,28 +107,26 @@ def test_download_info(gcode, download_mgr):
 
 
 @responses.activate
-def test_download_from_connect_server_has_token(printer):
+def test_download_from_connect_server_has_token(printer, download_mgr):
     url = printer.server + "/path/here"
     responses.add(responses.GET, url, status=200)
-    dl = printer.download_mgr.start(url, to_select=True)
-    run_loop(printer.download_mgr)
+    dl = download_mgr.start(url, to_select=True)
+    run_dl_mgr(download_mgr)
     assert dl.token
 
 
 @responses.activate
-def test_download_no_token(printer):
+def test_download_no_token(download_mgr):
     url = "http://somewhere.else/path"
     responses.add(responses.GET, url, status=200)
-    dl = printer.download_mgr.start(url, to_select=True)
-    run_loop(printer.download_mgr)
+    dl = download_mgr.start(url, to_select=True)
+    run_dl_mgr(download_mgr)
     assert not dl.token
 
 
 def test_telemetry_sends_download_info(printer, gcode, download_mgr):
-    dl = download_mgr.start(GCODE_URL, to_print=True)
-    dl._test_loops = 1
-    dl.BufferSize = 1
-    run_loop(printer.download_mgr, timeout=.5)
+    download_mgr.start(GCODE_URL, to_print=True)
+    run_dl_mgr(download_mgr)
 
     printer.telemetry(const.State.READY)
     item = printer.queue.get_nowait()
@@ -138,14 +136,12 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
     assert "download_time_remaining" in telemetry
 
 
-def test_printed_file_cb(printer):
+def test_printed_file_cb(download_mgr, printer):
     """Download will be aborted if currently printed file is the same"""
     path = os.path.abspath("./my_example.gcode")
-    printer.download_mgr.printed_file_cb = lambda: path
-    dl = printer.download_mgr.start(GCODE_URL)
-    dl._test_loops = 1
-    dl.BufferSize = 1
-    run_loop(printer.download_mgr, timeout=1)
+    download_mgr.printed_file_cb = lambda: path
+    download_mgr.start(GCODE_URL)
+    run_dl_mgr(download_mgr)
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.DOWNLOAD_ABORTED

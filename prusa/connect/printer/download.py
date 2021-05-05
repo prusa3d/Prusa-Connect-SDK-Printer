@@ -31,6 +31,7 @@ class DownloadMgr:
         self.event_cb = event_cb
         self.printed_file_cb = printed_file_cb
         self.__running_loop = False
+        self._is_unittest = False
         self.current = None
 
     def start(self, url, filename=None, to_print=False, to_select=False):
@@ -88,9 +89,9 @@ class DownloadMgr:
                         self.event_cb(const.Event.DOWNLOAD_ABORTED,
                                       const.Source.CONNECT,
                                       reason=msg)
-                    # pylint: disable=protected-access
-                    if download._test_loops is None:
-                        self.current = None
+                    if self._is_unittest:
+                        break
+                    self.current = None
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
                 self.event_cb(const.Event.DOWNLOAD_ABORTED,
@@ -138,7 +139,7 @@ class Download:
         self.total = 0
         self.downloaded = 0
         self.token = token
-        self._test_loops = None
+        self._exit_after_loops = None  # support for unittests
 
     def time_remaining(self):
         """Return the estimated time remaining for the download in seconds.
@@ -186,11 +187,11 @@ class Download:
                     self.downloaded += len(data)
                     f.write(data)
                     self.progress = self.downloaded / self.total
-                    # test relevant part
-                    if self._test_loops is not None:
-                        if self._test_loops == 0:
+                    # unittest relevant part
+                    if self._exit_after_loops is not None:
+                        if self._exit_after_loops == 0:
                             return
-                        self._test_loops -= 1
+                        self._exit_after_loops -= 1
         self.end_ts = time.time()
 
     def tmp_filename(self):
