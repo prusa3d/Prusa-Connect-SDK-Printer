@@ -1,5 +1,6 @@
 import os
 import time
+import queue
 import threading
 
 import pytest
@@ -135,10 +136,11 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
     loop = threading.Thread(target=run_test_loop,
                             daemon=True,
                             args=(download_mgr, ),
-                            kwargs={'timeout': 1})
+                            kwargs={'timeout': 2})
     loop.start()
 
-    while True:
+    start = time.time()
+    while (start + 3) >= time.time():
         dl = printer.download_mgr.current
         if dl and dl.progress:
             printer.telemetry(const.State.READY)
@@ -150,6 +152,8 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
 
             download_mgr._running_loop = False
             break
+    else:
+        assert 0, "test failed, `break` was not reached"
 
 
 def test_printed_file_cb(download_mgr, printer):
@@ -164,12 +168,12 @@ def test_printed_file_cb(download_mgr, printer):
     assert item.source == const.Source.CONNECT
 
 
-def test_download_twice_in_a_row(gcode, download_mgr):
-    dl1 = download_mgr.start(GCODE_URL, to_print=True)
+def test_download_twice_in_a_row(gcode, download_mgr, printer):
+    download_mgr.start(GCODE_URL, to_print=True)
     run_test_loop(download_mgr, timeout=1)
 
-    dl2 = download_mgr.start(GCODE_URL, to_print=True)
+    download_mgr.start(GCODE_URL, to_print=True)
     run_test_loop(download_mgr, timeout=1)
 
-    assert dl1.end_ts is not None
-    assert dl2.end_ts is not None
+    with pytest.raises(queue.Empty):  # no DOWNLOAD_ABORTED events
+        printer.queue.get_nowait()
