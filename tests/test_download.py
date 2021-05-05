@@ -146,3 +146,17 @@ def test_printed_file_cb(download_mgr, printer):
     item = printer.queue.get_nowait()
     assert item.event == const.Event.DOWNLOAD_ABORTED
     assert item.source == const.Source.CONNECT
+
+
+def test_download_twice_in_a_row(gcode, download_mgr):
+    download_mgr._is_unittest = True
+
+    dl1 = download_mgr.start(GCODE_URL, to_print=True)
+    download_mgr.loop()
+    download_mgr.current = None  # required because of _is_unittest
+
+    dl2 = download_mgr.start(GCODE_URL, to_print=True)
+    download_mgr.loop()
+
+    assert dl1.end_ts is not None
+    assert dl2.end_ts is not None

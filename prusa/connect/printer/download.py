@@ -1,4 +1,4 @@
-"""Download functionality infrastructure."""
+"""Download functionality for SDK."""
 import os
 import time
 
@@ -74,7 +74,7 @@ class DownloadMgr:
         return download
 
     def loop(self):
-        """Download loop"""
+        """Infinite download loop"""
         self.__running_loop = True
         while self.__running_loop:
             download = self.current
@@ -167,6 +167,7 @@ class Download:
         self.stop_ts = time.time()
 
     def __call__(self):
+        """Execute the download and store the file in `self.tmp_filename()`"""
         self.start_ts = time.time()
         headers = {}
         if self.token:
