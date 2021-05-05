@@ -116,7 +116,7 @@ class Printer:
         self.set_handler(const.Command.DOWNLOAD_INFO, self.download_info)
 
         self.download_mgr = DownloadMgr(self.get_connection_details,
-                                        self.event_cb)
+                                        self.event_cb, self.printed_file_cb)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -595,3 +595,10 @@ class Printer:
         """
         self.fs.unmount(mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
+
+    # pylint: disable=no-self-use
+    def printed_file_cb(self):
+        """Return the absolute path of the currently printed file
+        This method shall be implemented by the clients that use SDK.
+        """
+        return None
