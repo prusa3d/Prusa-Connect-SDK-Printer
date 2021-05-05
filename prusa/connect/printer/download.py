@@ -26,9 +26,10 @@ class DownloadMgr:
 
     Dir = const.DOWNLOAD_DIR
 
-    def __init__(self, conn_details_cb, event_cb):
+    def __init__(self, conn_details_cb, event_cb, printed_file_cb):
         self.conn_details_cb = conn_details_cb
         self.event_cb = event_cb
+        self.printed_file_cb = printed_file_cb
         self.__running_loop = False
         self.current = None
 
@@ -79,6 +80,14 @@ class DownloadMgr:
             try:
                 if download:
                     download()
+                    abs_fn = abspath(download.filename)
+                    if self.printed_file_cb() != abs_fn:
+                        os.rename(download.tmp_filename(), abs_fn)
+                    else:
+                        msg = "Downloaded file is being printed"
+                        self.event_cb(const.Event.DOWNLOAD_ABORTED,
+                                      const.Source.CONNECT,
+                                      reason=msg)
                     # pylint: disable=protected-access
                     if download._test_loops is None:
                         self.current = None
@@ -164,10 +173,8 @@ class Download:
         response = requests.get(self.url, stream=True, headers=headers)
         self.total = response.headers.get('Content-Length')
 
-        tmp_filename = self.tmp_filename()
-
         # pylint: disable=invalid-name
-        with open(tmp_filename, 'wb') as f:
+        with open(self.tmp_filename(), 'wb') as f:
             if self.total is None:
                 f.write(response.content)
             else:
@@ -186,13 +193,11 @@ class Download:
                         self._test_loops -= 1
         self.end_ts = time.time()
 
-        os.rename(tmp_filename, self.filename)
-
     def tmp_filename(self):
         """Generate a temporary filename for download"""
-        dir_ = os.path.dirname(self.filename)
-        base = os.path.basename(self.filename)
-        return os.path.join(dir_, ".%s.part" % base)
+        dir_ = dirname(self.filename)
+        base = basename(self.filename)
+        return abspath(os.path.join(dir_, ".%s.part" % base))
 
     def to_dict(self):
         """Marshall a download instance"""

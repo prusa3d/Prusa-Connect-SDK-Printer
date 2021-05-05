@@ -136,3 +136,17 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
     telemetry = item.to_payload()
     assert "download_progress" in telemetry
     assert "download_time_remaining" in telemetry
+
+
+def test_printed_file_cb(printer):
+    """Download will be aborted if currently printed file is the same"""
+    path = os.path.abspath("./my_example.gcode")
+    printer.download_mgr.printed_file_cb = lambda: path
+    dl = printer.download_mgr.start(GCODE_URL)
+    dl._test_loops = 1
+    dl.BufferSize = 1
+    run_loop(printer.download_mgr, timeout=.5)
+
+    item = printer.queue.get_nowait()
+    assert item.event == const.Event.DOWNLOAD_ABORTED
+    assert item.source == const.Source.CONNECT
