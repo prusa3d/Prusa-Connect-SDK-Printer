@@ -1,12 +1,12 @@
 import os
 import time
+import threading
 
 import pytest
 import responses
 
 from prusa.connect.printer import const
 from .test_printer import printer
-from prusa.connect.printer.download import Download
 
 assert printer
 
@@ -35,14 +35,14 @@ def download_mgr(printer):
             os.remove(printer.download_mgr.current.filename)
 
 
-def run_dl_mgr(download_mgr, loops=1, buffersize=1):
-    """NOTE this is a SPECIAL function to run DownloadMgr/Download in a
-    testing infrastructure. If set, `buffersize` will be adapted for
-    `Download` class and there will be only `loops` executed while
-    downloading. Also, `self.loop()` will exit after one download."""
-    download_mgr._is_unittest = True
-    download_mgr.current._exit_after_loops = loops
-    Download.BufferSize = buffersize
+def run_test_loop(download_mgr, timeout=.1):
+    def fullstop():
+        download_mgr.stop()
+        download_mgr._running_loop = False
+
+    t = threading.Timer(timeout, fullstop)
+    t.start()
+
     download_mgr.loop()
 
 
@@ -50,7 +50,7 @@ def test_download_ok(download_mgr, gcode):
     assert download_mgr.current is None
 
     dl = download_mgr.start(GCODE_URL)
-    run_dl_mgr(download_mgr)
+    run_test_loop(download_mgr)
 
     assert dl.progress >= 0
     assert dl.filename == "./my_example.gcode"
@@ -64,34 +64,38 @@ def test_download_ok(download_mgr, gcode):
 def test_download_to_print(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL, to_print=True)
     assert dl.to_print is True
+    assert dl.to_select is False
 
 
 def test_download_to_select(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL, to_select=True)
     assert dl.to_select is True
+    assert dl.to_print is False
 
 
 def test_download_time_remaining(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL)
-    run_dl_mgr(download_mgr)
+    dl.BUFFER_SIZE = 1
+    run_test_loop(download_mgr)
+    dl.stop_ts = None  # let's prettend we did not stop
 
     assert dl.time_remaining() > 0
 
 
 def test_download_stop(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL)
-    # dl._test_loops = 1
-    # dl.BufferSize = 1
-    dl.stop()
+    dl.BUFFER_SIZE = 1
+    run_test_loop(download_mgr)
 
     assert dl.end_ts is None
     assert dl.stop_ts is not None
-    assert dl.time_remaining() is None
+    assert dl.time_remaining() == 0
 
 
 def test_download_info(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL, to_select=True)
-    run_dl_mgr(download_mgr)
+    dl.BUFFER_SIZE = 1
+    run_test_loop(download_mgr)
 
     info = dl.to_dict()
     assert info['filename'] == "./my_example.gcode"
@@ -100,9 +104,9 @@ def test_download_info(gcode, download_mgr):
     assert info['progress'] >= 0
     assert info['to_print'] is False
     assert info['to_select'] is True
-    assert info['stopped'] is None
+    assert info['stopped'] is not None
     assert info['end'] is None
-    assert info['time_remaining'] > 0
+    assert info['time_remaining'] >= 0
     assert info['total'] >= 0
 
 
@@ -111,8 +115,8 @@ def test_download_from_connect_server_has_token(printer, download_mgr):
     url = printer.server + "/path/here"
     responses.add(responses.GET, url, status=200)
     dl = download_mgr.start(url, to_select=True)
-    run_dl_mgr(download_mgr)
-    assert dl.token
+    run_test_loop(download_mgr)
+    assert 'Token' in dl.headers
 
 
 @responses.activate
@@ -120,20 +124,32 @@ def test_download_no_token(download_mgr):
     url = "http://somewhere.else/path"
     responses.add(responses.GET, url, status=200)
     dl = download_mgr.start(url, to_select=True)
-    run_dl_mgr(download_mgr)
-    assert not dl.token
+    run_test_loop(download_mgr)
+    assert 'Token' not in dl.headers
 
 
 def test_telemetry_sends_download_info(printer, gcode, download_mgr):
-    download_mgr.start(GCODE_URL, to_print=True)
-    run_dl_mgr(download_mgr)
+    dl = download_mgr.start(GCODE_URL, to_print=True)
+    dl.BUFFER_SIZE = 1
 
-    printer.telemetry(const.State.READY)
-    item = printer.queue.get_nowait()
+    loop = threading.Thread(target=run_test_loop,
+                            daemon=True,
+                            args=(download_mgr, ),
+                            kwargs={'timeout': 1})
+    loop.start()
 
-    telemetry = item.to_payload()
-    assert "download_progress" in telemetry
-    assert "download_time_remaining" in telemetry
+    while True:
+        dl = printer.download_mgr.current
+        if dl and dl.progress:
+            printer.telemetry(const.State.READY)
+            item = printer.queue.get_nowait()
+            telemetry = item.to_payload()
+
+            assert "download_progress" in telemetry
+            assert "download_time_remaining" in telemetry
+
+            download_mgr._running_loop = False
+            break
 
 
 def test_printed_file_cb(download_mgr, printer):
@@ -141,7 +157,7 @@ def test_printed_file_cb(download_mgr, printer):
     path = os.path.abspath("./my_example.gcode")
     download_mgr.printed_file_cb = lambda: path
     download_mgr.start(GCODE_URL)
-    run_dl_mgr(download_mgr)
+    run_test_loop(download_mgr)
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.DOWNLOAD_ABORTED
@@ -149,14 +165,11 @@ def test_printed_file_cb(download_mgr, printer):
 
 
 def test_download_twice_in_a_row(gcode, download_mgr):
-    download_mgr._is_unittest = True
-
     dl1 = download_mgr.start(GCODE_URL, to_print=True)
-    download_mgr.loop()
-    download_mgr.current = None  # required because of _is_unittest
+    run_test_loop(download_mgr, timeout=1)
 
     dl2 = download_mgr.start(GCODE_URL, to_print=True)
-    download_mgr.loop()
+    run_test_loop(download_mgr, timeout=1)
 
     assert dl1.end_ts is not None
     assert dl2.end_ts is not None
