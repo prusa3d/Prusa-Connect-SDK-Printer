@@ -145,7 +145,7 @@ def test_printed_file_cb(printer):
     dl = printer.download_mgr.start(GCODE_URL)
     dl._test_loops = 1
     dl.BufferSize = 1
-    run_loop(printer.download_mgr, timeout=.5)
+    run_loop(printer.download_mgr, timeout=1)
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.DOWNLOAD_ABORTED
