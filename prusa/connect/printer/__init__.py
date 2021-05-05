@@ -111,7 +111,7 @@ class Printer:
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
-        self.set_handler(const.Command.DOWNLOAD, self.download)
+        self.set_handler(const.Command.DOWNLOAD, self.download_start)
         self.set_handler(const.Command.DOWNLOAD_STOP, self.download_stop)
         self.set_handler(const.Command.DOWNLOAD_INFO, self.download_info)
 
@@ -288,7 +288,7 @@ class Printer:
         # pylint: disable=unused-argument
         return self.get_info()
 
-    def download(self, caller: Command) -> Dict[str, Any]:
+    def download_start(self, caller: Command) -> Dict[str, Any]:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
         if not caller.args or len(caller.args) != 3:

@@ -9,7 +9,7 @@ ChangeLog
     * Fix metadata parsing being slow (works for supported files)
     * Metadata parsing is not loading the whole gcode file into RAM anymore
     * Added additional network info
-    * Implement DOWNLOAD, DOWNLOAD_INFO and DOWNLOAD stop command
+    * Implement DOWNLOAD, DOWNLOAD_INFO and DOWNLOAD_STOP command
 
 0.3.0 (2021-03-22)
     * fix update file structure
