@@ -22,9 +22,6 @@ class DownloadRunningError(Exception):
 
 class DownloadMgr:
     """Download manager."""
-
-    THROTTLE = 0.00  # after each write sleep for this amount of seconds
-
     def __init__(self, fs, conn_details_cb, event_cb, printed_file_cb):
         # pylint: disable=invalid-name
         self.fs = fs
@@ -66,8 +63,7 @@ class DownloadMgr:
                                            os_dst,
                                            to_print=to_print,
                                            to_select=to_select,
-                                           headers=headers,
-                                           throttle=self.THROTTLE)
+                                           headers=headers)
         return download
 
     def os_path(self, destination):
@@ -135,6 +131,7 @@ class Download:
     """Model a single download"""
 
     BUFFER_SIZE = 1024
+    throttle = 0.00  # after each write sleep for this amount of seconds
 
     # pylint: disable=too-many-arguments
     # pylint: disable=dangerous-default-value
@@ -143,8 +140,7 @@ class Download:
                  destination,
                  to_print=False,
                  to_select=False,
-                 headers={},
-                 throttle=None):
+                 headers={}):
         self.url = url
         self.destination = destination
         self.to_print = to_print
@@ -156,7 +152,6 @@ class Download:
         self.size = 0
         self.downloaded = 0
         self.headers = headers
-        self.throttle = throttle
 
     def time_remaining(self):
         """Return the estimated time remaining for the download in seconds.

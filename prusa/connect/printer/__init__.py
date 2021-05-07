@@ -293,11 +293,11 @@ class Printer:
         in `caller`"""
         if not caller.args or len(caller.args) != 4:
             raise ValueError(f"{const.Command.DOWNLOAD} requires "
-                             f"three args (url, dst, select, print)")
+                             f"four args (url, dst, select, print)")
 
-        url, filename, to_select, to_print = caller.args
+        url, destination, to_select, to_print = caller.args
         self.download_mgr.start(url,
-                                filename,
+                                destination,
                                 to_select=to_select,
                                 to_print=to_print)
 

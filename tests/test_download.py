@@ -188,17 +188,13 @@ def test_download_twice_in_a_row(gcode, download_mgr, printer):
 
 
 def test_download_throttle(download_mgr, gcode):
-    download_mgr.THROTTLE = 0.01
     dl = download_mgr.start(GCODE_URL, DST)
-
-    assert dl.throttle == 0.01
 
     dl.throttle = 1
     start = time.time()
     run_test_loop(download_mgr, timeout=1)
 
     assert time.time() - 1 >= start  # at least one sec has passed
-    assert dl.throttle == 1
 
 
 def test_destination_not_abs(download_mgr):
