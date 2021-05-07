@@ -137,7 +137,7 @@ class Download:
         self.stop_ts = None
         self.end_ts = None
         self.progress = 0  # percentage, values: 0 to 1
-        self.total = 0
+        self.size = 0
         self.downloaded = 0
         self.headers = headers
 
@@ -151,14 +151,14 @@ class Download:
             return 0
 
         # no content-length specified
-        if self.total is None:
+        if self.size is None:
             return None
 
         if self.start_ts is not None:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.downloaded == 0:
                 return float("inf")
-            return self.total / self.downloaded * elapsed
+            return self.size / self.downloaded * elapsed
 
         return None
 
@@ -170,9 +170,9 @@ class Download:
         """Execute the download and store the file in `self.tmp_filename()`"""
         self.start_ts = time.time()
         response = requests.get(self.url, stream=True, headers=self.headers)
-        self.total = response.headers.get('Content-Length')
-        if self.total is not None:
-            self.total = int(self.total)
+        self.size = response.headers.get('Content-Length')
+        if self.size is not None:
+            self.size = int(self.size)
 
         # pylint: disable=invalid-name
         with open(self.tmp_filename(), 'wb') as f:
@@ -182,8 +182,8 @@ class Download:
                     return
                 f.write(data)
                 self.downloaded += len(data)
-                if self.total is not None:
-                    self.progress = self.downloaded / self.total
+                if self.size is not None:
+                    self.progress = self.downloaded / self.size
         self.end_ts = time.time()
 
     def tmp_filename(self):
@@ -196,7 +196,7 @@ class Download:
         """Marshall a download instance"""
         return {
             "filename": self.filename,
-            "total": self.total,
+            "size": self.size,
             "downloaded": self.downloaded,
             "progress": self.progress,
             "time_remaining": self.time_remaining(),

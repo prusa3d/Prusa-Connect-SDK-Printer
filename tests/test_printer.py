@@ -809,7 +809,7 @@ class TestPrinter:
         printer.download_mgr.current = Download("http://server/path",
                                                 to_select=True)
         printer.download_mgr.current.start_ts = now
-        printer.download_mgr.current.total = 1000
+        printer.download_mgr.current.size = 1000
         printer.download_mgr.current.downloaded = 100
         assert not printer.download_mgr.current.stop_ts
 
@@ -825,7 +825,7 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
 
-        assert info["data"]['current']['total'] == 1000
+        assert info["data"]['current']['size'] == 1000
         assert info["data"]['current']['downloaded'] == 100
         assert info["data"]['current']['start'] == now
         assert info["data"]['current']['time_remaining'] >= 10
