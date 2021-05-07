@@ -108,7 +108,7 @@ def test_download_info(gcode, download_mgr):
     assert info['stopped'] is not None
     assert info['end'] is None
     assert info['time_remaining'] >= 0
-    assert info['total'] >= 0
+    assert info['size'] >= 0
 
 
 @responses.activate
