@@ -60,6 +60,7 @@ def test_download_ok(download_mgr, gcode):
     if dl.start_ts is not None:
         assert dl.start_ts <= time.time()
     assert dl.downloaded >= 0
+    assert not dl.throttle
 
 
 def test_download_to_print(gcode, download_mgr):
@@ -177,3 +178,17 @@ def test_download_twice_in_a_row(gcode, download_mgr, printer):
 
     with pytest.raises(queue.Empty):  # no DOWNLOAD_ABORTED events
         printer.queue.get_nowait()
+
+
+def test_download_throttle(download_mgr, gcode):
+    download_mgr.THROTTLE = 0.01
+    dl = download_mgr.start(GCODE_URL)
+
+    assert dl.throttle == 0.01
+
+    dl.throttle = 1
+    start = time.time()
+    run_test_loop(download_mgr, timeout=1)
+
+    assert time.time() - 1 >= start  # at least one sec has passed
+    assert dl.throttle == 1
