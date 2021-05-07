@@ -83,6 +83,17 @@ def printer_no_fp():
     return printer
 
 
+@pytest.fixture
+def printer_sdcard():
+    """Printer with sdcard mounted"""
+    printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
+    printer.server = SERVER
+    printer.token = TOKEN
+    printer.fs.from_dir('/tmp', 'sdcard')
+    printer.queue.get_nowait()  # consume MEDIUM_INSERTED event
+    yield printer
+
+
 def run_loop(fct, timeout=0.1):
     try:
         func_timeout(timeout, fct)
@@ -757,10 +768,11 @@ class TestPrinter:
         assert info['reason'] == 'Command error'
         assert info['data'] == {'error': 'File does not exist: /N/A/file.txt'}
 
-    def test_download(self, requests_mock, printer):
+    def test_download(self, requests_mock, printer_sdcard):
         url = "http://prusaprinters.org/my.gcode"
+        destination = "/sdcard/my.gcode"
         cmd = '{"command":"DOWNLOAD", ' \
-              '"args": ["%s", true, false]}' % url
+              '"args": ["%s", "%s", true, false]}' % (url, destination)
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -774,6 +786,7 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         # get the command from telemetry
+        printer = printer_sdcard
         printer.telemetry(const.State.READY)
 
         run_loop(printer.loop)
@@ -783,7 +796,7 @@ class TestPrinter:
         run_loop(printer.download_mgr.loop)
 
         # check the file is on the disk
-        downloaded_file = os.path.join(printer.download_mgr.Dir, "my.gcode")
+        downloaded_file = '/tmp/my.gcode'
         assert os.path.exists(downloaded_file)
         os.remove(downloaded_file)
 
@@ -806,7 +819,9 @@ class TestPrinter:
 
         # mock printer.download_mgr.current
         now = time.time() - 1
+        dst = '/sdcard/path'
         printer.download_mgr.current = Download("http://server/path",
+                                                dst,
                                                 to_select=True)
         printer.download_mgr.current.start_ts = now
         printer.download_mgr.current.size = 1000
@@ -831,7 +846,6 @@ class TestPrinter:
         assert info["data"]['current']['time_remaining'] >= 10
         assert info["data"]['current']['to_print'] is False
         assert info["data"]['current']['to_select'] is True
-        assert info["data"]['download_dir'] == "."
 
     def test_download_stop(self, requests_mock, printer):
         # post telemetry - obtain command
@@ -848,7 +862,8 @@ class TestPrinter:
         printer.telemetry(const.State.READY)
 
         # pretend we're downloading
-        printer.download_mgr.current = Download("http://server/path")
+        dst = '/sdcard/path'
+        printer.download_mgr.current = Download("http://server/path", dst)
         assert not printer.download_mgr.current.stop_ts
 
         run_loop(printer.loop)
@@ -859,9 +874,11 @@ class TestPrinter:
         assert printer.download_mgr.current.stop_ts
 
     def test_download_rejected(self, printer):
+        printer.fs.from_dir('/tmp', 'sdcard')
+        item = printer.queue.get_nowait()  # consue
         url = "http://prusaprinters.org/test-download-rejected.gcode"
-        printer.download_mgr.start(url)
-        printer.download_mgr.start(url)
+        printer.download_mgr.start(url, '/sdcard/test-download-rejected.gcode')
+        printer.download_mgr.start(url, '/sdcard/test-download-rejected.gcode')
 
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
@@ -870,9 +887,10 @@ class TestPrinter:
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 
-    def test_download_aborted(self, printer):
+    def test_download_aborted(self, printer_sdcard):
+        printer = printer_sdcard
         url = "http://invalid-server-address.cz/test-download-aborted.gcode"
-        printer.download_mgr.start(url)
+        printer.download_mgr.start(url, '/sdcard/test-download-aborted.gcode')
 
         run_loop(printer.download_mgr.loop, timeout=.5)
 
