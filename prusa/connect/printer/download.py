@@ -4,7 +4,6 @@ import time
 
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
-from urllib.parse import urlparse
 
 import requests
 
@@ -24,40 +23,34 @@ class DownloadRunningError(Exception):
 class DownloadMgr:
     """Download manager."""
 
-    Dir = "."  # NOTE clients need to set this
     THROTTLE = 0.00  # after each write sleep for this amount of seconds
 
-    def __init__(self, conn_details_cb, event_cb, printed_file_cb):
+    def __init__(self, fs, conn_details_cb, event_cb, printed_file_cb):
+        # pylint: disable=invalid-name
+        self.fs = fs
         self.conn_details_cb = conn_details_cb
         self.event_cb = event_cb
         self.printed_file_cb = printed_file_cb
         self._running_loop = False
         self.current = None
 
-    def start(self, url, filename=None, to_print=False, to_select=False):
-        """Start a download"""
-
+    def start(self, url, destination, to_print=False, to_select=False):
+        """Start a download of `url` saving it into the `destination`.
+        This `destination` is the absolute virtual path in `self.fs`
+        (:class:prusa.connect.printer.files.Filesystem)
+        """
         if self.current:
             self.event_cb(const.Event.REJECTED,
                           const.Source.CONNECT,
                           reason="Another download in progress")
             return None
 
-        # take filename from `url` if not set
-        if filename is None:
-            parsed = urlparse(url)
-            filename = basename(parsed.path)
-        filename = os.path.join(self.Dir, filename)
-
-        # guard
-        abs_path = abspath(normpath(filename))
-        abs_dl_dir = abspath(normpath(self.Dir))
-        if not abs_path.startswith(abs_dl_dir):
-            raise ValueError(f"{filename} is outside of download dir")
+        # transform destination to OS path and validate
+        os_dst = self.os_path(destination)
 
         # make dir (in case filename contains a subdir)
         try:
-            dir_ = dirname(filename)
+            dir_ = dirname(os_dst)
             os.makedirs(dir_)
         except FileExistsError:
             log.debug("%s already exists", dir_)
@@ -68,13 +61,34 @@ class DownloadMgr:
         headers = {}
         if server and token and url.lower().startswith(server.lower()):
             headers['Token'] = token
+
         download = self.current = Download(url,
-                                           filename=filename,
+                                           os_dst,
                                            to_print=to_print,
                                            to_select=to_select,
                                            headers=headers,
                                            throttle=self.THROTTLE)
         return download
+
+    def os_path(self, destination):
+        """Translate virtual `destination` of self.fs to real OS path."""
+        if not os.path.isabs(destination):
+            raise ValueError('Destination must be absolute')
+
+        try:
+            _, mount_name, rest = destination.split(self.fs.sep, 2)
+            mount = self.fs.mounts[mount_name]
+            path_storage = mount.path_storage.rstrip(self.fs.sep)
+            os_dst = self.fs.sep.join([path_storage, rest])
+            os_dst = normpath(os_dst)
+            if not os_dst.startswith(path_storage):
+                msg = "Destination is outside of defined path_storage for " \
+                      "mount_point: %s"
+                raise ValueError(msg % mount_name)
+            return os_dst
+        except KeyError as err:
+            raise ValueError("Invalid mount point: `%s` in `%s`" %
+                             (mount_name, destination)) from err
 
     def loop(self):
         """Infinite download loop"""
@@ -84,7 +98,7 @@ class DownloadMgr:
             try:
                 if download:
                     download()
-                    abs_fn = abspath(download.filename)
+                    abs_fn = abspath(download.destination)
                     if self.printed_file_cb() != abs_fn:
                         os.rename(download.tmp_filename(), abs_fn)
                     else:
@@ -114,7 +128,6 @@ class DownloadMgr:
         """Return important info on Download Manager"""
         return {
             'current': self.current and self.current.to_dict(),
-            'download_dir': self.Dir,
         }
 
 
@@ -127,13 +140,13 @@ class Download:
     # pylint: disable=dangerous-default-value
     def __init__(self,
                  url,
-                 filename=None,
+                 destination,
                  to_print=False,
                  to_select=False,
                  headers={},
                  throttle=None):
         self.url = url
-        self.filename = filename
+        self.destination = destination
         self.to_print = to_print
         self.to_select = to_select
         self.start_ts = None
@@ -193,15 +206,16 @@ class Download:
         self.end_ts = time.time()
 
     def tmp_filename(self):
-        """Generate a temporary filename for download"""
-        dir_ = dirname(self.filename)
-        base = basename(self.filename)
+        """Generate a temporary filename for download based on
+        `self.destination`"""
+        dir_ = dirname(self.destination)
+        base = basename(self.destination)
         return abspath(os.path.join(dir_, ".%s.part" % base))
 
     def to_dict(self):
         """Marshall a download instance"""
         return {
-            "filename": self.filename,
+            "destination": self.destination,
             "size": self.size,
             "downloaded": self.downloaded,
             "progress": self.progress,

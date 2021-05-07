@@ -115,9 +115,6 @@ class Printer:
         self.set_handler(const.Command.DOWNLOAD_STOP, self.download_stop)
         self.set_handler(const.Command.DOWNLOAD_INFO, self.download_info)
 
-        self.download_mgr = DownloadMgr(self.get_connection_details,
-                                        self.event_cb, self.printed_file_cb)
-
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
         # Handler blocks communication with Connect in loop method!
@@ -127,6 +124,9 @@ class Printer:
 
         if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
+
+        self.download_mgr = DownloadMgr(self.fs, self.get_connection_details,
+                                        self.event_cb, self.printed_file_cb)
 
         self.__running_loop = False
 
@@ -291,12 +291,15 @@ class Printer:
     def download_start(self, caller: Command) -> Dict[str, Any]:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
-        if not caller.args or len(caller.args) != 3:
+        if not caller.args or len(caller.args) != 4:
             raise ValueError(f"{const.Command.DOWNLOAD} requires "
-                             f"three args (url, select, print)")
+                             f"three args (url, dst, select, print)")
 
-        url, to_select, to_print = caller.args
-        self.download_mgr.start(url, to_select=to_select, to_print=to_print)
+        url, filename, to_select, to_print = caller.args
+        self.download_mgr.start(url,
+                                filename,
+                                to_select=to_select,
+                                to_print=to_print)
 
         return dict(source=const.Source.CONNECT)
 
