@@ -25,6 +25,7 @@ class DownloadMgr:
     """Download manager."""
 
     Dir = "."  # NOTE clients need to set this
+    THROTTLE = 0.00  # after each write sleep for this amount of seconds
 
     def __init__(self, conn_details_cb, event_cb, printed_file_cb):
         self.conn_details_cb = conn_details_cb
@@ -71,7 +72,8 @@ class DownloadMgr:
                                            filename=filename,
                                            to_print=to_print,
                                            to_select=to_select,
-                                           headers=headers)
+                                           headers=headers,
+                                           throttle=self.THROTTLE)
         return download
 
     def loop(self):
@@ -128,7 +130,8 @@ class Download:
                  filename=None,
                  to_print=False,
                  to_select=False,
-                 headers={}):
+                 headers={},
+                 throttle=None):
         self.url = url
         self.filename = filename
         self.to_print = to_print
@@ -140,6 +143,7 @@ class Download:
         self.size = 0
         self.downloaded = 0
         self.headers = headers
+        self.throttle = throttle
 
     def time_remaining(self):
         """Return the estimated time remaining for the download in seconds.
@@ -181,6 +185,8 @@ class Download:
                 if self.stop_ts is not None:
                     return
                 f.write(data)
+                if self.throttle:
+                    time.sleep(self.throttle)
                 self.downloaded += len(data)
                 if self.size is not None:
                     self.progress = self.downloaded / self.size
