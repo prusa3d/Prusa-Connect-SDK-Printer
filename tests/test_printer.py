@@ -89,7 +89,8 @@ def printer_sdcard():
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.server = SERVER
     printer.token = TOKEN
-    printer.fs.from_dir('/tmp', 'sdcard')
+    tmp_dir = tempfile.TemporaryDirectory()
+    printer.mount(tmp_dir.name, "sdcard")
     printer.queue.get_nowait()  # consume MEDIUM_INSERTED event
     yield printer
 
@@ -796,7 +797,8 @@ class TestPrinter:
         run_loop(printer.download_mgr.loop)
 
         # check the file is on the disk
-        downloaded_file = '/tmp/my.gcode'
+        dir_ = printer.fs.mounts['sdcard'].path_storage
+        downloaded_file = f'/{dir_}/my.gcode'
         assert os.path.exists(downloaded_file)
         os.remove(downloaded_file)
 
@@ -874,10 +876,14 @@ class TestPrinter:
         assert printer.download_mgr.current.stop_ts
 
     def test_download_rejected(self, printer):
-        printer.fs.from_dir('/tmp', 'sdcard')
-        item = printer.queue.get_nowait()  # consue
+        tmp_dir = tempfile.TemporaryDirectory()
+        printer.mount(tmp_dir.name, "sdcard")
+
+        printer.queue.get_nowait()  # consume
+
         url = "http://prusaprinters.org/test-download-rejected.gcode"
         printer.download_mgr.start(url, '/sdcard/test-download-rejected.gcode')
+        # 2nd will get rejected
         printer.download_mgr.start(url, '/sdcard/test-download-rejected.gcode')
 
         item = printer.queue.get_nowait()
