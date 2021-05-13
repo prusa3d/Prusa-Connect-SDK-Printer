@@ -22,6 +22,9 @@ class DownloadRunningError(Exception):
 
 class DownloadMgr:
     """Download manager."""
+
+    LOOP_INTERVAL = .1
+
     def __init__(self, fs, conn_details_cb, event_cb, printed_file_cb):
         # pylint: disable=invalid-name
         self.fs = fs
@@ -117,7 +120,7 @@ class DownloadMgr:
                               const.Source.CONNECT,
                               reason=str(err))
                 self.current = None
-            time.sleep(.1)
+            time.sleep(self.LOOP_INTERVAL)
 
     def stop_loop(self):
         """Set internal variable to stop the download loop."""
@@ -127,6 +130,7 @@ class DownloadMgr:
         """Stop current download"""
         if self.current:
             self.current.stop()
+            self.event_cb(const.Event.DOWNLOAD_STOPPED, const.Source.CONNECT)
 
     def info(self):
         """Return important info on Download Manager"""

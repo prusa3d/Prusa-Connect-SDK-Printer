@@ -2,6 +2,8 @@ import os
 import time
 import queue
 import threading
+import tempfile
+import shutil
 
 import pytest
 import responses
@@ -32,12 +34,11 @@ def gcode(printer):
 
 @pytest.fixture
 def download_mgr(printer):
-    printer.fs.from_dir('/tmp', 'sdcard')
+    tmp_dir = tempfile.TemporaryDirectory()
+    printer.fs.from_dir(tmp_dir.name, 'sdcard')
     yield printer.download_mgr
 
-    if printer.download_mgr.current:
-        if os.path.exists(printer.download_mgr.current.destination):
-            os.remove(printer.download_mgr.current.destination)
+    shutil.rmtree(tmp_dir.name)
 
 
 def run_test_loop(download_mgr, timeout=.1, unset_stop=False):
@@ -53,6 +54,10 @@ def run_test_loop(download_mgr, timeout=.1, unset_stop=False):
     download_mgr.loop()
 
 
+def storage_path(fs, filename, mount='sdcard'):
+    return os.path.join(fs.mounts[mount].path_storage, filename)
+
+
 def test_download_ok(download_mgr, gcode):
     assert download_mgr.current is None
 
@@ -60,7 +65,7 @@ def test_download_ok(download_mgr, gcode):
     run_test_loop(download_mgr)
 
     assert dl.progress >= 0
-    assert dl.destination == '/tmp/my_example.gcode'
+    assert dl.destination == storage_path(download_mgr.fs, 'my_example.gcode')
     assert dl.to_print is False
     assert dl.to_select is False
     if dl.start_ts is not None:
@@ -106,7 +111,8 @@ def test_download_info(gcode, download_mgr):
     run_test_loop(download_mgr)
 
     info = dl.to_dict()
-    assert info['destination'] == '/tmp/my_example.gcode'
+    assert info['destination'] == storage_path(download_mgr.fs,
+                                               'my_example.gcode')
     assert info['downloaded'] >= 0
     assert info['start'] <= time.time()
     assert info['progress'] >= 0
@@ -168,9 +174,15 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
 def test_printed_file_cb(download_mgr, printer):
     """Download will be aborted if currently printed file is the same"""
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
-    download_mgr.printed_file_cb = lambda: '/tmp/my_example.gcode'
+    download_mgr.printed_file_cb = lambda: \
+        os.path.abspath(download_mgr.current.destination)
     download_mgr.start(GCODE_URL, DST)
     run_test_loop(download_mgr, unset_stop=True)
+
+    # first event is DOWNLOAD_STOPPED because download_mgr fixture calls stop
+    item = printer.queue.get_nowait()
+    assert item.event == const.Event.DOWNLOAD_STOPPED
+    assert item.source == const.Source.CONNECT
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.DOWNLOAD_ABORTED
@@ -186,7 +198,9 @@ def test_download_twice_in_a_row(gcode, download_mgr, printer):
     run_test_loop(download_mgr, timeout=1)
 
     with pytest.raises(queue.Empty):  # no DOWNLOAD_ABORTED events
-        printer.queue.get_nowait()
+        while True:
+            item = printer.queue.get_nowait()
+            assert not item.event == const.Event.DOWNLOAD_ABORTED
 
 
 def test_download_throttle(download_mgr, gcode):
@@ -205,7 +219,8 @@ def test_destination_not_abs(download_mgr):
 
 
 def test_download_mgr_os_path(download_mgr):
-    assert download_mgr.os_path('/sdcard/one') == '/tmp/one'
+    assert download_mgr.os_path('/sdcard/one') == storage_path(
+        download_mgr.fs, 'one')
 
     with pytest.raises(ValueError):
         download_mgr.os_path('/sdcard/../foo/one')

@@ -57,6 +57,7 @@ class Event(Enum):
     JOB_INFO = "JOB_INFO"
 
     DOWNLOAD_ABORTED = "DOWNLOAD_ABORTED"
+    DOWNLOAD_STOPPED = "DOWNLOAD_STOPPED"
 
 
 class Source(Enum):
