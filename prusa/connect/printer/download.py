@@ -42,6 +42,8 @@ class DownloadMgr:
                           reason="Another download in progress")
             return None
 
+        log.info("Starting download: %s", url)
+
         # transform destination to OS path and validate
         os_dst = self.os_path(destination)
 
@@ -95,14 +97,19 @@ class DownloadMgr:
                 if download:
                     download()
                     abs_fn = abspath(download.destination)
-                    if self.printed_file_cb() != abs_fn:
-                        os.rename(download.tmp_filename(), abs_fn)
+                    if download.stop_ts:  # download was stopped
+                        tmp_fn = download.tmp_filename()
+                        if os.path.exists(tmp_fn):
+                            os.remove(tmp_fn)
                     else:
-                        msg = "Gcode being printed would be" \
-                              "overwritten by downloaded file -> aborting."
-                        self.event_cb(const.Event.DOWNLOAD_ABORTED,
-                                      const.Source.CONNECT,
-                                      reason=msg)
+                        if self.printed_file_cb() != abs_fn:
+                            os.rename(download.tmp_filename(), abs_fn)
+                        else:
+                            msg = "Gcode being printed would be" \
+                                  "overwritten by downloaded file -> aborting."
+                            self.event_cb(const.Event.DOWNLOAD_ABORTED,
+                                          const.Source.CONNECT,
+                                          reason=msg)
                     self.current = None
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
@@ -110,6 +117,7 @@ class DownloadMgr:
                               const.Source.CONNECT,
                               reason=str(err))
                 self.current = None
+            time.sleep(.1)
 
     def stop_loop(self):
         """Set internal variable to stop the download loop."""
@@ -187,6 +195,7 @@ class Download:
             self.size = int(self.size)
 
         # pylint: disable=invalid-name
+        log.debug("Save download to: %s (%s)", self.tmp_filename(), self.url)
         with open(self.tmp_filename(), 'wb') as f:
             self.downloaded = 0
             for data in response.iter_content(chunk_size=self.BUFFER_SIZE):

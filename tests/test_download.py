@@ -40,9 +40,11 @@ def download_mgr(printer):
             os.remove(printer.download_mgr.current.destination)
 
 
-def run_test_loop(download_mgr, timeout=.1):
+def run_test_loop(download_mgr, timeout=.1, unset_stop=False):
     def fullstop():
         download_mgr.stop()
+        if unset_stop:
+            download_mgr.current.stop_ts = None
         download_mgr._running_loop = False
 
     t = threading.Timer(timeout, fullstop)
@@ -168,7 +170,7 @@ def test_printed_file_cb(download_mgr, printer):
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
     download_mgr.printed_file_cb = lambda: '/tmp/my_example.gcode'
     download_mgr.start(GCODE_URL, DST)
-    run_test_loop(download_mgr)
+    run_test_loop(download_mgr, unset_stop=True)
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.DOWNLOAD_ABORTED

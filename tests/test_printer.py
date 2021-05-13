@@ -771,7 +771,7 @@ class TestPrinter:
     def test_download(self, requests_mock, printer_sdcard):
         url = "http://prusaprinters.org/my.gcode"
         destination = "/sdcard/my.gcode"
-        cmd = '{"command":"DOWNLOAD", ' \
+        cmd = '{"command":"START_DOWNLOAD", ' \
               '"args": ["%s", "%s", true, false]}' % (url, destination)
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
@@ -802,7 +802,7 @@ class TestPrinter:
 
     def test_download_info(self, printer, requests_mock):
         # prepare command and mocks
-        cmd = '{"command":"DOWNLOAD_INFO"}'
+        cmd = '{"command":"SEND_DOWNLOAD_INFO"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -849,7 +849,7 @@ class TestPrinter:
 
     def test_download_stop(self, requests_mock, printer):
         # post telemetry - obtain command
-        cmd = '{"command":"DOWNLOAD_STOP"}'
+        cmd = '{"command":"STOP_DOWNLOAD"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={

@@ -111,9 +111,9 @@ class Printer:
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
-        self.set_handler(const.Command.DOWNLOAD, self.download_start)
-        self.set_handler(const.Command.DOWNLOAD_STOP, self.download_stop)
-        self.set_handler(const.Command.DOWNLOAD_INFO, self.download_info)
+        self.set_handler(const.Command.START_DOWNLOAD, self.download_start)
+        self.set_handler(const.Command.STOP_DOWNLOAD, self.download_stop)
+        self.set_handler(const.Command.SEND_DOWNLOAD_INFO, self.download_info)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -292,7 +292,7 @@ class Printer:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
         if not caller.args or len(caller.args) != 4:
-            raise ValueError(f"{const.Command.DOWNLOAD} requires "
+            raise ValueError(f"{const.Command.START_DOWNLOAD} requires "
                              f"four args (url, dst, select, print)")
 
         url, destination, to_select, to_print = caller.args
