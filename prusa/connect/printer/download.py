@@ -33,6 +33,7 @@ class DownloadMgr:
         self.printed_file_cb = printed_file_cb
         self._running_loop = False
         self.current = None
+        self.download_finished_cb = lambda download: None
 
     def start(self, url, destination, to_print=False, to_select=False):
         """Start a download of `url` saving it into the `destination`.
@@ -114,6 +115,12 @@ class DownloadMgr:
                                           const.Source.CONNECT,
                                           reason=msg)
                     self.current = None
+
+                    self.event_cb(const.Event.DOWNLOAD_FINISHED,
+                                  const.Source.CONNECT,
+                                  url=download.url,
+                                  destination=download.destination)
+                    self.download_finished_cb(download)
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
                 self.event_cb(const.Event.DOWNLOAD_ABORTED,
@@ -223,14 +230,13 @@ class Download:
     def to_dict(self):
         """Marshall a download instance"""
         return {
+            "url": self.url,
             "destination": self.destination,
             "size": self.size,
             "downloaded": self.downloaded,
             "progress": self.progress,
             "time_remaining": self.time_remaining(),
             "start": self.start_ts,
-            "end": self.end_ts,
-            "stopped": self.stop_ts,
             "to_select": self.to_select,
             "to_print": self.to_print,
         }
