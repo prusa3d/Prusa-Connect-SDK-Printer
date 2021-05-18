@@ -118,10 +118,9 @@ def test_download_info(gcode, download_mgr):
     assert info['progress'] >= 0
     assert info['to_print'] is False
     assert info['to_select'] is True
-    assert info['stopped'] is not None
-    assert info['end'] is None
     assert info['time_remaining'] >= 0
     assert info['size'] >= 0
+    assert info['url'] == GCODE_URL
 
 
 @responses.activate
@@ -224,3 +223,21 @@ def test_download_mgr_os_path(download_mgr):
 
     with pytest.raises(ValueError):
         download_mgr.os_path('/sdcard/../foo/one')
+
+
+def test_download_finished_cb(download_mgr, printer):
+    res = {}
+
+    def download_finished_cb(download, res=res):
+        res['destination'] = download.destination
+
+    download_mgr.download_finished_cb = download_finished_cb
+
+    download_mgr.start(GCODE_URL, DST, to_select=True)
+    run_test_loop(download_mgr, timeout=2)
+
+    assert res
+
+    printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting
+    item = printer.queue.get_nowait()
+    assert item.event == const.Event.DOWNLOAD_FINISHED
