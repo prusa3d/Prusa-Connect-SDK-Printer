@@ -182,7 +182,7 @@ class Download:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.downloaded == 0:
                 return float("inf")
-            return self.size / self.downloaded * elapsed
+            return self.size / self.downloaded * elapsed - elapsed
 
         return None
 

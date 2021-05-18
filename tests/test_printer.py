@@ -845,7 +845,7 @@ class TestPrinter:
         assert info["data"]['current']['size'] == 1000
         assert info["data"]['current']['downloaded'] == 100
         assert info["data"]['current']['start'] == now
-        assert info["data"]['current']['time_remaining'] >= 10
+        assert info["data"]['current']['time_remaining'] > 0
         assert info["data"]['current']['to_print'] is False
         assert info["data"]['current']['to_select'] is True
 
