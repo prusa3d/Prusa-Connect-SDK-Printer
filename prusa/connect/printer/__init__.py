@@ -20,7 +20,7 @@ from .models import Event, Telemetry
 from .clock import ClockWatcher
 from .download import DownloadMgr
 
-__version__ = "0.4.0"
+__version__ = "0.5.0.dev0"
 __date__ = "30 Mar 2021"  # version date
 __copyright__ = "(c) 2021 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
@@ -99,6 +99,7 @@ class Printer:
         }
         self.api_key = None
 
+        self.__checked = False
         self.__state = const.State.BUSY
         self.job_id = None
 
@@ -145,6 +146,16 @@ class Printer:
         if port:
             return f"{protocol}://{host}:{port}"
         return f"{protocol}://{host}"
+
+    @property
+    def checked(self):
+        """Return checked flag.
+
+        Checked flag can be set with set_state method. It is additional
+        flag for READY state, which has info about user confirmation
+        *ready to print*.
+        """
+        return self.__checked
 
     @property
     def state(self):
@@ -200,13 +211,27 @@ class Printer:
 
         return headers
 
-    def set_state(self, state: const.State, source: const.Source, **kwargs):
+    def set_state(self,
+                  state: const.State,
+                  source: const.Source,
+                  checked: bool = None,
+                  **kwargs):
         """Set printer state and push event about that to queue.
 
         :source: the initiator of printer state
+        :checked: If state is PRINTING, checked argument is ignored,
+            and flag is set to False.
         """
+        if state == const.State.PRINTING:
+            self.__checked = False
+        elif checked is not None:
+            self.__checked = checked
         self.__state = state
-        self.event_cb(const.Event.STATE_CHANGED, source, state=state, **kwargs)
+        self.event_cb(const.Event.STATE_CHANGED,
+                      source,
+                      state=state,
+                      checked=self.__checked,
+                      **kwargs)
 
     def event_cb(self,
                  event: const.Event,
@@ -272,6 +297,7 @@ class Printer:
         return dict(source=const.Source.CONNECT,
                     event=const.Event.INFO,
                     state=self.__state,
+                    checked=self.__checked,
                     type=type_,
                     version=ver,
                     subversion=sub,
