@@ -35,3 +35,13 @@ def test_error_states():
     assert TOKEN.ok is False
     assert API.ok is False  # previous state failed so this must fail too
     assert INTERNET.ok is True  # internet might be OK when HTTP fails
+
+
+def test_errors_iterating():
+    API.ok = True
+    for error in INTERNET:
+        assert error.ok is True
+
+    INTERNET.ok = False
+    for error in INTERNET:
+        assert error.ok is False

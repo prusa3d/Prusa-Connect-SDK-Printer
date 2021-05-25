@@ -82,6 +82,13 @@ class ErrorState:
     def __str__(self):
         return f"{self.name}: {self.ok}"
 
+    def __iter__(self):
+        item = self
+        while item.next is not None:
+            yield item
+            item = item.next
+        yield item
+
 
 # Error chain representing a kind of semaphore signaling the status
 # of the connection to Connect
