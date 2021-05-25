@@ -17,7 +17,9 @@ assert printer
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name
 
-GCODE_URL = "http://prusaprinters.org/my_example.gcode"
+GCODE_URL = "https://media.prusaprinters.org/media/prints/27216/gcodes/" + \
+            "272161_a9977cd4-cc70-4fb3-8d09-276a023b132d/" + \
+            "cam_clip_3_015mm_pla_mk3s_2h13m.gcode"
 DST = '/sdcard/my_example.gcode'
 
 
@@ -90,7 +92,7 @@ def test_download_time_remaining(gcode, download_mgr):
     dl = download_mgr.start(GCODE_URL, DST)
     dl.BUFFER_SIZE = 1
     run_test_loop(download_mgr)
-    dl.stop_ts = None  # let's prettend we did not stop
+    dl.stop_ts = None  # let's pretend we did not stop
 
     assert dl.time_remaining() > 0
 
