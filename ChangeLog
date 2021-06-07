@@ -9,6 +9,7 @@ ChangeLog
     * Implement DOWNLOAD, DOWNLOAD_INFO and DOWNLOAD_STOP command
     * checked state flag support
     * Error states iteration support
+    * Added m_timestamp to file attributes
 
 0.4.0 (2021-03-30)
     * new CONNECTION_TIOMEOUT constant set to 30s

@@ -232,6 +232,7 @@ class File:
         m_datetime = datetime.fromtimestamp(stats.st_mtime)
         m_time = datetime.timetuple(m_datetime)[:6]
         self.attrs["m_time"] = m_time
+        self.attrs["m_timestamp"] = int(stats.st_mtime)
 
 
 class Mount:

@@ -194,6 +194,9 @@ class TestFile:
         assert fs_from_dir.get("/a").attrs['m_time'] \
                == (2020, 7, 30, 16, 40, 5)
 
+    def test_m_time_ts(self, fs_from_dir):
+        assert fs_from_dir.get("/a").attrs["m_timestamp"] == 1596120005
+
     def test_to_dict(self, fs_from_dir):
         res = fs_from_dir.get("/a").to_dict()
         assert res == {
