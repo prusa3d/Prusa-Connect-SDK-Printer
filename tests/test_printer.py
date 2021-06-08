@@ -55,9 +55,13 @@ tls=False
 
 
 def remove_m_time(file_data):
-    """Remove 'm_time' key from file structure."""
+    """Remove 'm_time', 'm_timestamp' and 'children'
+    keys from file structure."""
     for key in list(file_data):
         if key == 'm_time':
+            del file_data[key]
+            continue
+        elif key == "m_timestamp":
             del file_data[key]
             continue
         elif key == 'children':
