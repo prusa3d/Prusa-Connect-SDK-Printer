@@ -926,10 +926,26 @@ class TestPrinter:
 
     def test_download_aborted(self, printer_sdcard):
         printer = printer_sdcard
-        url = "http://invalid-server-address.cz/test-download-aborted.gcode"
+        url = "http://example.invalid/test-download-aborted.gcode"
         printer.download_mgr.start(url, '/sdcard/test-download-aborted.gcode')
 
         run_loop(printer.download_mgr.loop, timeout=.5)
+
+        item = printer.queue.get_nowait()
+        assert isinstance(item, Event)
+        assert item.event == const.Event.DOWNLOAD_ABORTED
+        assert item.source == const.Source.CONNECT
+        with pytest.raises(queue.Empty):
+            printer.queue.get_nowait()
+
+    @pytest.mark.skipif(True, reason="Bad implementation")
+    def test_download_aborted_404(self, requests_mock, printer_sdcard):
+        url = "http://example.net/test-download-aborted.gcode"
+        requests_mock.get(url, status_code=404)
+        printer = printer_sdcard
+        printer.download_mgr.start(url, '/sdcard/test-download-aborted.gcode')
+
+        run_loop(printer.download_mgr.loop)
 
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
