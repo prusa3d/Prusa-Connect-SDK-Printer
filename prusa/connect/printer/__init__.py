@@ -492,6 +492,11 @@ class Printer:
                               const.Source.CONNECT,
                               command_id=command_id,
                               reason=str(e))
+        elif res.status_code == 204:  # no cmd in telemetry
+            pass
+        else:
+            log.info("Got unexpected telemetry response (%s): %s",
+                     res.status_code, res.text)
         return res
 
     def register(self):
