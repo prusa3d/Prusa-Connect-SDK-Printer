@@ -7,6 +7,7 @@ python:
  - "3.9"
 
 install:
+ - pip3 install -U types-pkg_resources types-requests
  - pip3 install -U pytest pytest-pylint pytest-doctestplus requests
    requests_mock pytest-mypy inotify_simple func-timeout responses
 
