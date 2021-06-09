@@ -20,6 +20,10 @@ class DownloadRunningError(Exception):
     """Exception thrown when a download is already in progress"""
 
 
+class DownloadAbortedError(Exception):
+    """Download was aborted"""
+
+
 class DownloadMgr:
     """Download manager."""
 
@@ -151,6 +155,8 @@ class Download:
 
     BUFFER_SIZE = 1024
     throttle = 0.00  # after each write sleep for this amount of seconds
+    VALID_MIME_TYPES = ('application/gcode', 'text/plain',
+                        'application/binary', 'application/octet-stream')
 
     # pylint: disable=too-many-arguments
     # pylint: disable=dangerous-default-value
@@ -200,8 +206,16 @@ class Download:
     def __call__(self):
         """Execute the download and store the file in `self.tmp_filename()`"""
         self.start_ts = time.time()
-        response = requests.get(self.url, stream=True, headers=self.headers)
-        self.size = response.headers.get('Content-Length')
+        res = requests.get(self.url, stream=True, headers=self.headers)
+
+        if res.status_code != 200:
+            raise DownloadAbortedError("Invalid status code: %s" %
+                                       res.status_code)
+        mime_type = res.headers.get('Content-Type')
+        if mime_type and mime_type.lower() not in self.VALID_MIME_TYPES:
+            raise DownloadAbortedError("Invalid content type: %s" % mime_type)
+
+        self.size = res.headers.get('Content-Length')
         if self.size is not None:
             self.size = int(self.size)
 
@@ -209,7 +223,7 @@ class Download:
         log.debug("Save download to: %s (%s)", self.tmp_filename(), self.url)
         with open(self.tmp_filename(), 'wb') as f:
             self.downloaded = 0
-            for data in response.iter_content(chunk_size=self.BUFFER_SIZE):
+            for data in res.iter_content(chunk_size=self.BUFFER_SIZE):
                 if self.stop_ts is not None:
                     return
                 f.write(data)
@@ -218,6 +232,8 @@ class Download:
                 self.downloaded += len(data)
                 if self.size is not None:
                     self.progress = self.downloaded / self.size
+        if not self.downloaded:
+            raise DownloadAbortedError("Empty response")
         self.end_ts = time.time()
 
     def tmp_filename(self):

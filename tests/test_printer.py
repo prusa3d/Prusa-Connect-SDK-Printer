@@ -942,7 +942,6 @@ class TestPrinter:
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 
-    @pytest.mark.skipif(True, reason="Bad implementation")
     def test_download_aborted_404(self, requests_mock, printer_sdcard):
         url = "http://example.net/test-download-aborted.gcode"
         requests_mock.get(url, status_code=404)
