@@ -242,4 +242,5 @@ def test_download_finished_cb(download_mgr, printer):
 
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting
     item = printer.queue.get_nowait()
-    assert item.event == const.Event.DOWNLOAD_FINISHED
+    assert item.event in (const.Event.DOWNLOAD_FINISHED,
+                          const.Event.DOWNLOAD_STOPPED)
