@@ -145,9 +145,7 @@ class DownloadMgr:
 
     def info(self):
         """Return important info on Download Manager"""
-        return {
-            'current': self.current and self.current.to_dict(),
-        }
+        return self.current and self.current.to_dict()
 
 
 class Download:
@@ -173,7 +171,7 @@ class Download:
         self.start_ts = None
         self.stop_ts = None
         self.end_ts = None
-        self.progress = 0  # percentage, values: 0 to 1
+        self.progress = 0  # percentage, values: 0 to 100
         self.size = 0
         self.downloaded = 0
         self.headers = headers
@@ -195,7 +193,7 @@ class Download:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.downloaded == 0:
                 return float("inf")
-            return self.size / self.downloaded * elapsed - elapsed
+            return int(self.size / self.downloaded * elapsed - elapsed)
 
         return None
 
@@ -231,7 +229,7 @@ class Download:
                     time.sleep(self.throttle)
                 self.downloaded += len(data)
                 if self.size is not None:
-                    self.progress = self.downloaded / self.size
+                    self.progress = int(self.downloaded / self.size * 100)
         if not self.downloaded:
             raise DownloadAbortedError("Empty response")
         self.end_ts = time.time()

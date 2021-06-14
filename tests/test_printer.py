@@ -873,16 +873,15 @@ class TestPrinter:
                f"POST {SERVER}/p/events"
         info = requests_mock.request_history[2].json()
 
-        assert info["event"] == "FINISHED"
+        assert info["event"] == "DOWNLOAD_INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
-
-        assert info["data"]['current']['size'] == 1000
-        assert info["data"]['current']['downloaded'] == 100
-        assert info["data"]['current']['start'] == now
-        assert info["data"]['current']['time_remaining'] > 0
-        assert info["data"]['current']['to_print'] is False
-        assert info["data"]['current']['to_select'] is True
+        assert info["data"]['size'] == 1000
+        assert info["data"]['downloaded'] == 100
+        assert info["data"]['start'] == now
+        assert info["data"]['time_remaining'] > 0
+        assert info["data"]['to_print'] is False
+        assert info["data"]['to_select'] is True
 
     def test_download_stop(self, requests_mock, printer):
         # post telemetry - obtain command

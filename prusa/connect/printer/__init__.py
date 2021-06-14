@@ -265,6 +265,7 @@ class Printer:
             download = self.download_mgr.current
             kwargs['download_progress'] = download.progress
             kwargs['download_time_remaining'] = download.time_remaining()
+            kwargs['download_bytes'] = download.downloaded
         if self.is_initialised():
             telemetry = Telemetry(state, timestamp, **kwargs)
         else:
