@@ -340,6 +340,7 @@ class Printer:
         # pylint: disable=unused-argument
         info = self.download_mgr.info()
         info['source'] = const.Source.CONNECT
+        info['event'] = const.Event.DOWNLOAD_INFO
         return info
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
