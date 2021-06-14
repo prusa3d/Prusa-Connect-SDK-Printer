@@ -67,6 +67,7 @@ def test_download_ok(download_mgr, gcode):
     run_test_loop(download_mgr)
 
     assert dl.progress >= 0
+    assert type(dl.progress) is int
     assert dl.destination == storage_path(download_mgr.fs, 'my_example.gcode')
     assert dl.to_print is False
     assert dl.to_select is False
@@ -118,6 +119,7 @@ def test_download_info(gcode, download_mgr):
     assert info['downloaded'] >= 0
     assert info['start'] <= time.time()
     assert info['progress'] >= 0
+    assert type(info['progress']) is int
     assert info['to_print'] is False
     assert info['to_select'] is True
     assert info['time_remaining'] >= 0
@@ -165,6 +167,7 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
             telemetry = item.to_payload()
             assert "download_progress" in telemetry
             assert "download_time_remaining" in telemetry
+            assert "download_bytes" in telemetry
 
             download_mgr._running_loop = False
             break
