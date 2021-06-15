@@ -67,7 +67,7 @@ def test_download_ok(download_mgr, gcode):
     run_test_loop(download_mgr)
 
     assert dl.progress >= 0
-    assert type(dl.progress) is int
+    assert type(dl.progress) is float
     assert dl.destination == storage_path(download_mgr.fs, 'my_example.gcode')
     assert dl.to_print is False
     assert dl.to_select is False
@@ -119,7 +119,7 @@ def test_download_info(gcode, download_mgr):
     assert info['downloaded'] >= 0
     assert info['start'] <= time.time()
     assert info['progress'] >= 0
-    assert type(info['progress']) is int
+    assert type(info['progress']) is float
     assert info['to_print'] is False
     assert info['to_select'] is True
     assert info['time_remaining'] >= 0
