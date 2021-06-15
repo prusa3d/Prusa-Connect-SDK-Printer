@@ -95,7 +95,7 @@ def test_download_time_remaining(gcode, download_mgr):
     run_test_loop(download_mgr)
     dl.stop_ts = None  # let's pretend we did not stop
 
-    assert dl.time_remaining() > 0
+    assert dl.time_remaining() > 0 or dl.time_remaining() == -1
 
 
 def test_download_stop(gcode, download_mgr):
