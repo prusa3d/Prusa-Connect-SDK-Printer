@@ -171,7 +171,7 @@ class Download:
         self.start_ts = None
         self.stop_ts = None
         self.end_ts = None
-        self.progress = 0.0  # percentage, values: 0 to 100
+        self.progress = 0  # percentage, values: 0 to 100
         self.size = 0
         self.downloaded = 0
         self.headers = headers
@@ -248,7 +248,7 @@ class Download:
             "destination": self.destination,
             "size": self.size,
             "downloaded": self.downloaded,
-            "progress": self.progress,
+            "progress": "%.2f" % self.progress,
             "time_remaining": self.time_remaining(),
             "start": self.start_ts,
             "to_select": self.to_select,
