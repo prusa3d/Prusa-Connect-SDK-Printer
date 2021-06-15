@@ -192,7 +192,7 @@ class Download:
         if self.start_ts is not None:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.downloaded == 0:
-                return -1
+                return -1  # stands for Infinity
             return int(self.size / self.downloaded * elapsed - elapsed)
 
         return None
