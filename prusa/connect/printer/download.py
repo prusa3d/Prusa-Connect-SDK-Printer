@@ -229,7 +229,7 @@ class Download:
                     time.sleep(self.throttle)
                 self.downloaded += len(data)
                 if self.size is not None:
-                    self.progress = int(self.downloaded / self.size * 100)
+                    self.progress = self.downloaded / self.size * 100
         if not self.downloaded:
             raise DownloadAbortedError("Empty response")
         self.end_ts = time.time()
