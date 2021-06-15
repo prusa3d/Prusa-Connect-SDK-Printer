@@ -248,7 +248,7 @@ class Download:
             "destination": self.destination,
             "size": self.size,
             "downloaded": self.downloaded,
-            "progress": "%.2f" % self.progress,
+            "progress": float("%.2f" % self.progress),
             "time_remaining": self.time_remaining(),
             "start": self.start_ts,
             "to_select": self.to_select,
