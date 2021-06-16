@@ -55,10 +55,11 @@ def test_check_state(command, queue):
 
 
 def test_accept(command, queue):
-    command.accept(2, "TEST", ['x'], True)
+    command.accept(2, "TEST", ['x'], {"param": 'x'}, True)
     assert command.state == const.Event.ACCEPTED
     assert command.command_id == 2
     assert command.args == ['x']
+    assert command.kwargs == {"param": 'x'}
     assert command.force
     check_event(queue, const.Event.ACCEPTED)
 

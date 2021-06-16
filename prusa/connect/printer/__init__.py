@@ -476,8 +476,9 @@ class Printer:
                     data = res.json()
                     if self.command.check_state(command_id):
                         self.command.accept(command_id,
-                                            data.get("command", ""),
-                                            data.get("args"))
+                                            data.get("command",
+                                                     ""), data.get("args"),
+                                            data.get('kwargs'))
                 elif content_type == "text/x.gcode":
                     if self.command.check_state(command_id):
                         force = ("Force" in res.headers

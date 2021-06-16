@@ -21,6 +21,7 @@ class Command:
     state: Optional[const.Event]
     command: Optional[str]
     args: Optional[List[Any]]
+    kwargs: Optional[Dict[str, Any]]
     handlers: Dict[const.Command, Callable[["Command"], Dict[str, Any]]]
 
     def __init__(self, event_cb: EventCallback):
@@ -31,6 +32,7 @@ class Command:
         self.command = None
         self.force = False
         self.args = []
+        self.kwargs = {}
         self.handlers = {}
         self.new_cmd_evt = Event()
 
@@ -63,16 +65,19 @@ class Command:
             return False
         return True
 
-    def accept(self,
-               command_id: int,
-               command: str,
-               args: Optional[List[Any]] = None,
-               force=False):
+    def accept(  # pylint: disable=too-many-arguments
+            self,
+            command_id: int,
+            command: str,
+            args: Optional[List[Any]] = None,
+            kwargs: Optional[Dict[str, Any]] = None,
+            force=False):
         """Accept command (add event to queue)."""
         self.state = const.Event.ACCEPTED
         self.command_id = command_id
         self.command = command
         self.args = args
+        self.kwargs = kwargs
         self.force = force
         self.event_cb(self.state, const.Source.CONNECT, command_id=command_id)
         self.new_cmd_evt.set()
