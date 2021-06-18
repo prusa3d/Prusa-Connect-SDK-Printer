@@ -520,7 +520,7 @@ class Printer:
                                  and res.headers["Force"] == "1")
                         self.command.accept(command_id,
                                             const.Command.GCODE.value,
-                                            [res.text],
+                                            [res.text], {"gcode": res.text},
                                             force=force)
                 else:
                     raise ValueError("Invalid command content type")
