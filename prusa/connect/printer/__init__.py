@@ -78,10 +78,10 @@ class Printer:
     NOT_INITIALISED_MSG = "Printer has not been initialized properly"
 
     def __init__(self,
-                 type_: const.PrinterType,
+                 type_: const.PrinterType = None,
                  sn: str = None,
                  fingerprint: str = None):
-        self.type = type_
+        self.__type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint
         self.firmware = None
@@ -186,9 +186,21 @@ class Printer:
             raise RuntimeError("Serial number is already set.")
         self.__sn = value
 
+    @property
+    def type(self):
+        """Return printer type"""
+        return self.__type
+
+    @type.setter
+    def type(self, value):
+        """Set the printer type if is not set."""
+        if self.__type is not None:
+            raise RuntimeError("Printer type is already set.")
+        self.__type = value
+
     def is_initialised(self):
         """Return True if the printer is initialised"""
-        initialised = bool(self.__sn and self.__fingerprint)
+        initialised = bool(self.__sn and self.__fingerprint and self.__type is not None)
         if not initialised:
             errors.API.ok = False
         return initialised
@@ -294,7 +306,10 @@ class Printer:
     def get_info(self) -> Dict[str, Any]:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
         # pylint: disable=unused-argument
-        type_, ver, sub = self.type.value
+        if self.__type is not None:
+            type_, ver, sub = self.__type.value
+        else:
+            type_, ver, sub = (None, None, None)
         return dict(source=const.Source.CONNECT,
                     event=const.Event.INFO,
                     state=self.__state,
@@ -511,9 +526,9 @@ class Printer:
         data = {
             "sn": self.sn,
             "fingerprint": self.fingerprint,
-            "type": self.type.value[0],
-            "version": self.type.value[1],
-            "subversion": self.type.value[2],
+            "type": self.__type.value[0],
+            "version": self.__type.value[1],
+            "subversion": self.__type.value[2],
             "firmware": self.firmware
         }
         res = self.conn.post(self.server + "/p/register",
