@@ -19,6 +19,7 @@ from .metadata import get_metadata
 from .models import Event, Telemetry
 from .clock import ClockWatcher
 from .download import DownloadMgr
+from .util import RetryingSession
 
 __version__ = "0.5.0.dev0"
 __date__ = "30 Mar 2021"  # version date
@@ -80,7 +81,8 @@ class Printer:
     def __init__(self,
                  type_: const.PrinterType = None,
                  sn: str = None,
-                 fingerprint: str = None):
+                 fingerprint: str = None,
+                 max_retries: int = 1):
         self.__type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint
@@ -104,6 +106,9 @@ class Printer:
         self.job_id = None
 
         self.conn = Session()
+        if max_retries > 1:
+            self.conn = RetryingSession(max_retries=max_retries)
+
         self.queue = Queue()
 
         self.command = Command(self.event_cb)
@@ -200,7 +205,8 @@ class Printer:
 
     def is_initialised(self):
         """Return True if the printer is initialised"""
-        initialised = bool(self.__sn and self.__fingerprint and self.__type is not None)
+        initialised = bool(self.__sn and self.__fingerprint
+                           and self.__type is not None)
         if not initialised:
             errors.API.ok = False
         return initialised
