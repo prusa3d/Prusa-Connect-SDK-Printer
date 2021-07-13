@@ -39,5 +39,7 @@ class RetryingSession(requests.Session):
     def get(self, *args, **kw):
         return self.call_and_retry(super().get, *args, **kw)
 
-    def post(self, *args, **kw):
-        return self.call_and_retry(super().post, *args, **kw)
+    def post(self, url, data=None, json=None, **kw):
+        kw['data'] = data
+        kw['json'] = json
+        return self.call_and_retry(super().post, url, **kw)
