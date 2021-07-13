@@ -75,6 +75,7 @@ class Printer:
     queue: "Queue[Union[Event, Telemetry, Register]]"
     server: Optional[str] = None
     token: Optional[str] = None
+    conn: Session
 
     NOT_INITIALISED_MSG = "Printer has not been initialized properly"
 
@@ -105,9 +106,10 @@ class Printer:
         self.__state = const.State.BUSY
         self.job_id = None
 
-        self.conn = Session()
         if max_retries > 1:
             self.conn = RetryingSession(max_retries=max_retries)
+        else:
+            self.conn = Session()
 
         self.queue = Queue()
 
