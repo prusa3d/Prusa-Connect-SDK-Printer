@@ -1,7 +1,7 @@
 ChangeLog
 =========
 
-0.5.0.dev0
+0.5.0
     * FILE_CHANGED event sends free_space
     * Fix metadata parsing being slow (works for supported files)
     * Metadata parsing is not loading the whole gcode file into RAM anymore
