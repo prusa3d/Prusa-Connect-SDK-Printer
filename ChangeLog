@@ -1,6 +1,8 @@
 ChangeLog
 =========
 
+0.6.0.dev0
+
 0.5.0
     * FILE_CHANGED event sends free_space
     * Fix metadata parsing being slow (works for supported files)
