@@ -955,3 +955,25 @@ class TestPrinter:
         assert item.source == const.Source.CONNECT
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
+
+    def test_set_printer_prepared(self, printer, requests_mock):
+        cmd = '{"command":"SET_PRINTER_PREPARED"}'
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry(const.State.READY)
+
+        try:
+            func_timeout(0.1, printer.loop)
+        except FunctionTimedOut:
+            pass
+
+        printer.command()
+
+        assert printer.state == const.State.PREPARED

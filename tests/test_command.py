@@ -95,7 +95,7 @@ def test_call(command, queue):
     assert event.data == {'x': 'x'}
 
 
-def test_call_unknow_command(command, queue):
+def test_call_unknown_command(command, queue):
     command.command = "TEST"
     command.state = const.Event.ACCEPTED
     command()
