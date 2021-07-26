@@ -372,11 +372,10 @@ class Printer:
     def set_printer_prepared(self, caller: Command) -> Dict[str, Any]:
         """Set PREPARED state"""
         # pylint: disable=unused-argument
-        self.__state = const.State.PREPARED
-        return dict(source=const.Source.CONNECT,
-                    event=const.Event.STATE_CHANGED,
-                    state=self.__state,
-                    checked=self.__checked)
+        self.set_state(const.State.PREPARED,
+                       const.Source.CONNECT,
+                       checked=True)
+        return {}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""
