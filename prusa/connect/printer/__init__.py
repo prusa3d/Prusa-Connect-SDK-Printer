@@ -122,6 +122,8 @@ class Printer:
         self.set_handler(const.Command.START_DOWNLOAD, self.download_start)
         self.set_handler(const.Command.STOP_DOWNLOAD, self.download_stop)
         self.set_handler(const.Command.SEND_DOWNLOAD_INFO, self.download_info)
+        self.set_handler(const.Command.SET_PRINTER_PREPARED,
+                         self.set_printer_prepared)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -366,6 +368,15 @@ class Printer:
         info['source'] = const.Source.CONNECT
         info['event'] = const.Event.DOWNLOAD_INFO
         return info
+
+    def set_printer_prepared(self, caller: Command) -> Dict[str, Any]:
+        """Set PREPARED state"""
+        # pylint: disable=unused-argument
+        self.__state = const.State.PREPARED
+        return dict(source=const.Source.CONNECT,
+                    event=const.Event.STATE_CHANGED,
+                    state=self.__state,
+                    checked=self.__checked)
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""
