@@ -104,7 +104,7 @@ def inotify(queue, nodes):
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
     assert event.data['root'] == '/test'
-    assert len(event.data['files']) == 8
+    assert len(event.data['files']) == 7
     handler = InotifyHandler(fs)
 
     yield InotifyFixture(tmp_dir.name, handler, fs, queue)
@@ -190,10 +190,6 @@ class TestFile:
         assert fs_from_dir.get("/a/b").size == 0
         assert fs_from_dir.get("/a/1.gcode").size == 3044
 
-    def test_m_time(self, fs_from_dir):
-        assert fs_from_dir.get("/a").attrs['m_time'] \
-               == (2020, 7, 30, 16, 40, 5)
-
     def test_m_time_ts(self, fs_from_dir):
         assert fs_from_dir.get("/a").attrs["m_timestamp"] == 1596120005
 
@@ -206,7 +202,6 @@ class TestFile:
                 'a',
             'ro':
                 True,
-            'm_time': (2020, 7, 30, 16, 40, 5),
             'm_timestamp': 1596120005,
             'size':
                 9132,
@@ -214,7 +209,6 @@ class TestFile:
                 'type': 'DIR',
                 'name': 'b',
                 'ro': True,
-                'm_time': (2020, 7, 30, 16, 40, 5),
                 'm_timestamp': 1596120005,
                 'size': 0
             }, {
@@ -224,7 +218,6 @@ class TestFile:
                     'c',
                 'ro':
                     True,
-                'm_time': (2020, 7, 30, 16, 40, 5),
                 'm_timestamp': 1596120005,
                 'size':
                     6088,
@@ -232,14 +225,12 @@ class TestFile:
                     'type': 'FILE',
                     'name': '2.sl1',
                     'ro': True,
-                    'm_time': (2020, 7, 30, 16, 40, 5),
                     'm_timestamp': 1596120005,
                     'size': 3044
                 }, {
                     'type': 'FILE',
                     'name': '3.txt',
                     'ro': True,
-                    'm_time': (2020, 7, 30, 16, 40, 5),
                     'm_timestamp': 1596120005,
                     'size': 3044
                 }]
@@ -247,7 +238,6 @@ class TestFile:
                 'type': 'FILE',
                 'name': '1.gcode',
                 'ro': True,
-                'm_time': (2020, 7, 30, 16, 40, 5),
                 'm_timestamp': 1596120005,
                 'size': 3044
             }]
@@ -375,7 +365,6 @@ class TestINotify:
         event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
-        assert len(event.data['file']['m_time']) == 6
         assert len(str(event.data['file']['m_timestamp'])) == 10
         assert event.data['file']['name'] == "simple.gcode"
         assert not event.data['file']['ro']
@@ -396,7 +385,6 @@ class TestINotify:
         event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
-        assert len(event.data['file']['m_time']) == 6
         assert len(str(event.data['file']['m_timestamp'])) == 10
         assert event.data['file']['name'] == "directory"
         assert not event.data['file']['ro']
@@ -512,7 +500,6 @@ class TestINotify:
         assert event.source == const.Source.WUI
         assert event.data['old_path'] == event.data['new_path'] == "/test/"
         assert event.data['file']['type'] == "DIR"
-        assert "m_time" not in event.data['file']
         assert "m_timestamp" not in event.data['file']
         assert event.data['file']['name'] == "test"
 
@@ -562,7 +549,6 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['file']['name'] == "1.gcode"
-        assert "m_time" in event.data['file']
         assert "m_timestamp" in event.data['file']
         assert event.data['file']['ro']
         assert event.data['old_path'] == "/test/a/1.gcode"
