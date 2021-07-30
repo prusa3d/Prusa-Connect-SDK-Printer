@@ -55,13 +55,10 @@ tls=False
 
 
 def remove_m_time(file_data):
-    """Remove 'm_time', 'm_timestamp' and 'children'
+    """Remove 'm_timestamp' and 'children'
     keys from file structure."""
     for key in list(file_data):
-        if key == 'm_time':
-            del file_data[key]
-            continue
-        elif key == "m_timestamp":
+        if key == "m_timestamp":
             del file_data[key]
             continue
         elif key == 'children':
@@ -788,7 +785,8 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
         assert info["data"]['path'] == filename
         assert info["data"]['size'] == 628
-        assert "m_time" in info['data']
+        assert "m_timestamp" in info['data']
+        
 
         # now test for metadata and one valid thumbnail (temperature)
         assert info['data']['temperature'] == 250

@@ -5,7 +5,6 @@ import typing
 import weakref
 from logging import getLogger
 from time import time
-from datetime import datetime
 from os import path, access, W_OK, stat, walk
 from collections import Counter
 
@@ -68,7 +67,7 @@ class File:
         :param parent: Parent for this File, which itself is a
             File(is_dir=True)
         :param attrs: Any attributes for the file you want to store. File's
-            to_dict() method add `ro`, `m_time`, `m_timestamp` and `size`
+            to_dict() method add `ro`, `m_timestamp` and `size`
             attributes, if it finds them.
         """
         self.name = name
@@ -200,7 +199,7 @@ class File:
             "type": "DIR" if self.is_dir else "FILE",
             "name": self.name,
         }
-        for attr in ("ro", "m_time", "m_timestamp"):
+        for attr in ("ro", "m_timestamp"):
             if attr in self.attrs:
                 result[attr] = self.attrs[attr]
         result['size'] = self.size
@@ -222,16 +221,13 @@ class File:
         return self.name
 
     def set_attrs(self, abs_path):
-        """Set `ro`, `size_`, `m_time` and `m_timestamp` attributes on this file
+        """Set `ro`, `size_` and `m_timestamp` attributes on this file
         according to `abs_path` file on storage.
         """
         stats = stat(abs_path)
         self.attrs["ro"] = not access(abs_path, W_OK)
         if not self.is_dir:
             self.size = stats.st_size
-        m_datetime = datetime.fromtimestamp(stats.st_mtime)
-        m_time = datetime.timetuple(m_datetime)[:6]
-        self.attrs["m_time"] = m_time
         self.attrs["m_timestamp"] = int(stats.st_mtime)
 
 
