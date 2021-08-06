@@ -345,15 +345,17 @@ class Printer:
     def download_start(self, caller: Command) -> Dict[str, Any]:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
-        if not caller.args or len(caller.args) != 4:
-            raise ValueError(f"{const.Command.START_DOWNLOAD} requires "
-                             f"four args (url, dst, select, print)")
+        if not caller.kwargs:
+            raise ValueError(f"{const.Command.START_DOWNLOAD} requires kwargs")
 
-        url, destination, to_select, to_print = caller.args
-        self.download_mgr.start(url,
-                                destination,
-                                to_select=to_select,
-                                to_print=to_print)
+        try:
+            self.download_mgr.start(caller.kwargs["url"],
+                                    caller.kwargs["destination"],
+                                    to_select=caller.kwargs["selecting"],
+                                    to_print=caller.kwargs["printing"])
+        except KeyError as err:
+            raise ValueError(f"{const.Command.START_DOWNLOAD} requires "
+                             f"kwarg {err}.") from None
 
         return dict(source=const.Source.CONNECT)
 
@@ -382,10 +384,10 @@ class Printer:
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""
         # pylint: disable=unused-argument
-        if not caller.args:
-            raise ValueError("SEND_FILE_INFO requires args")
+        if not caller.kwargs or "path" not in caller.kwargs:
+            raise ValueError("SEND_FILE_INFO requires kwargs")
 
-        path = caller.args[0]
+        path = caller.kwargs["path"]
         node = self.fs.get(path)
         if node is None:
             raise ValueError(f"File does not exist: {path}")
@@ -420,10 +422,10 @@ class Printer:
 
     def delete_file(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete file."""
-        if not caller.args:
-            raise ValueError(f"{caller.command} requires args")
+        if not caller.kwargs or "path" not in caller.kwargs:
+            raise ValueError(f"{caller.command} requires kwargs")
 
-        abs_path = self.inotify_handler.get_abs_os_path(caller.args[0])
+        abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
         delete(abs_path, False)
 
@@ -431,10 +433,10 @@ class Printer:
 
     def delete_directory(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete directory."""
-        if not caller.args:
-            raise ValueError(f"{caller.command} requires args")
+        if not caller.kwargs or "path" not in caller.kwargs:
+            raise ValueError(f"{caller.command} requires kwargs")
 
-        abs_path = self.inotify_handler.get_abs_os_path(caller.args[0])
+        abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
         delete(abs_path, True)
 
@@ -442,10 +444,10 @@ class Printer:
 
     def create_directory(self, caller: Command) -> Dict[str, Any]:
         """Handler for create directory."""
-        if not caller.args:
-            raise ValueError(f"{caller.command} requires args")
+        if not caller.kwargs or "path" not in caller.kwargs:
+            raise ValueError(f"{caller.command} requires kwargs")
 
-        relative_path_parameter = caller.args[0]
+        relative_path_parameter = caller.kwargs["path"]
         abs_path = self.inotify_handler.get_abs_os_path(
             relative_path_parameter)
 
