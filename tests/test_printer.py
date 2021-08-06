@@ -4,6 +4,7 @@ import io
 import queue
 import time
 import tempfile
+import json
 from typing import Any
 
 import pytest  # type: ignore
@@ -310,14 +311,19 @@ class TestPrinter:
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        requests_mock.post(
-            SERVER + "/p/telemetry",
-            text='{"command":"DELETE_DIRECTORY", "args": ["/test/test_dir"]}',
-            headers={
-                "Command-Id": "42",
-                "Content-Type": "application/json"
-            },
-            status_code=200)
+        cmd = {
+            "command": "DELETE_DIRECTORY",
+            "kwargs": {
+                "path": "/test/test_dir"
+            }
+        }
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=json.dumps(cmd),
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry()
@@ -397,14 +403,19 @@ class TestPrinter:
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        requests_mock.post(
-            SERVER + "/p/telemetry",
-            text='{"command":"DELETE_FILE","args": ["/test/test-file.hex"]}',
-            headers={
-                "Command-Id": "42",
-                "Content-Type": "application/json"
-            },
-            status_code=200)
+        cmd = {
+            "command": "DELETE_FILE",
+            "kwargs": {
+                "path": "/test/test-file.hex"
+            }
+        }
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=json.dumps(cmd),
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry()
@@ -476,9 +487,14 @@ class TestPrinter:
             'ro': False
         }
 
+        cmd = {
+            "command": "CREATE_DIRECTORY",
+            "kwargs": {
+                "path": "/test/test_dir"
+            }
+        }
         requests_mock.post(SERVER + "/p/telemetry",
-                           text='{"command":"CREATE_DIRECTORY", '
-                           '"args": ["/test/test_dir"]}',
+                           text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
                                "Content-Type": "application/json"
@@ -732,9 +748,9 @@ class TestPrinter:
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
+        cmd = {"command": "SEND_FILE_INFO", "kwargs": {"path": filename}}
         requests_mock.post(SERVER + "/p/telemetry",
-                           text='{"command":"SEND_FILE_INFO", '
-                           f'"args": ["{filename}"]}}',
+                           text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
                                "Content-Type": "application/json"
@@ -810,10 +826,15 @@ class TestPrinter:
     def test_download(self, requests_mock, printer_sdcard):
         url = "http://prusaprinters.org/my.gcode"
         destination = "/sdcard/my.gcode"
-        cmd = '{"command":"START_DOWNLOAD", ' \
-              '"args": ["%s", "%s", true, false]}' % (url, destination)
+        kwargs = {
+            "url": url,
+            "destination": destination,
+            "selecting": True,
+            "printing": False
+        }
+        cmd = {"command": "START_DOWNLOAD", "kwargs": kwargs}
         requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
+                           text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
                                "Content-Type": "application/json"

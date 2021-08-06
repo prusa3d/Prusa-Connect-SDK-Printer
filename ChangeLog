@@ -20,6 +20,7 @@ ChangeLog
     * Added m_timestamp to file attributes
     * Command classes store both args and kwargs.
     * `max_retries` can be passed to Printer
+    * Command handlers use kwargs.
 
 0.4.0 (2021-03-30)
     * new CONNECTION_TIOMEOUT constant set to 30s
