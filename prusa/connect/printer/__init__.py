@@ -21,7 +21,7 @@ from .clock import ClockWatcher
 from .download import DownloadMgr
 from .util import RetryingSession
 
-__version__ = "0.6.0.dev0"
+__version__ = "0.6.0.dev1"
 __date__ = "14 Jul 2021"  # version date
 __copyright__ = "(c) 2021 Prusa 3D"
 __author_name__ = "Ondřej Tůma"
