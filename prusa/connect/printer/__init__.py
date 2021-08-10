@@ -274,10 +274,12 @@ class Printer:
         self.queue.put(event_)
 
     def telemetry(self,
-                  state: const.State,
+                  state: const.State = None,
                   timestamp: float = None,
                   **kwargs) -> None:
         """Create telemetry end push it to queue."""
+        if state:
+            log.warning("State argument is deprecated. Use set_state method.")
         if not self.token:
             log.debug("Skipping telemetry, no token.")
             return
@@ -289,9 +291,9 @@ class Printer:
             kwargs['download_time_remaining'] = download.time_remaining()
             kwargs['download_bytes'] = download.downloaded
         if self.is_initialised():
-            telemetry = Telemetry(state, timestamp, **kwargs)
+            telemetry = Telemetry(self.__state, timestamp, **kwargs)
         else:
-            telemetry = Telemetry(state, timestamp)
+            telemetry = Telemetry(self.__state, timestamp)
             log.warning("Printer fingerprint and/or SN is not set")
         self.queue.put(telemetry)
 
