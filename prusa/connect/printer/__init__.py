@@ -375,7 +375,7 @@ class Printer:
         self.set_state(const.State.PREPARED,
                        const.Source.CONNECT,
                        checked=True)
-        return {}
+        return {'source': const.Source.CONNECT}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Return file info for a given file, if it exists."""
