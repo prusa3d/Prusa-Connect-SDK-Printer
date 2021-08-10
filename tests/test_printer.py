@@ -127,17 +127,17 @@ class TestPrinter:
         assert printer_no_fp.is_initialised() is True
 
     def test_telemetry(self, printer):
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
         item = printer.queue.get_nowait()
 
         assert isinstance(item, Telemetry)
-        assert item.to_payload() == {'state': 'READY'}
+        assert item.to_payload() == {'state': 'BUSY'}
 
     def test_telemetry_no_fingerprint(self, printer_no_fp):
-        printer_no_fp.telemetry(const.State.READY, temp_bed=1, temp_nozzle=2)
+        printer_no_fp.telemetry(temp_bed=1, temp_nozzle=2)
         item = printer_no_fp.queue.get_nowait()
         assert isinstance(item, Telemetry)
-        assert item.to_payload() == {'state': 'READY'}
+        assert item.to_payload() == {'state': 'BUSY'}
 
     def test_parse_command_no_fingerprint(self, printer_no_fp):
         res_mock = requests.Response()
@@ -256,7 +256,7 @@ class TestPrinter:
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         run_loop(printer.loop)
 
@@ -314,7 +314,7 @@ class TestPrinter:
             status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
         printer.inotify_handler()
 
         run_loop(printer.loop)
@@ -401,7 +401,7 @@ class TestPrinter:
             status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
         printer.inotify_handler()
 
         run_loop(printer.loop)
@@ -480,7 +480,7 @@ class TestPrinter:
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
         printer.inotify_handler()
 
         run_loop(printer.loop)
@@ -533,7 +533,7 @@ class TestPrinter:
         printer.server = None
 
         # put an item to queue
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         run_loop(printer.loop)
 
@@ -557,7 +557,7 @@ class TestPrinter:
         def gcode(caller: Command):
             return dict(source=const.Source.MARLIN)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         run_loop(printer.loop)
 
@@ -736,7 +736,7 @@ class TestPrinter:
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         run_loop(printer.loop)
 
@@ -820,7 +820,7 @@ class TestPrinter:
 
         # get the command from telemetry
         printer = printer_sdcard
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         run_loop(printer.loop)
 
@@ -847,7 +847,7 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         # send telemetry - obtain download info command
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         run_loop(printer.loop)
 
@@ -892,7 +892,7 @@ class TestPrinter:
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
 
         # pretend we're downloading
         dst = '/sdcard/path'
@@ -964,7 +964,7 @@ class TestPrinter:
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        printer.telemetry(const.State.READY)
+        printer.telemetry()
         run_loop(printer.loop)
 
         printer.command()
