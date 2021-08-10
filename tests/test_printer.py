@@ -786,7 +786,6 @@ class TestPrinter:
         assert info["data"]['path'] == filename
         assert info["data"]['size'] == 628
         assert "m_timestamp" in info['data']
-        
 
         # now test for metadata and one valid thumbnail (temperature)
         assert info['data']['temperature'] == 250
@@ -966,12 +965,17 @@ class TestPrinter:
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry(const.State.READY)
-
-        try:
-            func_timeout(0.1, printer.loop)
-        except FunctionTimedOut:
-            pass
+        run_loop(printer.loop)
 
         printer.command()
+        run_loop(printer.loop, timeout=0.2)
 
         assert printer.state == const.State.PREPARED
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        event = requests_mock.request_history[2].json()
+        assert event["event"] == "STATE_CHANGED"
+        assert event["state"] == "PREPARED"
+
+        event = requests_mock.request_history[3].json()
+        assert event["event"] == "FINISHED"
