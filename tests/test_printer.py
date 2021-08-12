@@ -35,20 +35,26 @@ def lan_settings_ini():
     """Temporary lan_settings.ini file fixture."""
     tmpf = tempfile.NamedTemporaryFile(mode="w", delete=False)
     tmpf.write(f"""
-[lan_ip4]
-type=DHCP
-hostname=MINI
-address={IP}
-mask=0.0.0.0
-gateway=0.0.0.0
-dns1=0.0.0.0
-dns2=0.0.0.0
 
-[connect]
-address={CONNECT_HOST}
-port={CONNECT_PORT}
-token={TOKEN}
-tls=False
+[printer]
+name = SDK UnitTest
+location = space
+type = MINI
+
+[network]
+hostname = MINI
+
+[service::local]
+enable = 1
+username =
+password =
+api_key =
+
+[service::connect]
+hostname = {CONNECT_HOST}
+tls = False
+port = {CONNECT_PORT}
+token = {TOKEN}
 """)
     tmpf.close()
     return tmpf.name

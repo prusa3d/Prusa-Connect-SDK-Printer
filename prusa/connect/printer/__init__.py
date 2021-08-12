@@ -304,11 +304,11 @@ class Printer:
         config = configparser.ConfigParser()
         config.read(path)
 
-        host = config['connect']['address']
-        tls = config['connect'].getboolean('tls')
-        port = config['connect'].getint('port', fallback=0)
+        host = config['service::connect']['hostname']
+        tls = config['service::connect'].getboolean('tls')
+        port = config['service::connect'].getint('port', fallback=0)
         self.server = Printer.connect_url(host, tls, port)
-        self.token = config['connect']['token']
+        self.token = config['service::connect']['token']
         errors.TOKEN.ok = True
 
     def get_connection_details(self):
