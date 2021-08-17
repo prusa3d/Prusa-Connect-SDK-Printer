@@ -14,6 +14,7 @@ from . import const
 from .metadata import get_metadata, UnknownGcodeFileType
 from .models import EventCallback
 
+ROOT = '__ROOT__'
 log = getLogger("connect-printer")
 
 # pylint: disable=fixme
@@ -323,6 +324,9 @@ class Filesystem:
         if not name:
             raise InvalidMountpointError("Mountpoint cannot be empty")
 
+        if name == '/':
+            name = ROOT
+
         if self.sep in name:
             msg = f"Mountpoints cannot contain {self.sep}"
             raise InvalidMountpointError(msg)
@@ -367,7 +371,13 @@ class Filesystem:
         """
         abs_path = abs_path.strip(self.sep)
         mountpoint, *parts = abs_path.split(self.sep)
-        if mountpoint not in self.mounts:
+
+        if ROOT in self.mounts:
+            abs_path = '/'.join([ROOT, abs_path])
+            mountpoint, *parts = abs_path.split(self.sep)
+            if mountpoint not in self.mounts:
+                return None
+        elif mountpoint not in self.mounts:
             return None
 
         return self.mounts[mountpoint].tree.get(parts)
@@ -409,12 +419,13 @@ class Filesystem:
 
         :return: dictionary representation of the Filesystem.
         """
-        root = {
-            "type": "DIR",
-            "name": "/",
-            "ro": True,
-            "children": [m.to_dict() for m in self.mounts.values()],
-        }
+        root = {"type": "DIR", "name": "/", "ro": True, "children": []}
+
+        if ROOT in self.mounts:
+            root = self.mounts[ROOT].to_dict()
+
+        root["children"].extend(
+            [v.to_dict() for k, v in self.mounts.items() if k != ROOT])
         return root
 
     def from_dir(self, dirpath: str, mountpoint: str):
@@ -691,7 +702,9 @@ class InotifyHandler:
             path_ = node.abs_path(mount.mountpoint)
             self.delete_cache(path_)
             self.create_cache(path_)
-            self.send_file_changed(old_path=path_, new_path=path_, file=node,
+            self.send_file_changed(old_path=path_,
+                                   new_path=path_,
+                                   file=node,
                                    free_space=mount.get_free_space())
         else:
             # some watched directory other than top level was deleted
@@ -712,14 +725,16 @@ class InotifyHandler:
         node = mount.tree.get(parts)
         node.set_attrs(abs_path)
         path_ = node.abs_path(mount.mountpoint)
-        self.send_file_changed(old_path=path_, new_path=path_, file=node,
+        self.send_file_changed(old_path=path_,
+                               new_path=path_,
+                               file=node,
                                free_space=mount.get_free_space())
 
     def send_file_changed(self,
                           old_path: str = None,
                           new_path: str = None,
                           file: File = None,
-                          free_space = None):
+                          free_space=None):
         """If self.fs.events is set, put FIlE_CHANGED event to event queue.
 
         :raises ValueError: if both old_path and new_path are not set
