@@ -20,7 +20,6 @@ from prusa.connect.printer.metadata import MetaData
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
 
-
 # pylint: disable=missing-function-docstring
 # pylint: disable=no-self-use
 # pylint: disable=invalid-name
@@ -62,6 +61,21 @@ InotifyFixture = namedtuple('InotifyFixture',
 
 
 @pytest.fixture
+@patch("prusa.connect.printer.files.stat",
+       return_value=os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
+                                    1599740701, 1596120005, 1596120005)))
+@patch("prusa.connect.printer.files.path.abspath", return_value='/a')
+@patch("prusa.connect.printer.files.walk",
+       return_value=[('/a', ['b', 'c'], ['1.gcode']), ('/a/b', [], []),
+                     ('/a/c', [], ['2.sl1', '3.txt'])])
+def root_from_dir(*mocks):
+    # pylint: disable=unused-argument
+    fs = Filesystem()
+    fs.from_dir('/somewhere/on/the/disk/a', '/')
+    return fs
+
+
+@pytest.fixture
 def queue():
     yield Queue()
 
@@ -72,7 +86,6 @@ def inotify(queue, nodes):
     directory. This returns the path to the dir on storage, the Inotify
     handler and filesystem as a tuple: (path, handler, filesystem).
     """
-
     def create_on_storage(root_dir, node):
         parts = node.abs_parts()
         parts.insert(0, root_dir)
@@ -121,7 +134,6 @@ def fs(nodes):
 
 class TestFile:
     """Test the methods of the File class"""
-
     def test_add(self):
         root = File("root", is_dir=True)
         assert not root.children
@@ -198,14 +210,15 @@ class TestFile:
         res = fs_from_dir.get("/a").to_dict()
         assert res == {
             'type':
-                'DIR',
+            'DIR',
             'name':
-                'a',
+            'a',
             'ro':
-                True,
-            'm_timestamp': 1596120005,
+            True,
+            'm_timestamp':
+            1596120005,
             'size':
-                9132,
+            9132,
             'children': [{
                 'type': 'DIR',
                 'name': 'b',
@@ -214,14 +227,15 @@ class TestFile:
                 'size': 0
             }, {
                 'type':
-                    'DIR',
+                'DIR',
                 'name':
-                    'c',
+                'c',
                 'ro':
-                    True,
-                'm_timestamp': 1596120005,
+                True,
+                'm_timestamp':
+                1596120005,
                 'size':
-                    6088,
+                6088,
                 'children': [{
                     'type': 'FILE',
                     'name': '2.sl1',
@@ -266,10 +280,14 @@ class TestFile:
 
 class TestFilesystem:
     """Test Filesystem class interface."""
-
     def test_mount(self, fs):
         assert len(fs.mounts) == 1
         assert "mount-point" in fs.mounts
+
+    def test_mount_root(self, root_from_dir):
+        assert len(root_from_dir.mounts) == 1
+        assert root_from_dir.get('/')
+        assert root_from_dir.get('/1.gcode')
 
     def test_mount_empty(self, fs, nodes):
         with pytest.raises(InvalidMountpointError):
@@ -333,25 +351,60 @@ class TestFilesystem:
 
         fs_dict['children'][0]['free_space'] = 0
         assert fs_dict == {
-            'name': '/', 'ro': True, 'type': 'DIR',
-            'children': [
-                {'type': 'DIR', 'name': 'mount-point', 'size':0, 'children':
-                    [{'type': 'DIR', 'name': 'a', 'size': 0, 'children': [
-                        {'type': 'FILE', 'name': '1.gcode', 'size': 0},
-                        {'type': 'DIR', 'name': 'b', 'size': 0},
-                        {'type': 'DIR', 'name': 'c', 'size': 0, 'children': [
-                            {'type': 'FILE', 'name': '2.sl1', 'size': 0},
-                            {'type': 'FILE', 'name': '3.txt', 'size': 0}]}],
-                     }],
-                    'free_space': 0
-                 }
-            ],
+            'name':
+            '/',
+            'ro':
+            True,
+            'type':
+            'DIR',
+            'children': [{
+                'type':
+                'DIR',
+                'name':
+                'mount-point',
+                'size':
+                0,
+                'children': [{
+                    'type':
+                    'DIR',
+                    'name':
+                    'a',
+                    'size':
+                    0,
+                    'children': [{
+                        'type': 'FILE',
+                        'name': '1.gcode',
+                        'size': 0
+                    }, {
+                        'type': 'DIR',
+                        'name': 'b',
+                        'size': 0
+                    }, {
+                        'type':
+                        'DIR',
+                        'name':
+                        'c',
+                        'size':
+                        0,
+                        'children': [{
+                            'type': 'FILE',
+                            'name': '2.sl1',
+                            'size': 0
+                        }, {
+                            'type': 'FILE',
+                            'name': '3.txt',
+                            'size': 0
+                        }]
+                    }],
+                }],
+                'free_space':
+                0
+            }],
         }
 
 
 class TestINotify:
     """Test events from Inotify class."""
-
     def test_CREATE_file(self, inotify):
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event
@@ -450,8 +503,6 @@ class TestINotify:
         # Cache not in fs, nor inotify tree
         assert not os.path.exists(cache)
         assert not inotify.fs.get(cache)
-
-
 
     def test_inotify_ignore_hidden_files(self, inotify):
         """Test that inotify handler ignores hidden .<filename> files"""

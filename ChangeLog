@@ -5,6 +5,7 @@ ChangeLog
     * Introduce `const.State.PREPARED`
     * remove m_time from file structure
     * telemetry method use self.state instead of argument state
+    * Filesystem can mount directory to root
 
 0.5.0
     * FILE_CHANGED event sends free_space
