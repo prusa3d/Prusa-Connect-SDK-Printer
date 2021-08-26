@@ -29,7 +29,7 @@ class UnknownGcodeFileType(ValueError):
 def thumbnail_from_bytes(data_input):
     """Parse thumbnail from bytes to string format because
     of JSON serialization requirements"""
-    converted_data = dict()
+    converted_data = {}
     for key, value in data_input.items():
         if isinstance(value, bytes):
             converted_data[key] = str(value, 'utf-8')
@@ -38,7 +38,7 @@ def thumbnail_from_bytes(data_input):
 
 def thumbnail_to_bytes(data_input):
     """Parse thumbnail from string to original bytes format"""
-    converted_data = dict()
+    converted_data = {}
     for key, value in data_input.items():
         converted_data[key] = bytes(value, 'utf-8')
     return converted_data
@@ -84,6 +84,7 @@ class ParsedData:
 
 class MetaData:
     """Base MetaData class"""
+    # pylint: disable=unspecified-encoding
 
     path: str
     thumbnails: Dict[str, bytes]  # dimensions: base64(data)
@@ -196,6 +197,7 @@ class MetaData:
 
 class FDMMetaData(MetaData):
     """Class for extracting Metadata for FDM gcodes"""
+    # pylint: disable=unspecified-encoding
 
     # Meta data we are looking for and respective conversion functions
     Attrs = {

@@ -6,6 +6,7 @@ ChangeLog
     * remove m_time from file structure
     * telemetry method use self.state instead of argument state
     * Filesystem can mount directory to root
+    * Fixed last_updated value for nested files
 
 0.5.0
     * FILE_CHANGED event sends free_space
