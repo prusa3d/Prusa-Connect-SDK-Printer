@@ -594,7 +594,7 @@ class InotifyHandler:
         for event in events:
             parent_dir = self.wds[event.wd]
             for mount in self.fs.mounts.values():
-                if mount.path_storage == parent_dir:
+                if parent_dir.startswith(mount.path_storage):
                     mount.last_updated = time()
             for flag in flags.from_mask(event.mask):
                 # remove wds that are no longer needed
@@ -697,8 +697,8 @@ class InotifyHandler:
         # top level dir (mount.tree) was deleted or unmounted
         if abs_path == mount.path_storage:
             node = mount.tree
-            node.children = dict()
-            node.attrs = dict()
+            node.children = {}
+            node.attrs = {}
             path_ = node.abs_path(mount.mountpoint)
             self.delete_cache(path_)
             self.create_cache(path_)
