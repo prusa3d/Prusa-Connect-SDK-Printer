@@ -84,7 +84,6 @@ class ParsedData:
 
 class MetaData:
     """Base MetaData class"""
-    # pylint: disable=unspecified-encoding
 
     path: str
     thumbnails: Dict[str, bytes]  # dimensions: base64(data)
@@ -133,7 +132,7 @@ class MetaData:
                     "thumbnails": thumbnail_from_bytes(self.thumbnails),
                     "data": self.data
                 }
-                with open(self.cache_name, "w") as file:
+                with open(self.cache_name, "w", encoding='utf-8') as file:
                     json.dump(dict_data, file, indent=2)
         except PermissionError:
             log.warning("You don't have permission for save file here")
@@ -141,7 +140,7 @@ class MetaData:
     def load_cache(self):
         """Load metadata values from <file_name>.cache file"""
         try:
-            with open(self.cache_name, "r") as file:
+            with open(self.cache_name, "r", encoding='utf-8') as file:
                 cache_data = json.load(file)
             self.thumbnails = thumbnail_to_bytes(cache_data["thumbnails"])
             self.data = cache_data["data"]
@@ -197,7 +196,6 @@ class MetaData:
 
 class FDMMetaData(MetaData):
     """Class for extracting Metadata for FDM gcodes"""
-    # pylint: disable=unspecified-encoding
 
     # Meta data we are looking for and respective conversion functions
     Attrs = {
@@ -320,14 +318,14 @@ class FDMMetaData(MetaData):
 
         retries = 10
         while retries:
-            with open(path, "r") as file_descriptor:
+            with open(path, "r", encoding='utf-8') as file_descriptor:
                 if self.quick_parse(data, file_descriptor, retries == 1):
                     break
                 retries -= 1
                 sleep(0.2)
 
         if not retries:
-            with open(path, "r") as file_descriptor:
+            with open(path, "r", encoding='utf-8') as file_descriptor:
                 data = ParsedData()
                 file_descriptor.seek(0, 0)
                 for line in file_descriptor:
