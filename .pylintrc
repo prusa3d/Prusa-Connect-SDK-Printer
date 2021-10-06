@@ -1,0 +1,5 @@
+[MESSAGES CONTROL]
+disable=
+    consider-using-f-string,
+    too-few-public-methods,
+    too-many-instance-attributes
