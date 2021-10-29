@@ -312,8 +312,8 @@ class Printer:
         errors.TOKEN.ok = True
 
     def get_connection_details(self):
-        """Return currently set server and token"""
-        return (self.server, self.token)
+        """Return currently set server and headers"""
+        return (self.server, self.make_headers())
 
     def get_info(self) -> Dict[str, Any]:
         """Return kwargs for Command.finish method as reaction to SEND_INFO."""
@@ -350,7 +350,7 @@ class Printer:
 
         try:
             self.download_mgr.start(caller.kwargs["url"],
-                                    caller.kwargs["destination"],
+                                    caller.kwargs["path"],
                                     to_select=caller.kwargs["selecting"],
                                     to_print=caller.kwargs["printing"])
         except KeyError as err:
