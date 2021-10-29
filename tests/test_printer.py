@@ -825,10 +825,10 @@ class TestPrinter:
 
     def test_download(self, requests_mock, printer_sdcard):
         url = "http://prusaprinters.org/my.gcode"
-        destination = "/sdcard/my.gcode"
+        path = "/sdcard/my.gcode"
         kwargs = {
             "url": url,
-            "destination": destination,
+            "path": path,
             "selecting": True,
             "printing": False
         }

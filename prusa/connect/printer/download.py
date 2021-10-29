@@ -62,12 +62,11 @@ class DownloadMgr:
         except FileExistsError:
             log.debug("%s already exists", dir_)
 
-        server, token = self.conn_details_cb()
+        server, headers = self.conn_details_cb()
         # server is not connect server, set token to None
 
-        headers = {}
-        if server and token and url.lower().startswith(server.lower()):
-            headers['Token'] = token
+        if not server or not url.lower().startswith(server.lower()):
+            headers = {}
 
         download = self.current = Download(url,
                                            os_dst,
