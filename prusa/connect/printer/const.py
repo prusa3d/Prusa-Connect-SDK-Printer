@@ -102,3 +102,15 @@ class Command(Enum):
 
     LOAD_FILAMENT = "LOAD_FILAMENT"
     UNLOAD_FILAMENT = "UNLOAD_FILAMENT"
+
+
+class TransferType(Enum):
+    """File transfer types"""
+    NO_TRANSFER = "NO_TRANSFER"
+    FROM_WEB = "FROM_WEB"
+    FROM_CONNECT = "FROM_CONNECT"
+    FROM_PRINTER = "FROM_PRINTER"
+    FROM_SLICER = "FROM_SLICER"
+    FROM_CLIENT = "FROM_CLIENT"
+    TO_CONNECT = "TO_CONNECT"
+    TO_CLIENT = "TO_CLIENT"

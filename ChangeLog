@@ -8,6 +8,7 @@ ChangeLog
     * Filesystem can mount directory to root
     * Fixed last_updated value for nested files
     * Added LOAD/UNLOAD filament constants
+    * Added TransferInfo class and TransferType contants
 
 0.5.0
     * FILE_CHANGED event sends free_space
