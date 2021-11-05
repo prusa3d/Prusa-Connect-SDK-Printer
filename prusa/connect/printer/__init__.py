@@ -6,6 +6,7 @@ import re
 from logging import getLogger
 from queue import Queue, Empty
 from time import time, sleep
+from enum import Enum
 from typing import Optional, List, Any, Callable, Dict, Union
 
 from requests import Session, RequestException
@@ -62,6 +63,23 @@ def default_register_handler(token):
     It blocks communication with Connect in loop method!
     """
     assert token
+
+
+class TransferInfo:
+    """File transfer representation object"""
+
+    start: Optional[int]
+
+    def __init__(self, transfer_type):
+        self.transfer_type = const.TransferType(transfer_type)
+        self.path = None
+        self.url = None
+        self.size = None
+        self.start = 0
+        self.estimated_end = 0
+        self.speed = 0
+        self.progress = 0
+        self.no_transfer = True
 
 
 class Printer:
@@ -135,6 +153,7 @@ class Printer:
         if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
 
+        self.transfer_info = TransferInfo(const.TransferType.NO_TRANSFER)
         self.download_mgr = DownloadMgr(self.fs, self.get_connection_details,
                                         self.event_cb, self.printed_file_cb)
 
