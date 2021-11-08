@@ -6,7 +6,6 @@ import re
 from logging import getLogger
 from queue import Queue, Empty
 from time import time, sleep
-from enum import Enum
 from typing import Optional, List, Any, Callable, Dict, Union
 
 from requests import Session, RequestException
@@ -77,7 +76,6 @@ class TransferInfo:
         self.size = None
         self.start = 0
         self.estimated_end = 0
-        self.speed = 0
         self.progress = 0
         self.no_transfer = True
 
