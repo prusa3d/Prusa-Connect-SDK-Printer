@@ -114,19 +114,19 @@ class DownloadMgr:
                         else:
                             msg = "Gcode being printed would be" \
                                   "overwritten by downloaded file -> aborting."
-                            self.event_cb(const.Event.DOWNLOAD_ABORTED,
+                            self.event_cb(const.Event.TRANSFER_ABORTED,
                                           const.Source.CONNECT,
                                           reason=msg)
                     self.current = None
 
-                    self.event_cb(const.Event.DOWNLOAD_FINISHED,
+                    self.event_cb(const.Event.TRANSFER_FINISHED,
                                   const.Source.CONNECT,
                                   url=download.url,
                                   destination=download.destination)
                     self.download_finished_cb(download)
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
-                self.event_cb(const.Event.DOWNLOAD_ABORTED,
+                self.event_cb(const.Event.TRANSFER_ABORTED,
                               const.Source.CONNECT,
                               reason=str(err))
                 self.current = None
@@ -140,11 +140,27 @@ class DownloadMgr:
         """Stop current download"""
         if self.current:
             self.current.stop()
-            self.event_cb(const.Event.DOWNLOAD_STOPPED, const.Source.CONNECT)
+            self.event_cb(const.Event.TRANSFER_STOPPED, const.Source.CONNECT)
 
     def info(self):
         """Return important info on Download Manager"""
         return self.current and self.current.to_dict()
+
+
+class TransferInfo:
+    """File transfer representation object"""
+
+    def __init__(self, transfer_type):
+        self.transfer_type = const.TransferType(transfer_type)
+        self.path = None
+        self.url = None
+        self.size = 0
+        self.start = 0
+        self.estimated_end = 0
+        self.progress = 0.0
+        self.completed = 0
+        self.to_select = False
+        self.to_print = False
 
 
 class Download:
