@@ -832,7 +832,7 @@ class TestPrinter:
             "selecting": True,
             "printing": False
         }
-        cmd = {"command": "START_DOWNLOAD", "kwargs": kwargs}
+        cmd = {"command": "START_TRANSFER", "kwargs": kwargs}
         requests_mock.post(SERVER + "/p/telemetry",
                            text=json.dumps(cmd),
                            headers={
@@ -863,7 +863,7 @@ class TestPrinter:
 
     def test_download_info(self, printer, requests_mock):
         # prepare command and mocks
-        cmd = '{"command":"SEND_DOWNLOAD_INFO"}'
+        cmd = '{"command":"SEND_TRANSFER_INFO"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -897,7 +897,7 @@ class TestPrinter:
                f"POST {SERVER}/p/events"
         info = requests_mock.request_history[2].json()
 
-        assert info["event"] == "DOWNLOAD_INFO"
+        assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
         assert info["data"]['size'] == 1000
@@ -909,7 +909,7 @@ class TestPrinter:
 
     def test_download_stop(self, requests_mock, printer):
         # post telemetry - obtain command
-        cmd = '{"command":"STOP_DOWNLOAD"}'
+        cmd = '{"command":"STOP_TRANSFER"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -960,7 +960,7 @@ class TestPrinter:
 
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
-        assert item.event == const.Event.DOWNLOAD_ABORTED
+        assert item.event == const.Event.TRANSFER_ABORTED
         assert item.source == const.Source.CONNECT
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
@@ -975,7 +975,7 @@ class TestPrinter:
 
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
-        assert item.event == const.Event.DOWNLOAD_ABORTED
+        assert item.event == const.Event.TRANSFER_ABORTED
         assert item.source == const.Source.CONNECT
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()

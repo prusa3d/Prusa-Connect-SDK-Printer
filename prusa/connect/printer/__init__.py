@@ -18,7 +18,7 @@ from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
 from .clock import ClockWatcher
-from .download import DownloadMgr
+from .download import DownloadMgr, TransferInfo
 from .util import RetryingSession
 
 __version__ = "0.6.0.dev1"
@@ -62,22 +62,6 @@ def default_register_handler(token):
     It blocks communication with Connect in loop method!
     """
     assert token
-
-
-class TransferInfo:
-    """File transfer representation object"""
-
-    start: Optional[int]
-
-    def __init__(self, transfer_type):
-        self.transfer_type = const.TransferType(transfer_type)
-        self.path = None
-        self.url = None
-        self.size = None
-        self.start = 0
-        self.estimated_end = 0
-        self.progress = 0
-        self.no_transfer = True
 
 
 class Printer:
@@ -135,9 +119,9 @@ class Printer:
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
-        self.set_handler(const.Command.START_DOWNLOAD, self.download_start)
-        self.set_handler(const.Command.STOP_DOWNLOAD, self.download_stop)
-        self.set_handler(const.Command.SEND_DOWNLOAD_INFO, self.download_info)
+        self.set_handler(const.Command.START_TRANSFER, self.transfer_start)
+        self.set_handler(const.Command.STOP_TRANSFER, self.transfer_stop)
+        self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
         self.set_handler(const.Command.SET_PRINTER_PREPARED,
                          self.set_printer_prepared)
 
@@ -151,7 +135,6 @@ class Printer:
         if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
 
-        self.transfer_info = TransferInfo(const.TransferType.NO_TRANSFER)
         self.download_mgr = DownloadMgr(self.fs, self.get_connection_details,
                                         self.event_cb, self.printed_file_cb)
 
@@ -359,11 +342,11 @@ class Printer:
         # pylint: disable=unused-argument
         return self.get_info()
 
-    def download_start(self, caller: Command) -> Dict[str, Any]:
+    def transfer_start(self, caller: Command) -> Dict[str, Any]:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
         if not caller.kwargs:
-            raise ValueError(f"{const.Command.START_DOWNLOAD} requires kwargs")
+            raise ValueError(f"{const.Command.START_TRANSFER} requires kwargs")
 
         try:
             self.download_mgr.start(caller.kwargs["url"],
@@ -371,23 +354,23 @@ class Printer:
                                     to_select=caller.kwargs["selecting"],
                                     to_print=caller.kwargs["printing"])
         except KeyError as err:
-            raise ValueError(f"{const.Command.START_DOWNLOAD} requires "
+            raise ValueError(f"{const.Command.START_TRANSFER} requires "
                              f"kwarg {err}.") from None
 
         return dict(source=const.Source.CONNECT)
 
-    def download_stop(self, caller: Command) -> Dict[str, Any]:
+    def transfer_stop(self, caller: Command) -> Dict[str, Any]:
         """Stop current download, if any"""
         # pylint: disable=unused-argument
         self.download_mgr.stop()
         return dict(source=const.Source.CONNECT)
 
-    def download_info(self, caller: Command) -> Dict[str, Any]:
-        """Provide info on the running download"""
+    def transfer_info(self, caller: Command) -> Dict[str, Any]:
+        """Provide info on the running transfer"""
         # pylint: disable=unused-argument
         info = self.download_mgr.info()
         info['source'] = const.Source.CONNECT
-        info['event'] = const.Event.DOWNLOAD_INFO
+        info['event'] = const.Event.TRANSFER_INFO
         return info
 
     def set_printer_prepared(self, caller: Command) -> Dict[str, Any]:

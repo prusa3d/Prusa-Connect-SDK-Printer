@@ -9,6 +9,7 @@ ChangeLog
     * Fixed last_updated value for nested files
     * Added LOAD/UNLOAD filament constants
     * Added TransferInfo class and TransferType contants
+    * Changed DOWNLOAD constants to TRANSFER
 
 0.5.0
     * FILE_CHANGED event sends free_space

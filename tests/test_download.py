@@ -176,20 +176,20 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
 
 
 def test_printed_file_cb(download_mgr, printer):
-    """Download will be aborted if currently printed file is the same"""
+    """Transfer will be aborted if currently printed file is the same"""
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
     download_mgr.printed_file_cb = lambda: \
         os.path.abspath(download_mgr.current.destination)
     download_mgr.start(GCODE_URL, DST)
     run_test_loop(download_mgr, unset_stop=True)
 
-    # first event is DOWNLOAD_STOPPED because download_mgr fixture calls stop
+    # first event is TRANSFER_STOPPED because download_mgr fixture calls stop
     item = printer.queue.get_nowait()
-    assert item.event == const.Event.DOWNLOAD_STOPPED
+    assert item.event == const.Event.TRANSFER_STOPPED
     assert item.source == const.Source.CONNECT
 
     item = printer.queue.get_nowait()
-    assert item.event == const.Event.DOWNLOAD_ABORTED
+    assert item.event == const.Event.TRANSFER_ABORTED
     assert item.source == const.Source.CONNECT
 
 
@@ -201,10 +201,10 @@ def test_download_twice_in_a_row(gcode, download_mgr, printer):
     download_mgr.start(GCODE_URL, DST, to_print=True)
     run_test_loop(download_mgr, timeout=1)
 
-    with pytest.raises(queue.Empty):  # no DOWNLOAD_ABORTED events
+    with pytest.raises(queue.Empty):  # no TRANSFER_ABORTED events
         while True:
             item = printer.queue.get_nowait()
-            assert not item.event == const.Event.DOWNLOAD_ABORTED
+            assert not item.event == const.Event.TRANSFER_ABORTED
 
 
 def test_download_throttle(download_mgr, gcode):
@@ -245,5 +245,5 @@ def test_download_finished_cb(download_mgr, printer):
 
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting
     item = printer.queue.get_nowait()
-    assert item.event in (const.Event.DOWNLOAD_FINISHED,
-                          const.Event.DOWNLOAD_STOPPED)
+    assert item.event in (const.Event.TRANSFER_FINISHED,
+                          const.Event.TRANSFER_STOPPED)
