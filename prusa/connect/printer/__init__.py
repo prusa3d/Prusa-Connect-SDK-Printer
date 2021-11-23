@@ -18,7 +18,7 @@ from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry
 from .clock import ClockWatcher
-from .download import DownloadMgr, TransferInfo
+from .download import DownloadMgr, Transfer
 from .util import RetryingSession
 
 __version__ = "0.6.0.dev1"
@@ -119,7 +119,9 @@ class Printer:
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
-        self.set_handler(const.Command.START_TRANSFER, self.transfer_start)
+        self.set_handler(const.Command.START_URL_DOWNLOAD,
+                         self.start_url_download)
+                         # self.transfer_start)
         self.set_handler(const.Command.STOP_TRANSFER, self.transfer_stop)
         self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
         self.set_handler(const.Command.SET_PRINTER_PREPARED,
@@ -135,8 +137,10 @@ class Printer:
         if self.token and not self.is_initialised():
             log.warning(self.NOT_INITIALISED_MSG)
 
+        self.transfer = Transfer()
         self.download_mgr = DownloadMgr(self.fs, self.get_connection_details,
-                                        self.event_cb, self.printed_file_cb)
+                                        self.event_cb, self.printed_file_cb,
+                                        self.transfer)
 
         self.__running_loop = False
 
@@ -285,11 +289,11 @@ class Printer:
             return
         if self.job_id:
             kwargs['job_id'] = self.job_id
-        if self.download_mgr.current:
-            download = self.download_mgr.current
-            kwargs['download_progress'] = download.progress
-            kwargs['download_time_remaining'] = download.time_remaining()
-            kwargs['download_bytes'] = download.downloaded
+        if self.download_mgr.transfer.transfer_type != const.TransferType.NO_TRANSFER:
+            transfer = self.download_mgr.transfer
+            kwargs['download_progress'] = transfer.progress
+            kwargs['download_time_remaining'] = transfer.time_remaining()
+            kwargs['download_bytes'] = transfer.completed
         if self.is_initialised():
             telemetry = Telemetry(self.__state, timestamp, **kwargs)
         else:
@@ -342,25 +346,27 @@ class Printer:
         # pylint: disable=unused-argument
         return self.get_info()
 
-    def transfer_start(self, caller: Command) -> Dict[str, Any]:
+    def start_url_download(self, caller: Command) -> Dict[str, Any]:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
         if not caller.kwargs:
-            raise ValueError(f"{const.Command.START_TRANSFER} requires kwargs")
+            raise ValueError(f"{const.Command.START_URL_DOWNLOAD} requires kwargs")
 
         try:
-            self.download_mgr.start(caller.kwargs["url"],
+            self.download_mgr.start(
+                                    const.TransferType.FROM_WEB,
+                                    caller.kwargs["url"],
                                     caller.kwargs["path"],
-                                    to_select=caller.kwargs["selecting"],
-                                    to_print=caller.kwargs["printing"])
+                                    to_print=caller.kwargs["printing"],
+                                    to_select=caller.kwargs["selecting"])
         except KeyError as err:
-            raise ValueError(f"{const.Command.START_TRANSFER} requires "
+            raise ValueError(f"{const.Command.START_URL_DOWNLOAD} requires "
                              f"kwarg {err}.") from None
 
         return dict(source=const.Source.CONNECT)
 
     def transfer_stop(self, caller: Command) -> Dict[str, Any]:
-        """Stop current download, if any"""
+        """Stop current transfer, if any"""
         # pylint: disable=unused-argument
         self.download_mgr.stop()
         return dict(source=const.Source.CONNECT)
@@ -498,14 +504,12 @@ class Printer:
                               const.Source.CONNECT,
                               reason="Invalid Command-Id header")
                 return res
-
             if not self.is_initialised():
                 self.event_cb(const.Event.REJECTED,
                               const.Source.WUI,
                               command_id=command_id,
                               reason=self.NOT_INITIALISED_MSG)
                 return res
-
             content_type = res.headers.get("content-type")
             log.debug("parse_command res: %s", res.text)
             try:
