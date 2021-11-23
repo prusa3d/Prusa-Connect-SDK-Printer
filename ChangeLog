@@ -10,6 +10,7 @@ ChangeLog
     * Added LOAD/UNLOAD filament constants
     * Added TransferInfo class and TransferType contants
     * Changed DOWNLOAD constants to TRANSFER
+    * Download object replaced by Transfer object
 
 0.5.0
     * FILE_CHANGED event sends free_space
