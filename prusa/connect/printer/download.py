@@ -1,5 +1,6 @@
 """Download functionality for SDK."""
 import os
+import threading
 import time
 
 from logging import getLogger
@@ -11,10 +12,16 @@ from . import const
 
 log = getLogger("connect-printer")
 
-
 # pylint: disable=too-many-instance-attributes
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
+
+DOWNLOAD_TYPES = (const.TransferType.FROM_WEB, const.TransferType.FROM_CONNECT,
+                  const.TransferType.FROM_PRINTER,
+                  const.TransferType.FROM_SLICER,
+                  const.TransferType.FROM_CLIENT)
+
+UPLOAD_TYPES = (const.TransferType.TO_CLIENT, const.TransferType.TO_CONNECT)
 
 
 class TransferRunningError(Exception):
@@ -25,17 +32,21 @@ class TransferAbortedError(Exception):
     """Transfer was aborted"""
 
 
+class TransferStoppedError(Exception):
+    """Transfer was stopped"""
+
+
 class DownloadMgr:
     """Download manager."""
     LOOP_INTERVAL = .1
     BUFFER_SIZE = 1024
-    throttle = 0.00  # after each write sleep for this amount of seconds
     VALID_MIME_TYPES = ('application/gcode', 'text/plain',
                         'application/binary', 'application/octet-stream')
 
     def __init__(self, fs, conn_details_cb, event_cb, printed_file_cb,
                  transfer):
         # pylint: disable=invalid-name
+        # pylint: disable=too-many-arguments
         self.fs = fs
         self.conn_details_cb = conn_details_cb
         self.event_cb = event_cb
@@ -43,47 +54,40 @@ class DownloadMgr:
         self._running_loop = False
         self.headers = None
         self.transfer = transfer
-
-        self.url = None
-        self.path = None
-        self.os_path = None
-        self.to_print = False
-        self.to_select = False
+        self.download_finished_cb = lambda transfer: None
 
     def start(self, transfer_type, url, path, to_print, to_select):
-        """Start a download of `url` saving it into the `destination`.
-        This `destination` is the absolute virtual path in `self.fs`
+        """Start a download of `url` saving it into the `path`.
+        This `path` is the absolute virtual path in `self.fs`
         (:class:prusa.connect.printer.files.Filesystem)
         """
+        # pylint: disable=too-many-arguments
         # Check if no other transfer is running
-        self.transfer.in_progress()
         try:
-            self.transfer.start_transfer(transfer_type, url, path,
-                                         to_print, to_select)
+            self.transfer.start_transfer(transfer_type, url, path, to_print,
+                                         to_select)
         except TransferRunningError:
-            self.event_cb(const.Event.REJECTED, const.Source.CONNECT,
+            self.event_cb(const.Event.REJECTED,
+                          const.Source.CONNECT,
                           reason="Another transfer in progress")
-            return None
+            return
+
         log.info("Starting download: %s", url)
-        self.url = url
-        self.path = path
-        self.to_print = to_print
-        self.to_select = to_select
+        self.transfer.url = url
+        self.transfer.path = path
+        self.transfer.to_print = to_print
+        self.transfer.to_select = to_select
 
         # transform destination to OS path and validate
-        self.os_path = self.to_os_path(path)
+        self.transfer.os_path = self.to_os_path(path)
         # make dir (in case filename contains a subdir)
         dir_ = None
+        # This needs refactoring
         try:
-            dir_ = dirname(self.os_path)
+            dir_ = dirname(self.transfer.os_path)
             os.makedirs(dir_)
         except FileExistsError:
             log.debug("%s already exists", dir_)
-        server, self.headers = self.conn_details_cb()
-
-        # server is not connect server, set token to None
-        if not server or not url.lower().startswith(server.lower()):
-            self.headers = {}
 
     def to_os_path(self, path):
         """Translate virtual `destination` of self.fs to real OS path."""
@@ -107,12 +111,13 @@ class DownloadMgr:
 
     def loop(self):
         """Infinite download loop"""
+        # pylint: disable=too-many-nested-blocks
         self._running_loop = True
         while self._running_loop:
             try:
-                if self.transfer.in_progress():
+                if self.transfer.transfer_type in DOWNLOAD_TYPES:
                     self.download()
-                    abs_fn = abspath(self.os_path)
+                    abs_fn = abspath(self.transfer.os_path)
                     if self.transfer.stop_ts:  # download was stopped
                         tmp_fn = self.tmp_filename()
                         if os.path.exists(tmp_fn):
@@ -126,29 +131,31 @@ class DownloadMgr:
                             self.event_cb(const.Event.TRANSFER_ABORTED,
                                           const.Source.CONNECT,
                                           reason=msg)
-                    self.transfer.stop_transfer()
+
                     self.event_cb(const.Event.TRANSFER_FINISHED,
                                   const.Source.CONNECT,
-                                  url=self.url,
-                                  destination=self.path)
-                    self.transfer.stop_transfer()
+                                  url=self.transfer.url,
+                                  destination=self.transfer.path)
+                    self.download_finished_cb(self.transfer)
+
+            except TransferStoppedError:
+                self.event_cb(const.Event.TRANSFER_STOPPED,
+                              const.Source.CONNECT)
+
             except Exception as err:  # pylint: disable=broad-except
                 log.error(err)
                 self.event_cb(const.Event.TRANSFER_ABORTED,
                               const.Source.CONNECT,
                               reason=str(err))
-                self.transfer.stop_transfer()
+            finally:
+                # End of transfer - set NO_TRANSFER state
+                self.transfer.transfer_type = const.TransferType.NO_TRANSFER
+
             time.sleep(self.LOOP_INTERVAL)
 
     def stop_loop(self):
         """Set internal variable to stop the download loop."""
         self._running_loop = False
-
-    def stop(self):
-        """Stop current download"""
-        if self.transfer.in_progress:
-            self.transfer.stop_transfer()
-            self.event_cb(const.Event.TRANSFER_STOPPED, const.Source.CONNECT)
 
     def info(self):
         """Return important info on Download Manager"""
@@ -157,7 +164,16 @@ class DownloadMgr:
     def download(self):
         """Execute the download and store the file in `self.tmp_filename()`"""
         self.transfer.start_ts = time.time()
-        res = requests.get(self.url, stream=True, headers=self.headers)
+        server, self.headers = self.conn_details_cb()
+
+        # server is not connect server, set token to None
+        if not server or \
+                not self.transfer.url.lower().startswith(server.lower()):
+            self.headers = {}
+
+        res = requests.get(self.transfer.url,
+                           stream=True,
+                           headers=self.headers)
 
         if res.status_code != 200:
             raise TransferAbortedError("Invalid status code: %s" %
@@ -170,18 +186,17 @@ class DownloadMgr:
             self.transfer.size = int(self.transfer.size)
 
         # pylint: disable=invalid-name
-        log.debug("Save download to: %s (%s)", self.tmp_filename(), self.url)
+        log.debug("Save download to: %s (%s)", self.tmp_filename(),
+                  self.transfer.url)
         with open(self.tmp_filename(), 'wb') as f:
             self.transfer.completed = 0
             for data in res.iter_content(chunk_size=self.BUFFER_SIZE):
                 if self.transfer.stop_ts is not None:
-                    return
+                    raise TransferStoppedError("Transfer was stopped")
                 f.write(data)
-                if self.throttle:
-                    time.sleep(self.throttle)
+                if self.transfer.throttle:
+                    time.sleep(self.transfer.throttle)
                 self.transfer.completed += len(data)
-                if self.transfer.size is not None:
-                    self.transfer.progress = self.transfer.completed / self.transfer.size * 100
         if not self.transfer.completed:
             raise TransferAbortedError("Empty response")
         self.transfer.end_ts = time.time()
@@ -189,52 +204,64 @@ class DownloadMgr:
     def tmp_filename(self):
         """Generate a temporary filename for download based on
         `self.destination`"""
-        dir_ = dirname(self.os_path)
-        base = basename(self.path)
+        dir_ = dirname(self.transfer.os_path)
+        base = basename(self.transfer.path)
         return abspath(os.path.join(dir_, ".%s.part" % base))
 
 
 class Transfer:
     """File transfer representation object"""
-
     def __init__(self):
         self.transfer_type = const.TransferType.NO_TRANSFER
         self.url = None
         self.path = None
         self.size = None
         self.estimated_end = 0
-        self.progress = 0.0
         self.completed = 0
         self.to_select = False
         self.to_print = False
-        self.running_loop = False
+        self.event_cb = None
+        self.throttle = 0.00  # after each write sleep for this amount of secs.
+        self.lock = threading.Lock()
 
         self.start_ts = None
         self.end_ts = None
         self.stop_ts = None
 
+    @property
     def in_progress(self):
+        """Return True if any transfer is in progress"""
         return self.transfer_type != const.TransferType.NO_TRANSFER
 
     def start_transfer(self, transfer_type, url, path, to_print, to_select):
         """Set a new transfer type, if no transfer is in progress"""
-        if self.transfer_type != const.TransferType.NO_TRANSFER:
-            raise TransferRunningError
-        self.end_ts = None
-        self.stop_ts = None
-        self.transfer_type = transfer_type
-        self.url = url
-        self.path = path
-        self.to_print = to_print
-        self.to_select = to_select
+        # pylint: disable=too-many-arguments
+        with self.lock:
+            if self.in_progress:
+                raise TransferRunningError
+
+            self.end_ts = None
+            self.stop_ts = None
+            self.url = url
+            self.path = path
+            self.to_print = to_print
+            self.to_select = to_select
+            self.transfer_type = transfer_type
 
     def stop_transfer(self):
         """Stop transfer"""
-        self.transfer_type = const.TransferType.NO_TRANSFER
-        self.stop_ts = time.time()
+        if self.in_progress:
+            self.stop_ts = time.time()
 
     def get_speed(self):
         """Return current transfer speed"""
+
+    @property
+    def progress(self):
+        """Calculate current transfer progress"""
+        if self.size is not None:
+            return self.completed / self.size * 100
+        return 0.0
 
     def time_remaining(self):
         """Return the estimated time remaining for the transfer in seconds.
@@ -258,7 +285,7 @@ class Transfer:
     def to_dict(self):
         """Serialize a transfer instance"""
         return {
-            "transfer_type": self.transfer_type,
+            "transfer_type": self.transfer_type.value,
             "url": self.url,
             "path": self.path,
             "size": self.size,

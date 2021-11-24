@@ -45,7 +45,7 @@ def download_mgr(printer):
 
 def run_test_loop(download_mgr, timeout=.1, unset_stop=False):
     def fullstop():
-        download_mgr.stop()
+        download_mgr.transfer.stop_transfer()
         if unset_stop:
             download_mgr.transfer.stop_ts = None
         download_mgr._running_loop = False
@@ -64,39 +64,50 @@ def test_download_ok(download_mgr, gcode):
     assert download_mgr.transfer.transfer_type == \
            const.TransferType.NO_TRANSFER
     transfer = download_mgr.transfer
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=False, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=False)
     run_test_loop(download_mgr)
-
     assert transfer.progress >= 0
     assert type(transfer.progress) is float
-    assert download_mgr.os_path == \
+    assert download_mgr.transfer.os_path == \
            storage_path(download_mgr.fs, 'my_example.gcode')
     assert transfer.to_print is False
     assert transfer.to_select is False
     if transfer.start_ts is not None:
         assert transfer.start_ts <= time.time()
     assert transfer.completed >= 0
-    assert not download_mgr.throttle
+    assert not download_mgr.transfer.throttle
 
 
 def test_download_to_print(gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=True, to_select=False)
-    assert download_mgr.to_print is True
-    assert download_mgr.to_select is False
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=True,
+                       to_select=False)
+    assert download_mgr.transfer.to_print is True
+    assert download_mgr.transfer.to_select is False
 
 
 def test_download_to_select(gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=False, to_select=True)
-    assert download_mgr.to_select is True
-    assert download_mgr.to_print is False
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=True)
+    assert download_mgr.transfer.to_select is True
+    assert download_mgr.transfer.to_print is False
 
 
 def test_download_time_remaining(gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=False, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=False)
     transfer = download_mgr.transfer
     download_mgr.BUFFER_SIZE = 1
     run_test_loop(download_mgr)
@@ -106,8 +117,11 @@ def test_download_time_remaining(gcode, download_mgr):
 
 
 def test_download_stop(gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=False, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=False)
     transfer = download_mgr.transfer
     download_mgr.BUFFER_SIZE = 1
     run_test_loop(download_mgr)
@@ -118,14 +132,17 @@ def test_download_stop(gcode, download_mgr):
 
 
 def test_download_info(gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                            to_print=False, to_select=True)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=True)
     download_mgr.BUFFER_SIZE = 1
     run_test_loop(download_mgr)
 
     info = download_mgr.transfer.to_dict()
-    assert download_mgr.os_path == storage_path(download_mgr.fs,
-                                                'my_example.gcode')
+    assert download_mgr.transfer.os_path == storage_path(
+        download_mgr.fs, 'my_example.gcode')
     assert info['completed'] >= 0
     assert info['start'] <= time.time()
     assert info['progress'] >= 0
@@ -141,8 +158,11 @@ def test_download_info(gcode, download_mgr):
 def test_download_from_connect_server_has_token(printer, download_mgr):
     url = printer.server + "/path/here"
     responses.add(responses.GET, url, status=200)
-    download_mgr.start(const.TransferType.FROM_CLIENT, url, DST,
-                       to_print=False, to_select=True)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       url,
+                       DST,
+                       to_print=False,
+                       to_select=True)
     run_test_loop(download_mgr)
     assert 'Token' in download_mgr.headers
 
@@ -151,20 +171,26 @@ def test_download_from_connect_server_has_token(printer, download_mgr):
 def test_download_no_token(download_mgr):
     url = "http://somewhere.else/path"
     responses.add(responses.GET, url, status=200)
-    download_mgr.start(const.TransferType.FROM_CLIENT, url, DST,
-                       to_print=False, to_select=True)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       url,
+                       DST,
+                       to_print=False,
+                       to_select=True)
     run_test_loop(download_mgr)
     assert 'Token' not in download_mgr.headers
 
 
 def test_telemetry_sends_download_info(printer, gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                            to_print=True, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=True,
+                       to_select=False)
     download_mgr.BUFFER_SIZE = 1
 
     loop = threading.Thread(target=run_test_loop,
                             daemon=True,
-                            args=(download_mgr,),
+                            args=(download_mgr, ),
                             kwargs={'timeout': 2})
     loop.start()
 
@@ -178,9 +204,9 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
                 item = printer.queue.get_nowait()
 
             telemetry = item.to_payload()
-            assert "download_progress" in telemetry
-            assert "download_time_remaining" in telemetry
-            assert "download_bytes" in telemetry
+            assert "transfer_progress" in telemetry
+            assert "transfer_time_remaining" in telemetry
+            assert "transfer_bytes" in telemetry
 
             download_mgr._running_loop = False
             break
@@ -193,14 +219,12 @@ def test_printed_file_cb(download_mgr, printer):
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
     download_mgr.printed_file_cb = lambda: \
         os.path.abspath(download_mgr.os_path)
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=False, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=False)
     run_test_loop(download_mgr, unset_stop=True)
-
-    # first event is TRANSFER_STOPPED because download_mgr fixture calls stop
-    item = printer.queue.get_nowait()
-    assert item.event == const.Event.TRANSFER_STOPPED
-    assert item.source == const.Source.CONNECT
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.TRANSFER_ABORTED
@@ -209,12 +233,18 @@ def test_printed_file_cb(download_mgr, printer):
 
 def test_download_twice_in_a_row(gcode, download_mgr, printer):
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=True, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=True,
+                       to_select=False)
     run_test_loop(download_mgr, timeout=1)
 
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=True, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=True,
+                       to_select=False)
     run_test_loop(download_mgr, timeout=1)
 
     with pytest.raises(queue.Empty):  # no TRANSFER_ABORTED events
@@ -224,8 +254,11 @@ def test_download_twice_in_a_row(gcode, download_mgr, printer):
 
 
 def test_download_throttle(download_mgr, gcode):
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                            to_print=False, to_select=False)
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=False)
 
     download_mgr.throttle = 1
     start = time.time()
@@ -236,8 +269,11 @@ def test_download_throttle(download_mgr, gcode):
 
 def test_destination_not_abs(download_mgr):
     with pytest.raises(ValueError):
-        download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL,
-                           'output.gcode', to_print=False, to_select=False)
+        download_mgr.start(const.TransferType.FROM_CLIENT,
+                           GCODE_URL,
+                           'output.gcode',
+                           to_print=False,
+                           to_select=False)
 
 
 def test_download_mgr_os_path(download_mgr):
@@ -248,13 +284,19 @@ def test_download_mgr_os_path(download_mgr):
         download_mgr.to_os_path('/sdcard/../foo/one')
 
 
-def test_download_finished(download_mgr, printer):
+def test_download_finished_cb(download_mgr, printer):
+    res = {}
 
-    download_mgr.start(const.TransferType.FROM_CLIENT, GCODE_URL, DST,
-                       to_print=False, to_select=True)
+    def download_finished_cb(transfer):
+        res['path'] = transfer.path
+
+    download_mgr.download_finished_cb = download_finished_cb
+
+    download_mgr.start(const.TransferType.FROM_CLIENT,
+                       GCODE_URL, DST, to_print=False, to_select=True)
     run_test_loop(download_mgr, timeout=2)
 
-    assert download_mgr.path
+    assert res
 
     printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting
     item = printer.queue.get_nowait()
