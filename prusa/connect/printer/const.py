@@ -107,10 +107,10 @@ class Command(Enum):
 class TransferType(Enum):
     """File transfer types"""
     NO_TRANSFER = "NO_TRANSFER"
-    FROM_WEB = "FROM_WEB" # from URL
-    FROM_CONNECT = "FROM_CONNECT" # from URL using Connect
-    FROM_PRINTER = "FROM_PRINTER" # from URL using another printer
-    FROM_SLICER = "FROM_SLICER" # from Slicer software
-    FROM_CLIENT = "FROM_CLIENT" # from computer
-    TO_CONNECT = "TO_CONNECT" # uploading to Connect
-    TO_CLIENT = "TO_CLIENT" # downloading to computer
+    FROM_WEB = "FROM_WEB"  # from URL
+    FROM_CONNECT = "FROM_CONNECT"  # from URL using Connect
+    FROM_PRINTER = "FROM_PRINTER"  # from URL using another printer
+    FROM_SLICER = "FROM_SLICER"  # from Slicer software
+    FROM_CLIENT = "FROM_CLIENT"  # from computer
+    TO_CONNECT = "TO_CONNECT"  # uploading to Connect
+    TO_CLIENT = "TO_CLIENT"  # downloading to computer

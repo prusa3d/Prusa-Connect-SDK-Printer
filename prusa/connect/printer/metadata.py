@@ -73,6 +73,7 @@ def estimated_to_seconds(value: str):
 
 class ParsedData:
     """Container for state sharing between FDM parsing methods"""
+
     # pylint: disable=too-few-public-methods
 
     def __init__(self):
@@ -377,9 +378,9 @@ class FDMMetaData(MetaData):
         log.debug("Wanted: %s", wanted)
         log.debug("Parsed: %s", got)
 
-        log.debug("By not reading the whole file, "
-                  "we have managed to miss %s",
-                  list(missed))
+        log.debug(
+            "By not reading the whole file, "
+            "we have managed to miss %s", list(missed))
 
         # --- Was parsing successful? ---
 

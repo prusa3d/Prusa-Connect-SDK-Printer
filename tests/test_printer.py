@@ -112,7 +112,6 @@ def run_loop(fct, timeout=0.1):
 
 class TestPrinter:
     """Tests for Printer class."""
-
     def test_init(self, printer):
         assert printer
 
@@ -345,13 +344,13 @@ class TestPrinter:
         remove_m_time(file_system)
         assert file_system == {
             'type':
-                'DIR',
+            'DIR',
             'name':
-                'test',
+            'test',
             'size':
-                0,
+            0,
             'ro':
-                False,
+            False,
             'children': [{
                 'name': 'test_dir',
                 'ro': False,
@@ -435,13 +434,13 @@ class TestPrinter:
         remove_m_time(file_system)
         assert file_system == {
             'type':
-                'DIR',
+            'DIR',
             'name':
-                'test',
+            'test',
             'ro':
-                False,
+            False,
             'size':
-                1,
+            1,
             'children': [{
                 'name': 'test-file.hex',
                 'ro': False,
@@ -536,13 +535,13 @@ class TestPrinter:
         remove_m_time(file_system)
         assert file_system == {
             'type':
-                'DIR',
+            'DIR',
             'name':
-                'test',
+            'test',
             'size':
-                0,
+            0,
             'ro':
-                False,
+            False,
             'children': [{
                 'name': 'test_dir',
                 'ro': False,
@@ -854,8 +853,6 @@ class TestPrinter:
 
         # exec download
         printer.command()
-        printer.download_mgr.start(TYPE, url, path, to_print=False,
-                                   to_select=False)
         run_loop(printer.download_mgr.loop)
 
         # check the file is on the disk
@@ -864,13 +861,12 @@ class TestPrinter:
         assert os.path.exists(downloaded_file)
         os.remove(downloaded_file)
 
-    def test_download_info(self, printer, requests_mock):
+    def test_download_info(self, printer_sdcard, requests_mock):
         # prepare command and mocks
-        tmp_dir = tempfile.TemporaryDirectory()
-        printer.mount(tmp_dir.name, "sdcard")
+        printer = printer_sdcard
         url = "http://prusaprinters.org/my.gcode"
         path = '/sdcard/test-download-info.gcode'
-        cmd = '{"command":"SEND_FILE_INFO"}'
+        cmd = '{"command":"SEND_TRANSFER_INFO"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -887,11 +883,15 @@ class TestPrinter:
 
         # mock printer.download_mgr.current
         now = time.time() - 1
-        printer.download_mgr.start(TYPE, url, path,
-                                   to_print=False, to_select=True)
-        printer.download_mgr.transfer.start_ts = now
-        printer.download_mgr.transfer.size = 1000
-        printer.download_mgr.transfer.completed = 100
+        printer.download_mgr.start(TYPE,
+                                   url,
+                                   path,
+                                   to_print=False,
+                                   to_select=True)
+        transfer = printer.download_mgr.transfer
+        transfer.start_ts = now
+        transfer.size = 1000
+        transfer.completed = 100
         assert not printer.download_mgr.transfer.stop_ts
 
         # exec download info
@@ -906,7 +906,7 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
         assert info["data"]['size'] == 1000
-        assert info["data"]['downloaded'] == 100
+        assert info["data"]['completed'] == 100
         assert info["data"]['start'] == now
         assert info["data"]['time_remaining'] > 0
         assert info["data"]['to_print'] is False
@@ -930,15 +930,17 @@ class TestPrinter:
         printer.telemetry()
 
         # pretend we're downloading
-        printer.download_mgr.start(TYPE, url, path,
-                                   to_print=False, to_select=False)
+        printer.download_mgr.start(TYPE,
+                                   url,
+                                   path,
+                                   to_print=False,
+                                   to_select=False)
         assert not printer.download_mgr.transfer.stop_ts
 
         run_loop(printer.loop)
 
         # exec the command from telemetry - `cmd
         printer.command()
-
         assert printer.download_mgr.transfer.stop_ts
 
     def test_download_rejected(self, printer):
@@ -948,13 +950,17 @@ class TestPrinter:
         printer.queue.get_nowait()  # consume
 
         url = "http://prusaprinters.org/test-download-rejected.gcode"
-        printer.download_mgr.start(TYPE, url,
+        printer.download_mgr.start(TYPE,
+                                   url,
                                    '/sdcard/test-download-rejected.gcode',
-                                   to_print=False, to_select=False)
+                                   to_print=False,
+                                   to_select=False)
         # 2nd will get rejected
-        printer.download_mgr.start(TYPE, url,
+        printer.download_mgr.start(TYPE,
+                                   url,
                                    '/sdcard/test-download-rejected.gcode',
-                                   to_print=False, to_select=False)
+                                   to_print=False,
+                                   to_select=False)
 
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
@@ -966,9 +972,11 @@ class TestPrinter:
     def test_download_aborted(self, printer_sdcard):
         printer = printer_sdcard
         url = "http://example.invalid/test-download-aborted.gcode"
-        printer.download_mgr.start(TYPE, url,
+        printer.download_mgr.start(TYPE,
+                                   url,
                                    '/sdcard/test-download-aborted.gcode',
-                                   to_print=False, to_select=False)
+                                   to_print=False,
+                                   to_select=False)
 
         run_loop(printer.download_mgr.loop, timeout=.5)
 
@@ -983,9 +991,11 @@ class TestPrinter:
         url = "http://example.net/test-download-aborted.gcode"
         requests_mock.get(url, status_code=404)
         printer = printer_sdcard
-        printer.download_mgr.start(TYPE, url,
+        printer.download_mgr.start(TYPE,
+                                   url,
                                    '/sdcard/test-download-aborted.gcode',
-                                   to_print=False, to_select=False)
+                                   to_print=False,
+                                   to_select=False)
 
         run_loop(printer.download_mgr.loop)
 

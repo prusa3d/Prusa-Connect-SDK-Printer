@@ -121,7 +121,6 @@ class Printer:
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
         self.set_handler(const.Command.START_URL_DOWNLOAD,
                          self.start_url_download)
-                         # self.transfer_start)
         self.set_handler(const.Command.STOP_TRANSFER, self.transfer_stop)
         self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
         self.set_handler(const.Command.SET_PRINTER_PREPARED,
@@ -289,11 +288,10 @@ class Printer:
             return
         if self.job_id:
             kwargs['job_id'] = self.job_id
-        if self.download_mgr.transfer.transfer_type != const.TransferType.NO_TRANSFER:
-            transfer = self.download_mgr.transfer
-            kwargs['download_progress'] = transfer.progress
-            kwargs['download_time_remaining'] = transfer.time_remaining()
-            kwargs['download_bytes'] = transfer.completed
+        if self.transfer.in_progress:
+            kwargs['transfer_progress'] = self.transfer.progress
+            kwargs['transfer_time_remaining'] = self.transfer.time_remaining()
+            kwargs['transfer_bytes'] = self.transfer.completed
         if self.is_initialised():
             telemetry = Telemetry(self.__state, timestamp, **kwargs)
         else:
@@ -350,15 +348,16 @@ class Printer:
         """Download an URL specified by url, to_select and to_print flags
         in `caller`"""
         if not caller.kwargs:
-            raise ValueError(f"{const.Command.START_URL_DOWNLOAD} requires kwargs")
+            raise ValueError(
+                f"{const.Command.START_URL_DOWNLOAD} requires kwargs")
 
         try:
             self.download_mgr.start(
-                                    const.TransferType.FROM_WEB,
-                                    caller.kwargs["url"],
-                                    caller.kwargs["path"],
-                                    to_print=caller.kwargs["printing"],
-                                    to_select=caller.kwargs["selecting"])
+                const.TransferType.FROM_WEB,
+                caller.kwargs["url"],
+                caller.kwargs["path"],
+                to_print=caller.kwargs.get("printing", False),
+                to_select=caller.kwargs.get("selecting", False))
         except KeyError as err:
             raise ValueError(f"{const.Command.START_URL_DOWNLOAD} requires "
                              f"kwarg {err}.") from None
@@ -368,7 +367,7 @@ class Printer:
     def transfer_stop(self, caller: Command) -> Dict[str, Any]:
         """Stop current transfer, if any"""
         # pylint: disable=unused-argument
-        self.download_mgr.stop()
+        self.transfer.stop_transfer()
         return dict(source=const.Source.CONNECT)
 
     def transfer_info(self, caller: Command) -> Dict[str, Any]:
