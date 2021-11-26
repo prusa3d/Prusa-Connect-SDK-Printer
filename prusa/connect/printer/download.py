@@ -17,11 +17,7 @@ log = getLogger("connect-printer")
 # pylint: disable=unsubscriptable-object
 
 DOWNLOAD_TYPES = (const.TransferType.FROM_WEB, const.TransferType.FROM_CONNECT,
-                  const.TransferType.FROM_PRINTER,
-                  const.TransferType.FROM_SLICER,
-                  const.TransferType.FROM_CLIENT)
-
-UPLOAD_TYPES = (const.TransferType.TO_CLIENT, const.TransferType.TO_CONNECT)
+                  const.TransferType.FROM_PRINTER)
 
 
 class TransferRunningError(Exception):
@@ -114,8 +110,8 @@ class DownloadMgr:
         # pylint: disable=too-many-nested-blocks
         self._running_loop = True
         while self._running_loop:
-            try:
-                if self.transfer.transfer_type in DOWNLOAD_TYPES:
+            if self.transfer.transfer_type in DOWNLOAD_TYPES:
+                try:
                     self.download()
                     abs_fn = abspath(self.transfer.os_path)
                     if self.transfer.stop_ts:  # download was stopped
@@ -138,18 +134,19 @@ class DownloadMgr:
                                   destination=self.transfer.path)
                     self.download_finished_cb(self.transfer)
 
-            except TransferStoppedError:
-                self.event_cb(const.Event.TRANSFER_STOPPED,
-                              const.Source.CONNECT)
+                except TransferStoppedError:
+                    self.event_cb(const.Event.TRANSFER_STOPPED,
+                                  const.Source.CONNECT)
 
-            except Exception as err:  # pylint: disable=broad-except
-                log.error(err)
-                self.event_cb(const.Event.TRANSFER_ABORTED,
-                              const.Source.CONNECT,
-                              reason=str(err))
-            finally:
-                # End of transfer - set NO_TRANSFER state
-                self.transfer.transfer_type = const.TransferType.NO_TRANSFER
+                except Exception as err:  # pylint: disable=broad-except
+                    log.error(err)
+                    self.event_cb(const.Event.TRANSFER_ABORTED,
+                                  const.Source.CONNECT,
+                                  reason=str(err))
+                finally:
+                    # End of transfer - set NO_TRANSFER state
+                    self.transfer.transfer_type = \
+                            const.TransferType.NO_TRANSFER
 
             time.sleep(self.LOOP_INTERVAL)
 
