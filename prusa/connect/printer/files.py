@@ -74,7 +74,7 @@ class File:
         self.name = name
         self.is_dir = is_dir
         if parent is not None:
-            self._parent: typing.Optional[File] = weakref.proxy(parent)
+            self._parent: typing.Optional["File"] = weakref.proxy(parent)
         else:
             self._parent = None
         self.attrs = attrs
