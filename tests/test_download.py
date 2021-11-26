@@ -293,7 +293,10 @@ def test_download_finished_cb(download_mgr, printer):
     download_mgr.download_finished_cb = download_finished_cb
 
     download_mgr.start(const.TransferType.FROM_CLIENT,
-                       GCODE_URL, DST, to_print=False, to_select=True)
+                       GCODE_URL,
+                       DST,
+                       to_print=False,
+                       to_select=True)
     run_test_loop(download_mgr, timeout=2)
 
     assert res
