@@ -5,6 +5,7 @@ import time
 
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
+from typing import Optional
 
 import requests
 
@@ -52,7 +53,7 @@ class DownloadMgr:
         self.transfer = transfer
         self.download_finished_cb = lambda transfer: None
 
-    def start(self, type, url, path, to_print, to_select):
+    def start(self, type, path, url="", to_print=None, to_select=None):
         """Start a download of `url` saving it into the `path`.
         This `path` is the absolute virtual path in `self.fs`
         (:class:prusa.connect.printer.files.Filesystem)
@@ -60,8 +61,8 @@ class DownloadMgr:
         # pylint: disable=too-many-arguments
         # Check if no other transfer is running
         try:
-            self.transfer.start(type, url, path, to_print,
-                                         to_select)
+            self.transfer.start(type, path, url, to_print,
+                                to_select)
         except TransferRunningError:
             self.event_cb(const.Event.REJECTED,
                           const.Source.CONNECT,
@@ -146,6 +147,7 @@ class DownloadMgr:
                 finally:
                     # End of transfer - reset transfer data
                     # TODO - reset in beginning or in the end of transfer?
+                    # TODO - reset in the end breaks tests
                     self.transfer.type = const.TransferType.NO_TRANSFER
                     # self.transfer.reset()
 
@@ -207,6 +209,11 @@ class DownloadMgr:
 
 class Transfer:
     """File transfer representation object"""
+
+    url: Optional[str] = None
+    to_print: Optional[bool] = None
+    to_select: Optional[bool] = None
+
     def __init__(self):
         self.type = const.TransferType.NO_TRANSFER
         self.url = None
@@ -214,8 +221,8 @@ class Transfer:
         self.size = None
         self.estimated_end = 0
         self.completed = 0
-        self.to_select = False
         self.to_print = False
+        self.to_select = False
         self.event_cb = None
         self.throttle = 0.00  # after each write sleep for this amount of secs.
         self.lock = threading.Lock()
@@ -228,7 +235,7 @@ class Transfer:
         """Return True if any transfer is in progress"""
         return self.type != const.TransferType.NO_TRANSFER
 
-    def start(self, type, url, path, to_print, to_select):
+    def start(self, type, path, url, to_print, to_select):
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
         with self.lock:
@@ -237,8 +244,8 @@ class Transfer:
             self.reset()
 
             self.type = type
-            self.url = url
             self.path = path
+            self.url = url
             self.to_print = to_print
             self.to_select = to_select
 
@@ -287,8 +294,8 @@ class Transfer:
         """Serialize a transfer instance"""
         return {
             "type": self.type.value,
-            "url": self.url,
             "path": self.path,
+            "url": self.url,
             "size": self.size,
             "start": self.start_ts,
             "estimated_end": self.estimated_end,

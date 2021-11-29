@@ -83,6 +83,10 @@ def test_download_ok(download_mgr, gcode):
     assert not download_mgr.transfer.throttle
 
 
+def test_optional_download(gcode, download_mgr):
+    download_mgr.start(TYPE, DST)
+
+
 def test_download_to_print(gcode, download_mgr):
     download_mgr.start(TYPE,
                        GCODE_URL,
