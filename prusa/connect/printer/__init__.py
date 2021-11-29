@@ -354,8 +354,8 @@ class Printer:
         try:
             self.download_mgr.start(
                 const.TransferType.FROM_WEB,
-                caller.kwargs["url"],
                 caller.kwargs["path"],
+                caller.kwargs["url"],
                 to_print=caller.kwargs.get("printing", False),
                 to_select=caller.kwargs.get("selecting", False))
         except KeyError as err:

@@ -28,7 +28,7 @@ TOKEN = "a44b552a12d96d3155cb"
 CONNECT_HOST = "server"
 CONNECT_PORT = 8000
 SERVER = f"http://{CONNECT_HOST}:{CONNECT_PORT}"
-TYPE = const.TransferType.FROM_CLIENT
+TYPE = const.TransferType.FROM_WEB
 
 
 @pytest.fixture(scope="session")
@@ -827,8 +827,8 @@ class TestPrinter:
         url = "http://prusaprinters.org/my.gcode"
         path = "/sdcard/my.gcode"
         kwargs = {
-            "url": url,
             "path": path,
+            "url": url,
             "selecting": True,
             "printing": False
         }
@@ -864,8 +864,8 @@ class TestPrinter:
     def test_download_info(self, printer_sdcard, requests_mock):
         # prepare command and mocks
         printer = printer_sdcard
-        url = "http://prusaprinters.org/my.gcode"
         path = '/sdcard/test-download-info.gcode'
+        url = "http://prusaprinters.org/my.gcode"
         cmd = '{"command":"SEND_TRANSFER_INFO"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
@@ -884,8 +884,8 @@ class TestPrinter:
         # mock printer.download_mgr.current
         now = time.time() - 1
         printer.download_mgr.start(TYPE,
-                                   url,
                                    path,
+                                   url,
                                    to_print=False,
                                    to_select=True)
         transfer = printer.download_mgr.transfer
@@ -915,8 +915,8 @@ class TestPrinter:
     def test_download_stop(self, printer_sdcard, requests_mock):
         # post telemetry - obtain command
         printer = printer_sdcard
-        url = "http://prusaprinters.org/my.gcode"
         path = '/sdcard/test-download-stop.gcode'
+        url = "http://prusaprinters.org/my.gcode"
         cmd = '{"command":"STOP_TRANSFER"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
@@ -931,8 +931,8 @@ class TestPrinter:
 
         # pretend we're downloading
         printer.download_mgr.start(TYPE,
-                                   url,
                                    path,
+                                   url,
                                    to_print=False,
                                    to_select=False)
         assert not printer.download_mgr.transfer.stop_ts
@@ -951,8 +951,8 @@ class TestPrinter:
 
         url = "http://prusaprinters.org/test-download-rejected.gcode"
         printer.download_mgr.start(TYPE,
-                                   url,
                                    '/sdcard/test-download-rejected.gcode',
+                                   url,
                                    to_print=False,
                                    to_select=False)
         # 2nd will get rejected
@@ -973,8 +973,8 @@ class TestPrinter:
         printer = printer_sdcard
         url = "http://example.invalid/test-download-aborted.gcode"
         printer.download_mgr.start(TYPE,
-                                   url,
                                    '/sdcard/test-download-aborted.gcode',
+                                   url,
                                    to_print=False,
                                    to_select=False)
 
@@ -992,8 +992,8 @@ class TestPrinter:
         requests_mock.get(url, status_code=404)
         printer = printer_sdcard
         printer.download_mgr.start(TYPE,
-                                   url,
                                    '/sdcard/test-download-aborted.gcode',
+                                   url,
                                    to_print=False,
                                    to_select=False)
 
