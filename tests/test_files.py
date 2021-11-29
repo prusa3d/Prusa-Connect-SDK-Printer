@@ -117,7 +117,6 @@ def inotify(queue, nodes):
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
     assert event.data['root'] == '/test'
-    print(event.data['files'])
     assert len(event.data['files']) == 7
     handler = InotifyHandler(fs)
 

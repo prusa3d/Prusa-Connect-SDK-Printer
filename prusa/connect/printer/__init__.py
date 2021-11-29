@@ -367,7 +367,7 @@ class Printer:
     def transfer_stop(self, caller: Command) -> Dict[str, Any]:
         """Stop current transfer, if any"""
         # pylint: disable=unused-argument
-        self.transfer.stop_transfer()
+        self.transfer.stop()
         return dict(source=const.Source.CONNECT)
 
     def transfer_info(self, caller: Command) -> Dict[str, Any]:

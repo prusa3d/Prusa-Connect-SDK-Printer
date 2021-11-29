@@ -52,7 +52,7 @@ class DownloadMgr:
         self.transfer = transfer
         self.download_finished_cb = lambda transfer: None
 
-    def start(self, transfer_type, url, path, to_print, to_select):
+    def start(self, type, url, path, to_print, to_select):
         """Start a download of `url` saving it into the `path`.
         This `path` is the absolute virtual path in `self.fs`
         (:class:prusa.connect.printer.files.Filesystem)
@@ -60,7 +60,7 @@ class DownloadMgr:
         # pylint: disable=too-many-arguments
         # Check if no other transfer is running
         try:
-            self.transfer.start_transfer(transfer_type, url, path, to_print,
+            self.transfer.start(type, url, path, to_print,
                                          to_select)
         except TransferRunningError:
             self.event_cb(const.Event.REJECTED,
@@ -69,10 +69,10 @@ class DownloadMgr:
             return
 
         log.info("Starting download: %s", url)
-        self.transfer.url = url
-        self.transfer.path = path
-        self.transfer.to_print = to_print
-        self.transfer.to_select = to_select
+        # self.transfer.url = url
+        # self.transfer.path = path
+        # self.transfer.to_print = to_print
+        # self.transfer.to_select = to_select
 
         # transform destination to OS path and validate
         self.transfer.os_path = self.to_os_path(path)
@@ -110,7 +110,7 @@ class DownloadMgr:
         # pylint: disable=too-many-nested-blocks
         self._running_loop = True
         while self._running_loop:
-            if self.transfer.transfer_type in DOWNLOAD_TYPES:
+            if self.transfer.type in DOWNLOAD_TYPES:
                 try:
                     self.download()
                     abs_fn = abspath(self.transfer.os_path)
@@ -144,9 +144,10 @@ class DownloadMgr:
                                   const.Source.CONNECT,
                                   reason=str(err))
                 finally:
-                    # End of transfer - set NO_TRANSFER state
-                    self.transfer.transfer_type = \
-                            const.TransferType.NO_TRANSFER
+                    # End of transfer - reset transfer data
+                    # TODO - reset in beginning or in the end of transfer?
+                    self.transfer.type = const.TransferType.NO_TRANSFER
+                    # self.transfer.reset()
 
             time.sleep(self.LOOP_INTERVAL)
 
@@ -156,7 +157,7 @@ class DownloadMgr:
 
     def info(self):
         """Return important info on Download Manager"""
-        return self.transfer and self.transfer.to_dict()
+        return self.transfer.to_dict()
 
     def download(self):
         """Execute the download and store the file in `self.tmp_filename()`"""
@@ -186,9 +187,8 @@ class DownloadMgr:
         log.debug("Save download to: %s (%s)", self.tmp_filename(),
                   self.transfer.url)
         with open(self.tmp_filename(), 'wb') as f:
-            self.transfer.completed = 0
             for data in res.iter_content(chunk_size=self.BUFFER_SIZE):
-                if self.transfer.stop_ts is not None:
+                if self.transfer.stop_ts > 0:
                     raise TransferStoppedError("Transfer was stopped")
                 f.write(data)
                 if self.transfer.throttle:
@@ -196,7 +196,6 @@ class DownloadMgr:
                 self.transfer.completed += len(data)
         if not self.transfer.completed:
             raise TransferAbortedError("Empty response")
-        self.transfer.end_ts = time.time()
 
     def tmp_filename(self):
         """Generate a temporary filename for download based on
@@ -209,7 +208,7 @@ class DownloadMgr:
 class Transfer:
     """File transfer representation object"""
     def __init__(self):
-        self.transfer_type = const.TransferType.NO_TRANSFER
+        self.type = const.TransferType.NO_TRANSFER
         self.url = None
         self.path = None
         self.size = None
@@ -221,34 +220,39 @@ class Transfer:
         self.throttle = 0.00  # after each write sleep for this amount of secs.
         self.lock = threading.Lock()
 
-        self.start_ts = None
-        self.end_ts = None
-        self.stop_ts = None
+        self.start_ts = 0
+        self.stop_ts = 0
 
     @property
     def in_progress(self):
         """Return True if any transfer is in progress"""
-        return self.transfer_type != const.TransferType.NO_TRANSFER
+        return self.type != const.TransferType.NO_TRANSFER
 
-    def start_transfer(self, transfer_type, url, path, to_print, to_select):
+    def start(self, type, url, path, to_print, to_select):
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
         with self.lock:
             if self.in_progress:
                 raise TransferRunningError
+            self.reset()
 
-            self.end_ts = None
-            self.stop_ts = None
+            self.type = type
             self.url = url
             self.path = path
             self.to_print = to_print
             self.to_select = to_select
-            self.transfer_type = transfer_type
 
-    def stop_transfer(self):
+    def stop(self):
         """Stop transfer"""
-        if self.in_progress:
-            self.stop_ts = time.time()
+        self.stop_ts = time.time()
+
+    def reset(self):
+        """Reset transfer data"""
+        self.type = const.TransferType.NO_TRANSFER
+        self.size = None
+        self.completed = 0
+        self.start_ts = 0
+        self.stop_ts = 0
 
     def get_speed(self):
         """Return current transfer speed"""
@@ -265,24 +269,24 @@ class Transfer:
         Returns None if not computation is not possible.
         """
         # finished or aborted
-        if self.end_ts is not None or self.stop_ts is not None:
+        if self.stop_ts > 0:
             return 0
 
         # no content-length specified
         if self.size is None:
-            return None
+            return -1
 
         if self.start_ts is not None:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.completed == 0:
                 return -1  # stands for Infinity
             return int(self.size / self.completed * elapsed - elapsed)
-        return None
+        return -1
 
     def to_dict(self):
         """Serialize a transfer instance"""
         return {
-            "transfer_type": self.transfer_type.value,
+            "type": self.type.value,
             "url": self.url,
             "path": self.path,
             "size": self.size,
