@@ -11,6 +11,7 @@ ChangeLog
     * Added TransferInfo class and TransferType contants
     * Changed DOWNLOAD constants to TRANSFER
     * Download object replaced by Transfer object
+    * Refactor of Transfer object, added reset method
 
 0.5.0
     * FILE_CHANGED event sends free_space

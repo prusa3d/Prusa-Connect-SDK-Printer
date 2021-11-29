@@ -53,7 +53,7 @@ class DownloadMgr:
         self.transfer = transfer
         self.download_finished_cb = lambda transfer: None
 
-    def start(self, type, path, url="", to_print=None, to_select=None):
+    def start(self, type_, path, url=None, to_print=None, to_select=None):
         """Start a download of `url` saving it into the `path`.
         This `path` is the absolute virtual path in `self.fs`
         (:class:prusa.connect.printer.files.Filesystem)
@@ -61,7 +61,7 @@ class DownloadMgr:
         # pylint: disable=too-many-arguments
         # Check if no other transfer is running
         try:
-            self.transfer.start(type, path, url, to_print,
+            self.transfer.start(type_, path, url, to_print,
                                 to_select)
         except TransferRunningError:
             self.event_cb(const.Event.REJECTED,
@@ -70,10 +70,6 @@ class DownloadMgr:
             return
 
         log.info("Starting download: %s", url)
-        # self.transfer.url = url
-        # self.transfer.path = path
-        # self.transfer.to_print = to_print
-        # self.transfer.to_select = to_select
 
         # transform destination to OS path and validate
         self.transfer.os_path = self.to_os_path(path)
@@ -146,10 +142,7 @@ class DownloadMgr:
                                   reason=str(err))
                 finally:
                     # End of transfer - reset transfer data
-                    # TODO - reset in beginning or in the end of transfer?
-                    # TODO - reset in the end breaks tests
                     self.transfer.type = const.TransferType.NO_TRANSFER
-                    # self.transfer.reset()
 
             time.sleep(self.LOOP_INTERVAL)
 
@@ -216,13 +209,9 @@ class Transfer:
 
     def __init__(self):
         self.type = const.TransferType.NO_TRANSFER
-        self.url = None
         self.path = None
         self.size = None
-        self.estimated_end = 0
         self.completed = 0
-        self.to_print = False
-        self.to_select = False
         self.event_cb = None
         self.throttle = 0.00  # after each write sleep for this amount of secs.
         self.lock = threading.Lock()
@@ -235,7 +224,7 @@ class Transfer:
         """Return True if any transfer is in progress"""
         return self.type != const.TransferType.NO_TRANSFER
 
-    def start(self, type, path, url, to_print, to_select):
+    def start(self, type_, path, url, to_print, to_select):
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
         with self.lock:
@@ -243,7 +232,7 @@ class Transfer:
                 raise TransferRunningError
             self.reset()
 
-            self.type = type
+            self.type = type_
             self.path = path
             self.url = url
             self.to_print = to_print
@@ -255,7 +244,6 @@ class Transfer:
 
     def reset(self):
         """Reset transfer data"""
-        self.type = const.TransferType.NO_TRANSFER
         self.size = None
         self.completed = 0
         self.start_ts = 0
@@ -281,14 +269,14 @@ class Transfer:
 
         # no content-length specified
         if self.size is None:
-            return -1
+            return float('inf')
 
-        if self.start_ts is not None:
+        if self.start_ts > 0:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.completed == 0:
-                return -1  # stands for Infinity
-            return int(self.size / self.completed * elapsed - elapsed)
-        return -1
+                return float('inf')  # stands for Infinity
+            return round(self.size / self.completed * elapsed - elapsed, 0)
+        return float('inf')
 
     def to_dict(self):
         """Serialize a transfer instance"""
@@ -298,7 +286,6 @@ class Transfer:
             "url": self.url,
             "size": self.size,
             "start": self.start_ts,
-            "estimated_end": self.estimated_end,
             "progress": float("%.2f" % self.progress),
             "completed": self.completed,
             "time_remaining": self.time_remaining(),
