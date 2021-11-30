@@ -163,7 +163,7 @@ def test_download_info(gcode, download_mgr):
 def test_download_from_connect_server_has_token(printer, download_mgr):
     url = printer.server + "/path/here"
     responses.add(responses.GET, url, status=200)
-    download_mgr.start(const.TransferType.FROM_WEB,
+    download_mgr.start(const.TransferType.FROM_CONNECT,
                        DST,
                        url,
                        to_print=False,

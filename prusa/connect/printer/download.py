@@ -224,7 +224,7 @@ class Transfer:
         """Return True if any transfer is in progress"""
         return self.type != const.TransferType.NO_TRANSFER
 
-    def start(self, type_, path, url, to_print, to_select):
+    def start(self, type_, path, url=None, to_print=None, to_select=None):
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
         with self.lock:
@@ -269,14 +269,14 @@ class Transfer:
 
         # no content-length specified
         if self.size is None:
-            return float('inf')
+            return None
 
         if self.start_ts > 0:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.completed == 0:
-                return float('inf')  # stands for Infinity
+                return None  # stands for Infinity
             return round(self.size / self.completed * elapsed - elapsed, 0)
-        return float('inf')
+        return None
 
     def to_dict(self):
         """Serialize a transfer instance"""
