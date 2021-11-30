@@ -121,6 +121,8 @@ class Printer:
         self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
         self.set_handler(const.Command.START_URL_DOWNLOAD,
                          self.start_url_download)
+        self.set_handler(const.Command.START_CONNECT_DOWNLOAD,
+                         self.start_connect_download)
         self.set_handler(const.Command.STOP_TRANSFER, self.transfer_stop)
         self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
         self.set_handler(const.Command.SET_PRINTER_PREPARED,
@@ -360,6 +362,26 @@ class Printer:
                 to_select=caller.kwargs.get("selecting", False))
         except KeyError as err:
             raise ValueError(f"{const.Command.START_URL_DOWNLOAD} requires "
+                             f"kwarg {err}.") from None
+
+        return dict(source=const.Source.CONNECT)
+
+    def start_connect_download(self, caller: Command) -> Dict[str, Any]:
+        """Download a gcode from Connect, compose URL using Connect config"""
+        if not caller.kwargs:
+            raise ValueError(
+                f"{const.Command.START_CONNECT_DOWNLOAD} requires kwargs")
+
+        try:
+            self.download_mgr.start(
+                const.TransferType.FROM_CONNECT,
+                caller.kwargs["path"],
+                self.server + caller.kwargs["source"],
+                to_print=caller.kwargs.get("printing", False),
+                to_select=caller.kwargs.get("selecting", False))
+
+        except KeyError as err:
+            raise ValueError(f"{const.Command.START_CONNECT_DOWNLOAD} requires "
                              f"kwarg {err}.") from None
 
         return dict(source=const.Source.CONNECT)
