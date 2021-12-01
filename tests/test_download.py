@@ -129,7 +129,6 @@ def test_download_info(gcode, download_mgr):
                        to_print=False,
                        to_select=True)
     download_mgr.BUFFER_SIZE = 1
-    run_test_loop(download_mgr)
 
     info = download_mgr.transfer.to_dict()
     assert download_mgr.transfer.os_path == storage_path(
@@ -137,12 +136,19 @@ def test_download_info(gcode, download_mgr):
     assert info['completed'] >= 0
     assert info['start'] <= time.time()
     assert info['progress'] >= 0
-    assert type(info['progress']) is float
+    assert info['progress'] == 0.0
     assert info['to_print'] is False
     assert info['to_select'] is True
-    assert info['time_remaining'] >= 0
-    assert info['size'] is not None
+    assert info['time_remaining'] is None
+    assert info['size'] is None
     assert info['url'] == GCODE_URL
+
+    run_test_loop(download_mgr)
+
+    info = download_mgr.transfer.to_dict()
+    assert download_mgr.transfer.os_path == storage_path(
+        download_mgr.fs, 'my_example.gcode')
+    assert info['type'] == 'NO_TRANSFER'
 
 
 @responses.activate

@@ -278,16 +278,18 @@ class Transfer:
         return None
 
     def to_dict(self):
-        """Serialize a transfer instance"""
-        return {
-            "type": self.type.value,
-            "path": self.path,
-            "url": self.url,
-            "size": self.size,
-            "start": self.start_ts,
-            "progress": float("%.2f" % self.progress),
-            "completed": self.completed,
-            "time_remaining": self.time_remaining(),
-            "to_select": self.to_select,
-            "to_print": self.to_print,
-        }
+        """Serialize a transfer instance."""
+        if self.in_progress:
+            return {
+                "type": self.type.value,
+                "path": self.path,
+                "url": self.url,
+                "size": self.size,
+                "start": self.start_ts,
+                "progress": float("%.2f" % self.progress),
+                "completed": self.completed,
+                "time_remaining": self.time_remaining(),
+                "to_select": self.to_select,
+                "to_print": self.to_print,
+            }
+        return {"type": self.type.value}
