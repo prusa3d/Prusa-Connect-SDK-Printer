@@ -40,8 +40,8 @@ class DownloadMgr:
     VALID_MIME_TYPES = ('application/gcode', 'text/plain',
                         'application/binary', 'application/octet-stream')
 
-    def __init__(self, fs, conn_details_cb, event_cb, printed_file_cb,
-                 transfer):
+    def __init__(self, fs, transfer, conn_details_cb, event_cb,
+                 printed_file_cb, download_finished_cb):
         # pylint: disable=invalid-name
         # pylint: disable=too-many-arguments
         self.fs = fs
@@ -51,7 +51,7 @@ class DownloadMgr:
         self._running_loop = False
         self.headers = None
         self.transfer = transfer
-        self.download_finished_cb = lambda transfer: None
+        self.download_finished_cb = download_finished_cb
 
     def start(self, type_, path, url=None, to_print=None, to_select=None):
         """Start a download of `url` saving it into the `path`.
@@ -61,8 +61,7 @@ class DownloadMgr:
         # pylint: disable=too-many-arguments
         # Check if no other transfer is running
         try:
-            self.transfer.start(type_, path, url, to_print,
-                                to_select)
+            self.transfer.start(type_, path, url, to_print, to_select)
         except TransferRunningError:
             self.event_cb(const.Event.REJECTED,
                           const.Source.CONNECT,

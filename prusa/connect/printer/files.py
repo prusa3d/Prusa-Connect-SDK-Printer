@@ -4,7 +4,7 @@ import os
 import typing
 import weakref
 from logging import getLogger
-from time import time
+from time import time, sleep
 from os import path, access, W_OK, stat, walk
 from collections import Counter
 
@@ -468,6 +468,16 @@ class Filesystem:
         """Send an event to connect if `self.events` is set"""
         if self.event_cb:
             self.event_cb(event, const.Source.WUI, **data)
+
+    def wait_until_path(self, path_, wait_timeout=-1):
+        """Wait max time to file is append to path by inotify."""
+        i = 0
+        while wait_timeout < 0 or i < wait_timeout:
+            if self.get(path_):
+                return True
+            sleep(0.1)
+            i += 0.1
+        return False
 
 
 class InotifyHandler:

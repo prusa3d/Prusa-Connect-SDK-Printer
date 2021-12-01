@@ -139,9 +139,10 @@ class Printer:
             log.warning(self.NOT_INITIALISED_MSG)
 
         self.transfer = Transfer()
-        self.download_mgr = DownloadMgr(self.fs, self.get_connection_details,
+        self.download_mgr = DownloadMgr(self.fs, self.transfer,
+                                        self.get_connection_details,
                                         self.event_cb, self.printed_file_cb,
-                                        self.transfer)
+                                        self.download_finished_cb)
 
         self.__running_loop = False
 
@@ -290,7 +291,7 @@ class Printer:
             return
         if self.job_id:
             kwargs['job_id'] = self.job_id
-        if self.transfer.in_progress:
+        if self.transfer.in_progress and self.transfer.start_ts:
             kwargs['transfer_progress'] = self.transfer.progress
             kwargs['transfer_time_remaining'] = self.transfer.time_remaining()
             kwargs['transfer_bytes'] = self.transfer.completed
@@ -381,8 +382,9 @@ class Printer:
                 to_select=caller.kwargs.get("selecting", False))
 
         except KeyError as err:
-            raise ValueError(f"{const.Command.START_CONNECT_DOWNLOAD} requires "
-                             f"kwarg {err}.") from None
+            raise ValueError(
+                f"{const.Command.START_CONNECT_DOWNLOAD} requires "
+                f"kwarg {err}.") from None
 
         return dict(source=const.Source.CONNECT)
 
@@ -701,3 +703,6 @@ class Printer:
         This method shall be implemented by the clients that use SDK.
         """
         return None
+
+    def download_finished_cb(self, transfer):
+        """This callback is called when download is finished successfully."""
