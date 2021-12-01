@@ -109,20 +109,6 @@ def test_download_to_select(gcode, download_mgr):
     assert download_mgr.transfer.to_print is False
 
 
-def test_download_time_remaining(gcode, download_mgr):
-    download_mgr.start(const.TransferType.FROM_WEB,
-                       DST,
-                       GCODE_URL,
-                       to_print=False,
-                       to_select=False)
-    transfer = download_mgr.transfer
-    download_mgr.BUFFER_SIZE = 1
-    run_test_loop(download_mgr)
-    transfer.stop_ts = 0  # let's pretend we did not stop
-
-    assert transfer.time_remaining() > 0 or transfer.time_remaining() == -1
-
-
 def test_download_stop(gcode, download_mgr):
     download_mgr.start(const.TransferType.FROM_WEB,
                        DST,

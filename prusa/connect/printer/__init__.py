@@ -132,6 +132,8 @@ class Printer:
         self.inotify_handler = InotifyHandler(self.fs)
         # Handler blocks communication with Connect in loop method!
         self.register_handler = default_register_handler
+        self.printed_file_cb = lambda: None
+        self.download_finished_cb = lambda Transfer: None
 
         self.clock_watcher = ClockWatcher()
 
@@ -696,13 +698,3 @@ class Printer:
         """
         self.fs.unmount(mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
-
-    # pylint: disable=no-self-use
-    def printed_file_cb(self):
-        """Return the absolute path of the currently printed file
-        This method shall be implemented by the clients that use SDK.
-        """
-        return None
-
-    def download_finished_cb(self, transfer):
-        """This callback is called when download is finished successfully."""
