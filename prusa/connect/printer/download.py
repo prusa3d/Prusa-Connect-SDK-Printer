@@ -280,15 +280,18 @@ class Transfer:
     def to_dict(self):
         """Serialize a transfer instance."""
         if self.in_progress:
+            time_remaining = self.time_remaining()
+            if isinstance(time_remaining, float):
+                time_remaining = int(time_remaining)
             return {
                 "type": self.type.value,
                 "path": self.path,
                 "url": self.url,
                 "size": self.size,
-                "start": self.start_ts,
+                "start": int(self.start_ts),
                 "progress": float("%.2f" % self.progress),
                 "transferred": self.transferred,
-                "time_remaining": self.time_remaining(),
+                "time_remaining": time_remaining,
                 "to_select": self.to_select,
                 "to_print": self.to_print,
             }
