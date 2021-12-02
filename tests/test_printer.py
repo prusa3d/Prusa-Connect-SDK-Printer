@@ -907,7 +907,7 @@ class TestPrinter:
         assert info["command_id"] == 42
         assert info["data"]['size'] == 1000
         assert info["data"]['transferred'] == 100
-        assert info["data"]['start'] == now
+        assert info["data"]['start'] == int(now)
         assert info["data"]['time_remaining'] > 0
         assert info["data"]['to_print'] is False
         assert info["data"]['to_select'] is True
