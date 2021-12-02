@@ -187,8 +187,8 @@ class DownloadMgr:
                 f.write(data)
                 if self.transfer.throttle:
                     time.sleep(self.transfer.throttle)
-                self.transfer.completed += len(data)
-        if not self.transfer.completed:
+                self.transfer.transferred += len(data)
+        if not self.transfer.transferred:
             raise TransferAbortedError("Empty response")
 
     def tmp_filename(self):
@@ -210,7 +210,7 @@ class Transfer:
         self.type = const.TransferType.NO_TRANSFER
         self.path = None
         self.size = None
-        self.completed = 0
+        self.transferred = 0
         self.event_cb = None
         self.throttle = 0.00  # after each write sleep for this amount of secs.
         self.lock = threading.Lock()
@@ -244,7 +244,7 @@ class Transfer:
     def reset(self):
         """Reset transfer data"""
         self.size = None
-        self.completed = 0
+        self.transferred = 0
         self.start_ts = 0
         self.stop_ts = 0
 
@@ -255,7 +255,7 @@ class Transfer:
     def progress(self):
         """Calculate current transfer progress"""
         if self.size is not None:
-            return self.completed / self.size * 100
+            return self.transferred / self.size * 100
         return 0.0
 
     def time_remaining(self):
@@ -272,9 +272,9 @@ class Transfer:
 
         if self.start_ts > 0:
             elapsed = time.time() - self.start_ts
-            if elapsed == 0 or self.completed == 0:
+            if elapsed == 0 or self.transferred == 0:
                 return None  # stands for Infinity
-            return round(self.size / self.completed * elapsed - elapsed, 0)
+            return round(self.size / self.transferred * elapsed - elapsed, 0)
         return None
 
     def to_dict(self):
@@ -287,7 +287,7 @@ class Transfer:
                 "size": self.size,
                 "start": self.start_ts,
                 "progress": float("%.2f" % self.progress),
-                "completed": self.completed,
+                "transferred": self.transferred,
                 "time_remaining": self.time_remaining(),
                 "to_select": self.to_select,
                 "to_print": self.to_print,

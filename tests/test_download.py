@@ -78,7 +78,7 @@ def test_download_ok(download_mgr, gcode):
     assert transfer.to_select is False
     if transfer.start_ts is not None:
         assert transfer.start_ts <= time.time()
-    assert transfer.completed >= 0
+    assert transfer.transferred >= 0
     assert not download_mgr.transfer.throttle
 
 
@@ -133,7 +133,7 @@ def test_download_info(gcode, download_mgr):
     info = download_mgr.transfer.to_dict()
     assert download_mgr.transfer.os_path == storage_path(
         download_mgr.fs, 'my_example.gcode')
-    assert info['completed'] >= 0
+    assert info['transferred'] >= 0
     assert info['start'] <= time.time()
     assert info['progress'] >= 0
     assert info['progress'] == 0.0
@@ -203,7 +203,7 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
             telemetry = item.to_payload()
             assert "transfer_progress" in telemetry
             assert "transfer_time_remaining" in telemetry
-            assert "transfer_bytes" in telemetry
+            assert "transfer_transferred" in telemetry
 
             download_mgr._running_loop = False
             break
