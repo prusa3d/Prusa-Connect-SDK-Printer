@@ -296,7 +296,7 @@ class Printer:
         if self.transfer.in_progress and self.transfer.start_ts:
             kwargs['transfer_progress'] = self.transfer.progress
             kwargs['transfer_time_remaining'] = self.transfer.time_remaining()
-            kwargs['transfer_bytes'] = self.transfer.completed
+            kwargs['transfer_transferred'] = self.transfer.transferred
         if self.is_initialised():
             telemetry = Telemetry(self.__state, timestamp, **kwargs)
         else:

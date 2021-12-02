@@ -891,7 +891,7 @@ class TestPrinter:
         transfer = printer.download_mgr.transfer
         transfer.start_ts = now
         transfer.size = 1000
-        transfer.completed = 100
+        transfer.transferred = 100
         assert not printer.download_mgr.transfer.stop_ts
 
         # exec download info
@@ -906,7 +906,7 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
         assert info["data"]['size'] == 1000
-        assert info["data"]['completed'] == 100
+        assert info["data"]['transferred'] == 100
         assert info["data"]['start'] == now
         assert info["data"]['time_remaining'] > 0
         assert info["data"]['to_print'] is False
