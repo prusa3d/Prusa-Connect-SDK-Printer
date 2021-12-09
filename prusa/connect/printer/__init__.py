@@ -102,7 +102,7 @@ class Printer:
         }
         self.api_key = None
 
-        self.__checked = False
+        self.__prepared = False
         self.__state = const.State.BUSY
         self.job_id = None
 
@@ -165,14 +165,14 @@ class Printer:
         return f"{protocol}://{host}"
 
     @property
-    def checked(self):
-        """Return checked flag.
+    def prepared(self):
+        """Return prepared flag.
 
-        Checked flag can be set with set_state method. It is additional
+        Prepared flag can be set with set_state method. It is additional
         flag for READY state, which has info about user confirmation
         *ready to print*.
         """
-        return self.__checked
+        return self.__prepared
 
     @property
     def state(self):
@@ -244,23 +244,23 @@ class Printer:
     def set_state(self,
                   state: const.State,
                   source: const.Source,
-                  checked: bool = None,
+                  prepared: bool = None,
                   **kwargs):
         """Set printer state and push event about that to queue.
 
         :source: the initiator of printer state
-        :checked: If state is PRINTING, checked argument is ignored,
+        :prepared: If state is PRINTING, prepared argument is ignored,
             and flag is set to False.
         """
         if state == const.State.PRINTING:
-            self.__checked = False
-        elif checked is not None:
-            self.__checked = checked
+            self.__prepared = False
+        elif prepared is not None:
+            self.__prepared = prepared
         self.__state = state
         self.event_cb(const.Event.STATE_CHANGED,
                       source,
                       state=state,
-                      checked=self.__checked,
+                      prepared=self.__prepared,
                       **kwargs)
 
     def event_cb(self,
@@ -332,7 +332,7 @@ class Printer:
         return dict(source=const.Source.CONNECT,
                     event=const.Event.INFO,
                     state=self.__state,
-                    checked=self.__checked,
+                    prepared=self.__prepared,
                     type=type_,
                     version=ver,
                     subversion=sub,
@@ -409,7 +409,7 @@ class Printer:
         # pylint: disable=unused-argument
         self.set_state(const.State.PREPARED,
                        const.Source.CONNECT,
-                       checked=True)
+                       prepared=True)
         return {'source': const.Source.CONNECT}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
