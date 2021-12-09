@@ -175,28 +175,28 @@ class TestPrinter:
         assert event_obj['event'] == 'STATE_CHANGED'
         assert event_obj['state'] == 'ATTENTION'
         assert event_obj['source'] == 'WUI'
-        assert event_obj['data']['checked'] is False
+        assert event_obj['data']['prepared'] is False
 
-        printer.set_state(const.State.READY, const.Source.HW, checked=True)
+        printer.set_state(const.State.READY, const.Source.HW, prepared=True)
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
         event_obj = item.to_payload()
         assert event_obj['state'] == 'READY'
-        assert event_obj['data']['checked'] is True
+        assert event_obj['data']['prepared'] is True
 
         printer.set_state(const.State.PRINTING, const.Source.SERIAL)
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
         event_obj = item.to_payload()
         assert event_obj['state'] == 'PRINTING'
-        assert event_obj['data']['checked'] is False
+        assert event_obj['data']['prepared'] is False
 
         printer.set_state(const.State.FINISHED, const.Source.FIRMWARE)
         item = printer.queue.get_nowait()
         assert isinstance(item, Event)
         event_obj = item.to_payload()
         assert event_obj['state'] == 'FINISHED'
-        assert event_obj['data']['checked'] is False
+        assert event_obj['data']['prepared'] is False
 
     def test_loop(self, requests_mock, printer):
         requests_mock.post(SERVER + "/p/events", status_code=204)

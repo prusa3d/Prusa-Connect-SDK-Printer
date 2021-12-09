@@ -1,6 +1,9 @@
 ChangeLog
 =========
 
+0.7.0
+    * Flag checked replaced by prepared
+
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
     * remove m_time from file structure
