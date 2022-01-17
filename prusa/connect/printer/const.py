@@ -115,3 +115,10 @@ class TransferType(Enum):
     FROM_CLIENT = "FROM_CLIENT"  # from computer
     TO_CONNECT = "TO_CONNECT"  # uploading to Connect
     TO_CLIENT = "TO_CLIENT"  # downloading to computer
+
+
+class RegistrationStatus(Enum):
+    """Status of registration to Connect"""
+    FINISHED = "FINISHED"  # Finished registration
+    IN_PROGRESS = "IN_PROGRESS"  # Unfinished registration, code exists
+    NO_REGISTRATION = "NO_REGISTRATION"  # No registration, code doesn't exist
