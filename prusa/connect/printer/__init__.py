@@ -101,6 +101,7 @@ class Printer:
             "digest": None
         }
         self.api_key = None
+        self.code = None
 
         self.__prepared = False
         self.__state = const.State.BUSY
@@ -588,6 +589,7 @@ class Printer:
                              timeout=const.CONNECTION_TIMEOUT)
         if res.status_code == 200:
             code = res.headers['Temporary-Code']
+            self.code = code
             self.queue.put(Register(code))
             errors.API.ok = True
             return code
@@ -653,6 +655,7 @@ class Printer:
                         errors.TOKEN.ok = True
                         log.info("New token was set.")
                         self.register_handler(self.token)
+                        self.code = None
                     elif res.status_code == 202 and item.timeout > time():
                         self.queue.put(item)
                         sleep(1)
