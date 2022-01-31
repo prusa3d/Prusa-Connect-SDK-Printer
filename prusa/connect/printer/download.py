@@ -33,6 +33,27 @@ class TransferStoppedError(Exception):
     """Transfer was stopped"""
 
 
+class FilenameTooLongError(Exception):
+    """File has exceeded filename length"""
+
+
+class ForbiddenCharactersError(Exception):
+    """File contains forbidden characters"""
+
+
+def forbidden_characters(filename):
+    """Check if filename contains any of the forbidden characters e.g. '\'
+    """
+    return any(character in filename for character in
+               const.FORBIDDEN_CHARACTERS)
+
+
+def filename_too_long(filename):
+    """Check if filename lenght, including .gcode suffix, is > 248 characters
+    """
+    return len(filename.encode('utf-8')) > const.FILENAME_LENGTH
+
+
 class DownloadMgr:
     """Download manager."""
     LOOP_INTERVAL = .1
@@ -226,6 +247,16 @@ class Transfer:
     def start(self, type_, path, url=None, to_print=None, to_select=None):
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
+        filename = basename(path)
+
+        if forbidden_characters(filename):
+            raise ForbiddenCharactersError(
+                "File name contains forbidden characters")
+
+        if filename_too_long(filename):
+            raise FilenameTooLongError(
+                "File name length is too long")
+
         with self.lock:
             if self.in_progress:
                 raise TransferRunningError
