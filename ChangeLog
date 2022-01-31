@@ -18,6 +18,7 @@ ChangeLog
     * Implementation of START_URL_DOWNLOAD and START_CONNECT_DOWNLOAD commands
     * Added RegistrationStatus constants
     * Added code attribute to Printer
+    * Added filename length and forbidden characters check
 
 0.5.0 (2021-07-14)
     * FILE_CHANGED event sends free_space
