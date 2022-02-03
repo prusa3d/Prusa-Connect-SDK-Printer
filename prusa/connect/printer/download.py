@@ -33,25 +33,34 @@ class TransferStoppedError(Exception):
     """Transfer was stopped"""
 
 
+class ForbiddenCharactersError(Exception):
+    """Path contains forbidden characters"""
+
+
 class FilenameTooLongError(Exception):
     """File has exceeded filename length"""
 
 
-class ForbiddenCharactersError(Exception):
-    """File contains forbidden characters"""
+class DirnameTooLong(Exception):
+    """Directory has exceeded dirname length"""
 
 
-def forbidden_characters(filename):
-    """Check if filename contains any of the forbidden characters e.g. '\'
+def forbidden_characters(path):
+    """Check if path contains any of the forbidden characters e.g. '\'
     """
-    return any(character in filename for character in
-               const.FORBIDDEN_CHARACTERS)
+    return any(character in path for character in const.FORBIDDEN_CHARACTERS)
 
 
 def filename_too_long(filename):
     """Check if filename lenght, including .gcode suffix, is > 248 characters
     """
     return len(filename.encode('utf-8')) > const.FILENAME_LENGTH
+
+
+def dirname_too_long(path):
+    """Check if lenght of any dirname in path is > 255 characters"""
+    path_ = path.split(os.sep)
+    return any(len(element) > 255 for element in path_)
 
 
 class DownloadMgr:
@@ -256,6 +265,10 @@ class Transfer:
         if filename_too_long(filename):
             raise FilenameTooLongError(
                 "File name length is too long")
+
+        if dirname_too_long(path):
+            raise DirnameTooLong(
+                "Directory name length is too long")
 
         with self.lock:
             if self.in_progress:
