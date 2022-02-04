@@ -38,11 +38,11 @@ class ForbiddenCharactersError(Exception):
 
 
 class FilenameTooLongError(Exception):
-    """File has exceeded filename length"""
+    """Filename is too long"""
 
 
-class DirnameTooLong(Exception):
-    """Directory has exceeded dirname length"""
+class FoldernameTooLongError(Exception):
+    """Foldername is too long"""
 
 
 def forbidden_characters(path):
@@ -57,10 +57,10 @@ def filename_too_long(filename):
     return len(filename.encode('utf-8')) > const.FILENAME_LENGTH
 
 
-def dirname_too_long(path):
-    """Check if lenght of any dirname in path is > 255 characters"""
+def foldername_too_long(path):
+    """Check if any foldername length in path is > 255 characters"""
     path_ = path.split(os.sep)
-    return any(len(element) > 255 for element in path_)
+    return any(len(folder) > const.MAX_NAME_LENGTH for folder in path_)
 
 
 class DownloadMgr:
@@ -266,9 +266,9 @@ class Transfer:
             raise FilenameTooLongError(
                 "File name length is too long")
 
-        if dirname_too_long(path):
-            raise DirnameTooLong(
-                "Directory name length is too long")
+        if foldername_too_long(path):
+            raise FoldernameTooLongError(
+                "Folder name length is too long")
 
         with self.lock:
             if self.in_progress:
