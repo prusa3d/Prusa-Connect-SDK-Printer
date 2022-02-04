@@ -9,6 +9,9 @@ SL_EXTENSIONS = (".sl1", )
 # Maximum lenght of filename, including .gcode suffix
 FILENAME_LENGTH = 248
 
+# Maximum length of element name in path
+MAX_NAME_LENGTH = 255
+
 # Characters, forbidden in file name or path
 FORBIDDEN_CHARACTERS = ('\\', '?', '"', '%', '¯', '°', '#', 'ˇ')
 
