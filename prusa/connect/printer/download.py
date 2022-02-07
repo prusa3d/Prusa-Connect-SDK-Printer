@@ -34,15 +34,24 @@ class TransferStoppedError(Exception):
 
 
 class ForbiddenCharactersError(Exception):
-    """Path contains forbidden characters"""
+    """Forbidden characters in filename or foldername"""
+    message = "Forbidden characters in filename or foldername"
+    def __init__(self, msg=None):
+        super().__init__(msg or self.message)
 
 
 class FilenameTooLongError(Exception):
-    """Filename is too long"""
+    """Filename length is too long"""
+    message = "Filename length is too long"
+    def __init__(self, msg=None):
+        super().__init__(msg or self.message)
 
 
 class FoldernameTooLongError(Exception):
-    """Foldername is too long"""
+    """Foldername length is too long"""
+    message = "Foldername length is too long"
+    def __init__(self, msg=None):
+        super().__init__(msg or self.message)
 
 
 def forbidden_characters(path):
@@ -259,16 +268,13 @@ class Transfer:
         filename = basename(path)
 
         if forbidden_characters(filename):
-            raise ForbiddenCharactersError(
-                "File name contains forbidden characters")
+            raise ForbiddenCharactersError()
 
         if filename_too_long(filename):
-            raise FilenameTooLongError(
-                "File name length is too long")
+            raise FilenameTooLongError()
 
         if foldername_too_long(path):
-            raise FoldernameTooLongError(
-                "Folder name length is too long")
+            raise FoldernameTooLongError()
 
         with self.lock:
             if self.in_progress:
