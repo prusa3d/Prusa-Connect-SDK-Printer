@@ -20,6 +20,7 @@ ChangeLog
     * Added code attribute to Printer
     * Added filename length and forbidden characters check
     * Added foldername length check
+    * Filename and foldername exceptions rework
 
 0.5.0 (2021-07-14)
     * FILE_CHANGED event sends free_space
