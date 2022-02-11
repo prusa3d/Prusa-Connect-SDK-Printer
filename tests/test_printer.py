@@ -601,7 +601,7 @@ class TestPrinter:
     def test_register(self, requests_mock):
         mock_tmp_code = "f4c8996fb9"
         requests_mock.post(SERVER + "/p/register",
-                           headers={"Temporary-Code": mock_tmp_code},
+                           headers={"Code": mock_tmp_code},
                            status_code=200)
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
         printer.server = SERVER

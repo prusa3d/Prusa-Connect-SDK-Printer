@@ -21,6 +21,7 @@ ChangeLog
     * Added filename length and forbidden characters check
     * Added foldername length check
     * Filename and foldername exceptions rework
+    * Temporary-Code header changed to Code, added printer_type attribute
 
 0.5.0 (2021-07-14)
     * FILE_CHANGED event sends free_space
