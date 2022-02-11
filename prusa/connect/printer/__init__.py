@@ -575,12 +575,11 @@ class Printer:
         if not self.server:
             raise RuntimeError("Server is not set")
 
+        # type-version-subversion is deprecated and replaced by printer_type
         data = {
             "sn": self.sn,
             "fingerprint": self.fingerprint,
-            "type": self.__type.value[0],
-            "version": self.__type.value[1],
-            "subversion": self.__type.value[2],
+            "printer_type": self.__type.__str__(),
             "firmware": self.firmware
         }
         res = self.conn.post(self.server + "/p/register",
@@ -588,7 +587,7 @@ class Printer:
                              json=data,
                              timeout=const.CONNECTION_TIMEOUT)
         if res.status_code == 200:
-            code = res.headers['Temporary-Code']
+            code = res.headers["Code"]
             self.code = code
             self.queue.put(Register(code))
             errors.API.ok = True
@@ -607,7 +606,7 @@ class Printer:
             raise RuntimeError("Server is not set")
 
         headers = self.make_headers()
-        headers["Temporary-Code"] = tmp_code
+        headers["Code"] = tmp_code
         return self.conn.get(self.server + "/p/register",
                              headers=headers,
                              timeout=const.CONNECTION_TIMEOUT)
