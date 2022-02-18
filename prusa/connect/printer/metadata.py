@@ -136,7 +136,7 @@ class MetaData:
                 with open(self.cache_name, "w", encoding='utf-8') as file:
                     json.dump(dict_data, file, indent=2)
         except PermissionError:
-            log.warning("You don't have permission for save file here")
+            log.warning("You don't have permission to save file here")
 
     def load_cache(self):
         """Load metadata values from <file_name>.cache file"""
@@ -198,7 +198,7 @@ class MetaData:
 class FDMMetaData(MetaData):
     """Class for extracting Metadata for FDM gcodes"""
 
-    # Meta data we are looking for and respective conversion functions
+    # Metadata we are looking for and respective conversion functions
     Attrs = {
         "filament used [mm]": float,
         "filament used [cm3]": float,
@@ -256,7 +256,7 @@ class FDMMetaData(MetaData):
             buffer = file_descriptor.read(min(remaining_size, buf_size))
             remaining_size -= buf_size
             lines = buffer.split('\n')
-            # The first line of the buffer is probably not a complete line so
+            # The first line of the buffer is probably not a complete line, so
             # we'll save it and append it to the last line of the next buffer
             # we read
             if segment is not None:
@@ -307,8 +307,8 @@ class FDMMetaData(MetaData):
 
     def load_from_file(self, path):
         """Load metadata from file
-        Tries to use the quick_parse function, if it keeps failing,
-        tries the old technique of parsing
+        Tries to use the quick_parse function. Ff it keeps failing,
+        tries the old technique of parsing.
 
         :path: Path to the file to load the metadata from
         """
@@ -359,7 +359,7 @@ class FDMMetaData(MetaData):
                 break
             comment_lines += 1
 
-            # Images cannot be parsed on reverse
+            # Images cannot be parsed on reverse,
             # so lets reverse them beforehand
             if self.THUMBNAIL_END_PAT.match(line):
                 parsing_image = True
@@ -488,7 +488,7 @@ class SLMetaData(MetaData):
 
 
 def get_metadata(path: str, save_cache=True):
-    """Return the Metadata for given `path`
+    """Returns the Metadata for given `path`
 
     :param path: Gcode file
     :param save_cache: Boolean if cache should be saved

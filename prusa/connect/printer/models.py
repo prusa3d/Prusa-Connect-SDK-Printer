@@ -99,7 +99,7 @@ class Event:
 
 
 class Telemetry:
-    """Telemetry object must contain Printer state, at a minimum."""
+    """Telemetry object must contain at least Printer state"""
     timestamp: float
 
     def __init__(self, state: const.State, timestamp: float = None, **kwargs):
@@ -113,7 +113,7 @@ class Telemetry:
         self.__data['state'] = state.value
 
     def to_payload(self):
-        """Return telemetry payload data"""
+        """Returns telemetry payload data"""
         return filter_null(self.__data)
 
     def __repr__(self):

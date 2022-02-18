@@ -10,7 +10,7 @@ class ClockWatcher:
     system time to HW clock.
 
     It assumes that the system clock has been adjusted if
-    ``start_time - hw_clock_time`` is different from current values outside of
+    ``start_time - hw_clock_time`` is different from current values outside the
     `ClockWatcher.TOLERANCE`.
     """
 

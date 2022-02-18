@@ -67,7 +67,7 @@ def default_register_handler(token):
 class Printer:
     """Printer representation object.
 
-    To process inotify_handler, please create your own thread
+    To process inotify_handler, please create your own thread,
     calling printer.inotify_handler() in a loop.
     """
     # pylint: disable=too-many-public-methods
@@ -167,7 +167,7 @@ class Printer:
 
     @property
     def prepared(self):
-        """Return prepared flag.
+        """Returns prepared flag.
 
         Prepared flag can be set with set_state method. It is additional
         flag for READY state, which has info about user confirmation
@@ -177,12 +177,12 @@ class Printer:
 
     @property
     def state(self):
-        """Return printer state."""
+        """Returns printer state."""
         return self.__state
 
     @property
     def fingerprint(self):
-        """Return printer fingerprint."""
+        """Returns printer fingerprint."""
         return self.__fingerprint
 
     @fingerprint.setter
@@ -194,7 +194,7 @@ class Printer:
 
     @property
     def sn(self):
-        """Return printer serial number"""
+        """Returns printer serial number"""
         return self.__sn
 
     @sn.setter
@@ -206,7 +206,7 @@ class Printer:
 
     @property
     def type(self):
-        """Return printer type"""
+        """Returns printer type"""
         return self.__type
 
     @type.setter
@@ -217,7 +217,7 @@ class Printer:
         self.__type = value
 
     def is_initialised(self):
-        """Return True if the printer is initialised"""
+        """Returns True if the printer is initialised"""
         initialised = bool(self.__sn and self.__fingerprint
                            and self.__type is not None)
         if not initialised:
@@ -225,7 +225,7 @@ class Printer:
         return initialised
 
     def make_headers(self, timestamp: float = None) -> dict:
-        """Return request headers from connection variables."""
+        """Returns request headers from connection variables."""
         timestamp = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
 
         headers = {
@@ -320,11 +320,12 @@ class Printer:
         errors.TOKEN.ok = True
 
     def get_connection_details(self):
-        """Return currently set server and headers"""
+        """Returns currently set server and headers"""
         return (self.server, self.make_headers())
 
     def get_info(self) -> Dict[str, Any]:
-        """Return kwargs for Command.finish method as reaction to SEND_INFO."""
+        """Returns kwargs for Command.finish method as reaction
+         to SEND_INFO."""
         # pylint: disable=unused-argument
         if self.__type is not None:
             type_, ver, sub = self.__type.value
@@ -371,7 +372,8 @@ class Printer:
         return dict(source=const.Source.CONNECT)
 
     def start_connect_download(self, caller: Command) -> Dict[str, Any]:
-        """Download a gcode from Connect, compose URL using Connect config"""
+        """Download a gcode from Connect, compose an URL using
+        Connect config"""
         if not caller.kwargs:
             raise ValueError(
                 f"{const.Command.START_CONNECT_DOWNLOAD} requires kwargs")
@@ -398,7 +400,7 @@ class Printer:
         return dict(source=const.Source.CONNECT)
 
     def transfer_info(self, caller: Command) -> Dict[str, Any]:
-        """Provide info on the running transfer"""
+        """Provide info of the running transfer"""
         # pylint: disable=unused-argument
         info = self.download_mgr.info()
         info['source'] = const.Source.CONNECT
@@ -414,7 +416,7 @@ class Printer:
         return {'source': const.Source.CONNECT}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
-        """Return file info for a given file, if it exists."""
+        """Returns file info for a given file, if it exists."""
         # pylint: disable=unused-argument
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError("SEND_FILE_INFO requires kwargs")
@@ -453,7 +455,7 @@ class Printer:
         return info
 
     def delete_file(self, caller: Command) -> Dict[str, Any]:
-        """Handler for delete file."""
+        """Handler for delete a file."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command} requires kwargs")
 
@@ -464,7 +466,7 @@ class Printer:
         return dict(source=const.Source.CONNECT)
 
     def delete_directory(self, caller: Command) -> Dict[str, Any]:
-        """Handler for delete directory."""
+        """Handler for delete a directory."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command} requires kwargs")
 
@@ -475,7 +477,7 @@ class Printer:
         return dict(source=const.Source.CONNECT)
 
     def create_directory(self, caller: Command) -> Dict[str, Any]:
-        """Handler for create directory."""
+        """Handler for create a directory."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command} requires kwargs")
 
@@ -488,7 +490,7 @@ class Printer:
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[Command], Dict[str, Any]]):
-        """Set handler for command.
+        """Set handler for the command.
 
         Handler must return **kwargs dictionary for Command.finish method,
         which means that source must be set at least.
@@ -496,7 +498,7 @@ class Printer:
         self.command.handlers[command] = handler
 
     def handler(self, command: const.Command):
-        """Wrap function to handle command.
+        """Wrap function to handle the command.
 
         Handler must return **kwargs dictionary for Command.finish method,
         which means that source must be set at least.
@@ -517,7 +519,7 @@ class Printer:
         """Parse telemetry response.
 
         When response from connect is command (HTTP Status: 200 OK), it
-        will set command object, if the printer is initialized properly.
+        will set a command object, if the printer is initialized properly.
         """
         if res.status_code == 200:
             command_id: Optional[int] = None
