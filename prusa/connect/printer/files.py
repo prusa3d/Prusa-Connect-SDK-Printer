@@ -267,7 +267,8 @@ class Mount:
         return None
 
     def to_dict(self):
-        """Add attribute free_space to tree, if available"""
+        """Returns tree in a format for Connect. Add attribute free_space
+        to tree, if available"""
         tree = self.tree.to_dict()
         free_space = self.get_free_space()
         if free_space:
@@ -311,7 +312,7 @@ class Filesystem:
               tree: File,
               storage_path: str = "",
               use_inotify=True):
-        """Mount the a tree under a mountpoint.
+        """Mount the tree under a mountpoint.
 
         :param name: The mountpoint
         :param tree: The tree of `File` instances to be mounted
@@ -345,7 +346,7 @@ class Filesystem:
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
     def unmount(self, name: str):
-        """unmount a mountpoint.
+        """Unmount a mountpoint.
 
         :param name: The mountpoint
         :raises InvalidMountpointError: if `name` is not mounted
@@ -386,7 +387,7 @@ class Filesystem:
     def update(abs_paths: list, abs_mount: str, node: File = None):
         """Update mount.tree structure.
 
-        Add nearest part of real file system to tree.
+        Add the nearest part of real file system to tree.
 
         Example:
         Filesystem.update(['/tmp/tmpvbqhald4/directory/a'],
@@ -415,7 +416,7 @@ class Filesystem:
         return file.abs_path(mount.path_storage)
 
     def to_dict(self):
-        """Return all the tree in the representation Connect requires
+        """Returns all the tree in the representation Connect requires
 
         :return: dictionary representation of the Filesystem.
         """
@@ -470,7 +471,8 @@ class Filesystem:
             self.event_cb(event, const.Source.WUI, **data)
 
     def wait_until_path(self, path_, wait_timeout=-1):
-        """Wait max time to file is append to path by inotify."""
+        """Wait for the max time until a file is appended to the path
+        by inotify."""
         i = 0
         while wait_timeout < 0 or i < wait_timeout:
             if self.get(path_):
@@ -482,7 +484,7 @@ class Filesystem:
 
 class InotifyHandler:
     """This handler is initialised with a Filesystem instance and
-    using it it makes sure that all its mounts' `tree`s are updated on changes
+    using it makes sure that all its mounts' `tree`s are updated on changes
     on the physical storage"""
 
     WATCH_FLAGS = flags.CREATE | flags.DELETE | flags.MODIFY | \
@@ -500,7 +502,7 @@ class InotifyHandler:
                 self.__init_wd(mount.path_storage)
 
     def create_cache(self, new_path):
-        """When file is created, cache file is created"""
+        """When a file is created, the cache file is created"""
         path_ = os.path.join(self.get_abs_os_path(new_path))
         if os.path.exists(path_):
             try:
@@ -510,14 +512,14 @@ class InotifyHandler:
                 pass
 
     def delete_cache(self, old_path):
-        """When file is deleted, cache file is deleted"""
+        """When a file is deleted, the cache file is deleted"""
         path_ = os.path.split(self.get_abs_os_path(old_path))
         cache_path = path_[0] + "/." + path_[1] + ".cache"
         if os.path.exists(cache_path):
             os.unlink(cache_path)
 
     def update_watch_dir(self, abs_paths: list):
-        """Check if path is watched and if not, it is added.
+        """Check if the path is watched and if not, it's added.
 
         :param abs_paths: list of absolute paths
         """
@@ -530,7 +532,7 @@ class InotifyHandler:
 
     @staticmethod
     def get_relative_paths(relative_point: str, abs_paths: list) -> list:
-        """Return paths relative to relative_point.
+        """Returns paths relative to the relative_point.
 
         >>> InotifyHandler.get_relative_paths('/tmp/r', ['/tmp/r/directory'])
         ['directory']
@@ -551,7 +553,7 @@ class InotifyHandler:
     def __init_wd(self, abs_mount: str, node: File = None):
         """Update all dirs from root to bottom.
 
-        add all dirs to inotify to watcher.
+        Add all dirs to inotify to watcher.
 
         :param abs_mount: absolute path to mount
         :param node: instance of File

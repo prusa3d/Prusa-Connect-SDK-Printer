@@ -6,7 +6,7 @@ CONNECTION_TIMEOUT = 30  # 30s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
 SL_EXTENSIONS = (".sl1", )
 
-# Maximum lenght of filename, including .gcode suffix
+# Maximum length of filename, including .gcode suffix
 FILENAME_LENGTH = 248
 
 # Maximum length of element name in path
@@ -86,7 +86,7 @@ class Source(Enum):
 
 
 class Command(Enum):
-    """Commands which could be send by Connect."""
+    """Commands which could be sent by Connect."""
     SEND_INFO = "SEND_INFO"
     GCODE = "GCODE"
 

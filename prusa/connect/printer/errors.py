@@ -45,7 +45,7 @@ class ErrorState:
     # pylint: disable=invalid-name
     @property
     def ok(self):
-        """Return True if current state is OK, False if not, None if unknown
+        """Returns True if current state is OK, False if not, None if unknown
 
         When setting, new `value` is propagated back (if it is True) or forward
         (if False). For performance's sake this happens only if the current
@@ -69,7 +69,7 @@ class ErrorState:
 
     @property
     def prev(self):
-        """Return previous state in the state chain. The setter will also
+        """Returns previous state in the state chain. The setter will also
         set `prev.next` to `self`."""
         return self._prev
 

@@ -36,6 +36,7 @@ class TransferStoppedError(Exception):
 class ForbiddenCharactersError(Exception):
     """Forbidden characters in filename or foldername"""
     message = "Forbidden characters in filename or foldername"
+
     def __init__(self, msg=None):
         super().__init__(msg or self.message)
 
@@ -43,6 +44,7 @@ class ForbiddenCharactersError(Exception):
 class FilenameTooLongError(Exception):
     """Filename length is too long"""
     message = "Filename length is too long"
+
     def __init__(self, msg=None):
         super().__init__(msg or self.message)
 
@@ -50,6 +52,7 @@ class FilenameTooLongError(Exception):
 class FoldernameTooLongError(Exception):
     """Foldername length is too long"""
     message = "Foldername length is too long"
+
     def __init__(self, msg=None):
         super().__init__(msg or self.message)
 
@@ -189,7 +192,7 @@ class DownloadMgr:
         self._running_loop = False
 
     def info(self):
-        """Return important info on Download Manager"""
+        """Returns important info of Download Manager"""
         return self.transfer.to_dict()
 
     def download(self):
@@ -210,15 +213,18 @@ class DownloadMgr:
             raise TransferAbortedError("Invalid status code: %s" %
                                        res.status_code)
         mime_type = res.headers.get('Content-Type')
+
         if mime_type and mime_type.lower() not in self.VALID_MIME_TYPES:
             raise TransferAbortedError("Invalid content type: %s" % mime_type)
         self.transfer.size = res.headers.get('Content-Length')
+
         if self.transfer.size is not None:
             self.transfer.size = int(self.transfer.size)
 
         # pylint: disable=invalid-name
         log.debug("Save download to: %s (%s)", self.tmp_filename(),
                   self.transfer.url)
+
         with open(self.tmp_filename(), 'wb') as f:
             for data in res.iter_content(chunk_size=self.BUFFER_SIZE):
                 if self.transfer.stop_ts > 0:
@@ -227,6 +233,7 @@ class DownloadMgr:
                 if self.transfer.throttle:
                     time.sleep(self.transfer.throttle)
                 self.transfer.transferred += len(data)
+
         if not self.transfer.transferred:
             raise TransferAbortedError("Empty response")
 
@@ -288,7 +295,7 @@ class Transfer:
             self.to_select = to_select
 
     def stop(self):
-        """Stop transfer"""
+        """Stop transfer - set the stop timestamp"""
         self.stop_ts = time.time()
 
     def reset(self):

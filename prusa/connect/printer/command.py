@@ -28,7 +28,7 @@ class Command:
         self.event_cb = event_cb
         self.state = None
         self.last_state = const.Event.REJECTED
-        self.command_id = 0  # 0 mean that there was no command before
+        self.command_id = 0  # 0 means that there was no command before
         self.command = None
         self.force = False
         self.args = []
