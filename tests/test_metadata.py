@@ -100,37 +100,36 @@ class TestFDNMetaData:
     def test_full(self):
         """Both the file and filename contain metadata. There are thumbnails.
         """
-        fn = os.path.join(gcodes_dir, "fdn_full_0.25mm_PETG_MINI_2h9m.gcode")
+        fn = os.path.join(gcodes_dir, "fdn_full_0.15mm_PETG_MK3S_2h6m.gcode")
         meta = get_metadata(fn, False)
         assert meta.data == {
             'bed_temperature': 90,
             'brim_width': 0,
-            'estimated printing time (normal mode)': '2h 9m 24s',
-            'filament cost': 0.6,
-            'filament used [cm3]': 16.8,
-            'filament used [g]': 21.4,
-            'filament used [mm]': 7003.4,
+            'estimated printing time (normal mode)': '2h 6m 5s',
+            'filament cost': 0.41,
+            'filament used [cm3]': 10.65,
+            'filament used [g]': 13.52,
+            'filament used [mm]': 4427.38,
             'filament_type': 'PETG',
-            'fill_density': '0%',
+            'fill_density': '20%',
             'nozzle_diameter': 0.4,
-            'printer_model': 'MINI',
-            'layer_height': 0.25,
+            'printer_model': 'MK3S',
+            'layer_height': 0.15,
             'support_material': 0,
-            'temperature': 240,
+            'temperature': 250,
             'ironing': 0
         }
-        assert len(meta.thumbnails['16x16']) == 608
-        assert len(meta.thumbnails['220x124']) == 11680
+        assert len(meta.thumbnails['640x480']) == 158644
 
     def test_only_path(self):
         """Only the filename contains metadata. There are no thumbnails."""
         fn = os.path.join(gcodes_dir,
-                          "fdn_only_filename_0.25mm_PETG_MINI_2h9m.gcode")
+                          "fdn_only_filename_0.25mm_PETG_MK3S_2h9m.gcode")
         meta = get_metadata(fn, False)
         assert meta.data == {
             'estimated printing time (normal mode)': '2h9m',
             'filament_type': 'PETG',
-            'printer_model': 'MINI',
+            'printer_model': 'MK3S',
             'layer_height': 0.25,
         }
         assert not meta.thumbnails

@@ -40,10 +40,10 @@ def lan_settings_ini():
 [printer]
 name = SDK UnitTest
 location = space
-type = MINI
+type = MK3S
 
 [network]
-hostname = MINI
+hostname = MK3S
 
 [service::local]
 enable = 1
