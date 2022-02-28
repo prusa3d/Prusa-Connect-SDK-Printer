@@ -1,6 +1,6 @@
 """Connect printer data models."""
 from time import time
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Callable, Optional, TypedDict
 from mypy_extensions import Arg, DefaultArg, KwArg
 
 from . import const
@@ -118,3 +118,9 @@ class Telemetry:
 
     def __repr__(self):
         return f"<Telemetry:: at {id(self)}> {self.__data}"
+
+
+class Sheet(TypedDict):
+    """A model for type hinting the sheet settings list"""
+    name: str
+    z_offset: float
