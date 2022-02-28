@@ -32,7 +32,7 @@ from . import const, errors
 from .command import Command
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
-from .models import Event, Telemetry
+from .models import Event, Telemetry, Sheet
 from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession
@@ -116,12 +116,15 @@ class Printer:
             "username": None,
             "digest": None
         }
-        self.api_key = None
-        self.code = None
+        self.api_key: Optional[str] = None
+        self.code: Optional[str] = None
 
-        self.__ready = False
-        self.__state = const.State.BUSY
-        self.job_id = None
+        self.__ready: bool = False
+        self.__state: const.State = const.State.BUSY
+        self.job_id: Optional[int] = None
+        self.mbl: Optional[List[float]] = None
+        self.sheet_settings: Optional[List[Sheet]] = None
+        self.active_sheet: Optional[int] = None  # index
 
         if max_retries > 1:
             self.conn = RetryingSession(max_retries=max_retries)
@@ -362,7 +365,10 @@ class Printer:
                     api_key=self.api_key,
                     files=self.fs.to_dict(),
                     sn=self.sn,
-                    fingerprint=self.fingerprint)
+                    fingerprint=self.fingerprint,
+                    mbl=self.mbl,
+                    sheet_settings=self.sheet_settings,
+                    active_sheet=self.active_sheet)
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
