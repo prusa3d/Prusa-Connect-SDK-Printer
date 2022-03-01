@@ -3,6 +3,7 @@ ChangeLog
 
 0.7.0
     * Flag checked replaced by prepared
+    * Improve error callbacks
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
