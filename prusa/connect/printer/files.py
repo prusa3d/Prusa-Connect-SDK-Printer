@@ -269,7 +269,8 @@ class Mount:
     def to_dict(self):
         """Returns tree in a format for Connect. Add attribute free_space
         to tree, if available"""
-        tree = self.tree.to_dict()
+        if self.tree:
+            tree = self.tree.to_dict()
         free_space = self.get_free_space()
         if free_space:
             tree["free_space"] = free_space
