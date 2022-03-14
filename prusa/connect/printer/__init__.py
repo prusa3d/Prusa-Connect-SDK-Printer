@@ -1,4 +1,20 @@
-"""Python printer library for Prusa Connect."""
+"""Python printer library for Prusa Connect.
+
+    Copyright (C) 2022 PrusaResearch
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 
 import configparser
 import os
@@ -24,8 +40,8 @@ from .util import RetryingSession
 __version__ = "0.6.0"
 __date__ = "17 Dec 2021"  # version date
 __copyright__ = "(c) 2021 Prusa 3D"
-__author_name__ = "Ondřej Tůma"
-__author_email__ = "ondrej.tuma@prusa3d.cz"
+__author_name__ = "Prusa Link Developers"
+__author_email__ = "link@prusa3d.cz"
 __author__ = f"{__author_name__} <{__author_email__}>"
 __description__ = "Python printer library for Prusa Connect"
 
