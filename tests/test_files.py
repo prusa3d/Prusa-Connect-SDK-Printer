@@ -117,7 +117,7 @@ def inotify(queue, nodes):
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
     assert event.data['root'] == '/test'
-    assert len(event.data['files']) == 7
+    assert len(event.data['files']) == 8
     handler = InotifyHandler(fs)
 
     yield InotifyFixture(tmp_dir.name, handler, fs, queue)
@@ -300,8 +300,9 @@ class TestFilesystem:
         with pytest.raises(InvalidMountpointError):
             fs.mount("mount-point", nodes)
 
-    def test_get_free_space(self, fs):
-        assert fs.mounts["mount-point"].get_free_space() > 0
+    def test_get_space_info(self, fs):
+        assert fs.mounts["mount-point"].get_space_info().get("free_space") > 0
+        assert fs.mounts["mount-point"].get_space_info().get("total_space") > 0
 
     def test_unmount(self, fs):
         fs.unmount("mount-point")
@@ -347,8 +348,10 @@ class TestFilesystem:
     def test_to_dict(self, fs):
         fs_dict = fs.to_dict()
         assert fs_dict['children'][0]['free_space'] > 0
+        assert fs_dict['children'][0]['total_space'] > 0
 
         fs_dict['children'][0]['free_space'] = 0
+        fs_dict['children'][0]['total_space'] = 42
         assert fs_dict == {
             'name':
             '/',
@@ -396,8 +399,8 @@ class TestFilesystem:
                         }]
                     }],
                 }],
-                'free_space':
-                0
+                'free_space': 0,
+                'total_space': 42
             }],
         }
 

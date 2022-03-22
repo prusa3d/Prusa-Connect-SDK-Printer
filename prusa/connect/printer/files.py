@@ -258,22 +258,32 @@ class Mount:
         self.use_inotify = use_inotify
         self.last_updated = time()
 
-    def get_free_space(self):
+    def get_space_info(self):
         """Returns free space of mountpoint in bytes"""
         if os.path.exists(self.path_storage):
             path_ = os.statvfs(self.path_storage)
             free_space = path_.f_bavail * path_.f_bsize
-            return free_space
-        return None
+            total_space = path_.f_blocks * path_.f_bsize
+
+            space_info = {
+                "free_space":free_space,
+                "total_space":total_space
+            }
+            return space_info
+        return {}
 
     def to_dict(self):
-        """Returns tree in a format for Connect. Add attribute free_space
-        to tree, if available"""
+        """Returns tree in a format for Connect. Add attributes free_space and
+        total_space to tree, if available"""
         if self.tree:
             tree = self.tree.to_dict()
-        free_space = self.get_free_space()
+        space_info = self.get_space_info()
+        free_space = space_info.get("free_space")
+        total_space = space_info.get("total_space")
         if free_space:
             tree["free_space"] = free_space
+        if total_space:
+            tree["total_space"] = total_space
         return tree
 
     def __str__(self):
@@ -698,7 +708,8 @@ class InotifyHandler:
             self.create_cache(node.abs_path(mount.mountpoint))
         self.send_file_changed(file=node,
                                new_path=node.abs_path(mount.mountpoint),
-                               free_space=mount.get_free_space())
+                               free_space=
+                               mount.get_space_info().get("free_space"))
 
     def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
@@ -718,7 +729,8 @@ class InotifyHandler:
             self.send_file_changed(old_path=path_,
                                    new_path=path_,
                                    file=node,
-                                   free_space=mount.get_free_space())
+                                   free_space=
+                                   mount.get_space_info().get("free_space"))
         else:
             # some watched directory other than top level was deleted
             node = mount.tree.get(parts)
@@ -726,7 +738,8 @@ class InotifyHandler:
             path_ = node.abs_path(mount.mountpoint)
             self.delete_cache(path_)
             self.send_file_changed(old_path=path_,
-                                   free_space=mount.get_free_space())
+                                   free_space=
+                                   mount.get_space_info().get("free_space"))
 
     def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
@@ -741,7 +754,8 @@ class InotifyHandler:
         self.send_file_changed(old_path=path_,
                                new_path=path_,
                                file=node,
-                               free_space=mount.get_free_space())
+                               free_space=
+                               mount.get_space_info().get("free_space"))
 
     def send_file_changed(self,
                           old_path: str = None,
