@@ -7,6 +7,7 @@ ChangeLog
     * File and Folder name validation
     * Registration headers update
     * Create directory function does nothing if folder already exists
+    * get_free_space() replaced by get_space_info(), added total size info
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
