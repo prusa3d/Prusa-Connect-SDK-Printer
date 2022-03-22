@@ -501,7 +501,7 @@ class Printer:
         abs_path = self.inotify_handler.get_abs_os_path(
             relative_path_parameter)
 
-        os.makedirs(abs_path)
+        os.makedirs(abs_path, exist_ok=True)
         return dict(source=const.Source.CONNECT)
 
     def set_handler(self, command: const.Command,

@@ -6,6 +6,7 @@ ChangeLog
     * Improve error callbacks
     * File and Folder name validation
     * Registration headers update
+    * Create directory function does nothing if folder already exists
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
