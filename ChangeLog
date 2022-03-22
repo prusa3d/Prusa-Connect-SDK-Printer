@@ -4,6 +4,8 @@ ChangeLog
 0.7.0
     * Flag checked replaced by prepared
     * Improve error callbacks
+    * File and Folder name validation
+    * Registration headers update
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`

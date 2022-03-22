@@ -37,8 +37,8 @@ from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession
 
-__version__ = "0.6.0"
-__date__ = "17 Dec 2021"  # version date
+__version__ = "0.7.0.dev1"
+__date__ = "22 Mar 2022"  # version date
 __copyright__ = "(c) 2021 Prusa 3D"
 __author_name__ = "Prusa Link Developers"
 __author_email__ = "link@prusa3d.cz"
