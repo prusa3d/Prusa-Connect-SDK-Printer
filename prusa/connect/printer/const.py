@@ -41,6 +41,8 @@ class JobState(Enum):
 
 class PrinterType(Enum):
     """Printer Type"""
+    I3MK25 = (1, 2, 5)
+    I3MK25S = (1, 2, 6)
     I3MK3 = (1, 3, 0)
     I3MK3S = (1, 3, 1)
     SL1 = (5, 1, 0)
