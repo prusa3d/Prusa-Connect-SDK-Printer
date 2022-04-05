@@ -166,7 +166,6 @@ class MetaData:
         """Load metadata and thumbnails from given `path`"""
         # pylint: disable=no-self-use
         # pylint: disable=unused-argument
-        ...
 
     def load_from_path(self, path: str):
         """Load metadata from given path (path, not its content),
@@ -174,7 +173,6 @@ class MetaData:
         """
         # pylint: disable=no-self-use
         # pylint: disable=unused-argument
-        ...
 
     def set_data(self, data: Dict):
         """Helper function to save all items from `data` that

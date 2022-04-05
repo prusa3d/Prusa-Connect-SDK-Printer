@@ -294,7 +294,6 @@ class Mount:
 
 class InvalidMountpointError(ValueError):
     """Mountpoint is not valid"""
-    ...
 
 
 class Filesystem:

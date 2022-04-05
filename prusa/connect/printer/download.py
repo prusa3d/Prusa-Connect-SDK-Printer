@@ -78,14 +78,17 @@ def foldername_too_long(path):
 class DownloadMgr:
     """Download manager."""
     LOOP_INTERVAL = .1
-    BUFFER_SIZE = 1024
     VALID_MIME_TYPES = ('application/gcode', 'text/plain',
                         'application/binary', 'application/octet-stream')
+    SMALL_BUFFER = 1024
+    BIG_BUFFER = 1024 * 100
 
     def __init__(self, fs, transfer, conn_details_cb, event_cb,
                  printed_file_cb, download_finished_cb):
         # pylint: disable=invalid-name
         # pylint: disable=too-many-arguments
+        self.buffer_size = self.BIG_BUFFER
+        self.throttle = 0
         self.fs = fs
         self.conn_details_cb = conn_details_cb
         self.event_cb = event_cb
@@ -226,12 +229,12 @@ class DownloadMgr:
                   self.transfer.url)
 
         with open(self.tmp_filename(), 'wb') as f:
-            for data in res.iter_content(chunk_size=self.BUFFER_SIZE):
+            for data in res.iter_content(chunk_size=self.buffer_size):
                 if self.transfer.stop_ts > 0:
                     raise TransferStoppedError("Transfer was stopped")
                 f.write(data)
-                if self.transfer.throttle:
-                    time.sleep(self.transfer.throttle)
+                if self.throttle:
+                    time.sleep(self.throttle)
                 self.transfer.transferred += len(data)
 
         if not self.transfer.transferred:
@@ -258,7 +261,6 @@ class Transfer:
         self.size = None
         self.transferred = 0
         self.event_cb = None
-        self.throttle = 0.00  # after each write sleep for this amount of secs.
         self.lock = threading.Lock()
 
         self.start_ts = 0

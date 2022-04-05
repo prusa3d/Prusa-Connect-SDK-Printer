@@ -79,7 +79,7 @@ def test_download_ok(download_mgr, gcode):
     if transfer.start_ts is not None:
         assert transfer.start_ts <= time.time()
     assert transfer.transferred >= 0
-    assert not download_mgr.transfer.throttle
+    assert not download_mgr.throttle
 
 
 def test_optional_download(gcode, download_mgr):
@@ -116,7 +116,7 @@ def test_download_stop(gcode, download_mgr):
                        to_print=False,
                        to_select=False)
     transfer = download_mgr.transfer
-    download_mgr.BUFFER_SIZE = 1
+    download_mgr.buffer_size = 1
     run_test_loop(download_mgr)
 
     assert transfer.time_remaining() == 0
@@ -128,7 +128,7 @@ def test_download_info(gcode, download_mgr):
                        GCODE_URL,
                        to_print=False,
                        to_select=True)
-    download_mgr.BUFFER_SIZE = 1
+    download_mgr.buffer_size = 1
 
     info = download_mgr.transfer.to_dict()
     assert download_mgr.transfer.os_path == storage_path(
@@ -183,7 +183,7 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
                        GCODE_URL,
                        to_print=True,
                        to_select=False)
-    download_mgr.BUFFER_SIZE = 1
+    download_mgr.buffer_size = 1
 
     loop = threading.Thread(target=run_test_loop,
                             daemon=True,
