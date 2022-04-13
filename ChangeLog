@@ -9,6 +9,7 @@ ChangeLog
     * Create directory function does nothing if folder already exists
     * get_free_space() replaced by get_space_info(), added total size info
     * Make on the fly download throttling possible
+    * Add mesh bed levelling event
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
