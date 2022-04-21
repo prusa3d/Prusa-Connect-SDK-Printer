@@ -119,7 +119,7 @@ class Printer:
         self.api_key = None
         self.code = None
 
-        self.__prepared = False
+        self.__ready = False
         self.__state = const.State.BUSY
         self.job_id = None
 
@@ -142,8 +142,8 @@ class Printer:
                          self.start_connect_download)
         self.set_handler(const.Command.STOP_TRANSFER, self.transfer_stop)
         self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
-        self.set_handler(const.Command.SET_PRINTER_PREPARED,
-                         self.set_printer_prepared)
+        self.set_handler(const.Command.SET_PRINTER_READY,
+                         self.set_printer_ready)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -182,14 +182,14 @@ class Printer:
         return f"{protocol}://{host}"
 
     @property
-    def prepared(self):
-        """Returns prepared flag.
+    def ready(self):
+        """Returns ready flag.
 
-        Prepared flag can be set with set_state method. It is additional
-        flag for READY state, which has info about user confirmation
+        Ready flag can be set with set_state method. It is additional
+        flag for IDLE state, which has info about user confirmation
         *ready to print*.
         """
-        return self.__prepared
+        return self.__ready
 
     @property
     def state(self):
@@ -261,23 +261,23 @@ class Printer:
     def set_state(self,
                   state: const.State,
                   source: const.Source,
-                  prepared: bool = None,
+                  ready: bool = None,
                   **kwargs):
         """Set printer state and push event about that to queue.
 
         :source: the initiator of printer state
-        :prepared: If state is PRINTING, prepared argument is ignored,
+        :ready: If state is PRINTING, ready argument is ignored,
             and flag is set to False.
         """
         if state == const.State.PRINTING:
-            self.__prepared = False
-        elif prepared is not None:
-            self.__prepared = prepared
+            self.__ready = False
+        elif ready is not None:
+            self.__ready = ready
         self.__state = state
         self.event_cb(const.Event.STATE_CHANGED,
                       source,
                       state=state,
-                      prepared=self.__prepared,
+                      ready=self.__ready,
                       **kwargs)
 
     def event_cb(self,
@@ -352,7 +352,7 @@ class Printer:
         return dict(source=const.Source.CONNECT,
                     event=const.Event.INFO,
                     state=self.__state,
-                    prepared=self.__prepared,
+                    ready=self.__ready,
                     type=type_,
                     version=ver,
                     subversion=sub,
@@ -425,12 +425,12 @@ class Printer:
         info['event'] = const.Event.TRANSFER_INFO
         return info
 
-    def set_printer_prepared(self, caller: Command) -> Dict[str, Any]:
-        """Set PREPARED state"""
+    def set_printer_ready(self, caller: Command) -> Dict[str, Any]:
+        """Set READY state"""
         # pylint: disable=unused-argument
-        self.set_state(const.State.PREPARED,
+        self.set_state(const.State.READY,
                        const.Source.CONNECT,
-                       prepared=True)
+                       ready=True)
         return {'source': const.Source.CONNECT}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
