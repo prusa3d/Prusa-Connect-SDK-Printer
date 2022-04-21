@@ -10,6 +10,7 @@ ChangeLog
     * get_free_space() replaced by get_space_info(), added total size info
     * Make on the fly download throttling possible
     * Add mesh bed levelling event
+    * Added command_id to telemetry, if there's a command in progress
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`

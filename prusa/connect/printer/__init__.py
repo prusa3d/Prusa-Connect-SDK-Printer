@@ -308,6 +308,8 @@ class Printer:
         if not self.token:
             log.debug("Skipping telemetry, no token.")
             return
+        if self.command.state is not None:
+            kwargs['command_id'] = self.command.command_id
         if self.job_id:
             kwargs['job_id'] = self.job_id
         if self.transfer.in_progress and self.transfer.start_ts:
