@@ -195,7 +195,7 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
     while (start + 3) >= time.time():
         dl = printer.download_mgr.transfer
         if dl.type != const.TransferType.NO_TRANSFER and dl.progress:
-            printer.telemetry(const.State.READY)
+            printer.telemetry(const.State.IDLE)
             item = printer.queue.get_nowait()
             while not isinstance(item, Telemetry):
                 item = printer.queue.get_nowait()

@@ -36,7 +36,7 @@ def _test_loop(printer):
 
 
 def test_loop_telemetry(printer):
-    printer.telemetry(const.State.READY)
+    printer.telemetry(const.State.IDLE)
     _test_loop(printer)
 
 

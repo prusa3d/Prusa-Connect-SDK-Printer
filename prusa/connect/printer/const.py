@@ -18,7 +18,7 @@ FORBIDDEN_CHARACTERS = ('\\', '?', '"', '%', '¯', '°', '#', 'ˇ')
 
 class State(Enum):
     """Printer could be in one of this state."""
-    READY = "READY"
+    IDLE = "IDLE"
     BUSY = "BUSY"
     PRINTING = "PRINTING"
     PAUSED = "PAUSED"
@@ -26,7 +26,8 @@ class State(Enum):
     STOPPED = "STOPPED"
     ERROR = "ERROR"
     ATTENTION = "ATTENTION"
-    PREPARED = "PREPARED"
+    # Compatibility, PREPARED will be changed to READY
+    READY = "PREPARED"
 
 
 class JobState(Enum):
@@ -110,7 +111,8 @@ class Command(Enum):
     SEND_TRANSFER_INFO = "SEND_TRANSFER_INFO"
     STOP_TRANSFER = "STOP_TRANSFER"
 
-    SET_PRINTER_PREPARED = "SET_PRINTER_PREPARED"
+    # Compatibility, PREPARED will be changed to READY
+    SET_PRINTER_READY = "SET_PRINTER_PREPARED"
 
     LOAD_FILAMENT = "LOAD_FILAMENT"
     UNLOAD_FILAMENT = "UNLOAD_FILAMENT"
