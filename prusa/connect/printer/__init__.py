@@ -144,6 +144,8 @@ class Printer:
         self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
         self.set_handler(const.Command.SET_PRINTER_READY,
                          self.set_printer_ready)
+        self.set_handler(const.Command.CANCEL_PRINTER_READY,
+                         self.cancel_printer_ready)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -432,6 +434,14 @@ class Printer:
                        const.Source.CONNECT,
                        ready=True)
         return {'source': const.Source.CONNECT}
+
+    def cancel_printer_ready(self, caller: Command) -> Dict[str, Any]:
+        """Cancel PREPARED state and switch printer back to READY"""
+        # pylint: disable=unused-argument
+        if self.ready:
+            self.set_state(const.State.IDLE, const.Source.CONNECT, ready=False)
+            return {'source': const.Source.CONNECT}
+        raise ValueError("Can't cancel, printer isn't ready")
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Returns file info for a given file, if it exists."""
