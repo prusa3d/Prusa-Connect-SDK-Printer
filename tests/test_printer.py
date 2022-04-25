@@ -1032,3 +1032,46 @@ class TestPrinter:
 
         event = requests_mock.request_history[3].json()
         assert event["event"] == "FINISHED"
+
+    def test_cancel_printer_ready(self, printer, requests_mock):
+        cmd = '{"command":"SET_PRINTER_PREPARED"}'
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry()
+        run_loop(printer.loop)
+
+        printer.command()
+        run_loop(printer.loop, timeout=0.2)
+
+        assert printer.state == const.State.READY
+        assert str(requests_mock.request_history[2]) == \
+               f"POST {SERVER}/p/events"
+        event = requests_mock.request_history[2].json()
+        assert event["event"] == "STATE_CHANGED"
+        assert event["state"] == "PREPARED"
+
+        cmd_cancel = '{"command":"CANCEL_PRINTER_PREPARED"}'
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd_cancel,
+                           headers={
+                               "Command-Id": "43",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+        printer.telemetry()
+        run_loop(printer.loop)
+
+        assert printer.state == const.State.READY
+
+        printer.command()
+        run_loop(printer.loop, timeout=0.2)
+
+        assert printer.state == const.State.IDLE

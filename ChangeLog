@@ -12,6 +12,7 @@ ChangeLog
     * Add mesh bed levelling event
     * Added command_id to telemetry, if there's a command in progress
     * READY state changed to IDLE, PREPARED state changed to READY
+    * Added CANCEL_PRINTER_READY command handler
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
