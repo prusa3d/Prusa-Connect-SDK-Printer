@@ -279,7 +279,6 @@ class Printer:
         self.event_cb(const.Event.STATE_CHANGED,
                       source,
                       state=state,
-                      ready=self.__ready,
                       **kwargs)
 
     def event_cb(self,
@@ -354,7 +353,6 @@ class Printer:
         return dict(source=const.Source.CONNECT,
                     event=const.Event.INFO,
                     state=self.__state,
-                    ready=self.__ready,
                     type=type_,
                     version=ver,
                     subversion=sub,
