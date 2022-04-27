@@ -14,6 +14,7 @@ ChangeLog
     * READY state changed to IDLE, PREPARED state changed to READY
     * Added CANCEL_PRINTER_READY command handler
     * Removed ready information from get_info and event_cb functions
+    * 400 responses handling change
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`

@@ -693,7 +693,10 @@ class Printer:
 
                 errors.API.ok = True
 
-                if res.status_code >= 400:
+                if res.status_code == 400:
+                    log.debug(res.text)
+
+                if res.status_code > 400:
                     errors.API.ok = False
                     if res.status_code == 401:
                         errors.TOKEN.ok = False

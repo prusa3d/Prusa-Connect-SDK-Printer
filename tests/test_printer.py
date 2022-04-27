@@ -220,9 +220,6 @@ class TestPrinter:
         except FunctionTimedOut:
             pass
 
-        assert errors.HTTP.ok is True
-        assert errors.API.ok is False
-
         requests_mock.post(SERVER + "/p/events",
                            exc=requests.exceptions.ConnectTimeout)
         printer.event_cb(const.Event.INFO, const.Source.WUI)
@@ -674,16 +671,6 @@ class TestPrinter:
         item = printer.queue.get_nowait()
         assert item.code == tmp_code
 
-    def test_get_token_invalid_code(self, requests_mock, printer):
-        tmp_code = "invalid_tmp_code"
-        requests_mock.get(SERVER + "/p/register", status_code=400)
-
-        printer.queue.put(Register(tmp_code))
-
-        run_loop(printer.loop, timeout=1.1)
-
-        assert errors.HTTP.ok is True
-        assert errors.API.ok is False
 
     def test_load_lan_settings(self, lan_settings_ini):
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
