@@ -696,10 +696,14 @@ class Printer:
                 if res.status_code == 400:
                     log.debug(res.text)
 
-                if res.status_code > 400:
+                elif res.status_code == 403:
+                    errors.TOKEN.ok = False
+                    log.warning(res.text)
+
+                elif res.status_code > 400:
                     errors.API.ok = False
-                    if res.status_code == 401:
-                        errors.TOKEN.ok = False
+                    log.debug(res.text)
+
             except Empty:
                 continue
             except ConnectionError as err:
