@@ -1,11 +1,11 @@
 Prusa Connect SDK for Printer
 =============================
 
-:Requirements: basic knowledge of `Prusa Connect API docs <http://dev.connect.prusa:8000/docs>`_.
+:Requirements: basic knowledge of `Prusa Connect API docs <https://connect.prusa3d.com/docs/>`_.
 
 Printer instance
 ----------------
-You can create a Printer instance using the constructor and passing `server` and `token` to it. These you can find in  `lan_settings.ini`.
+You can create a Printer instance using the constructor and passing `server` and `token` to it. These you can find in  `prusa_printer_settings.ini`.
 
 .. code:: python
 
@@ -13,7 +13,8 @@ You can create a Printer instance using the constructor and passing `server` and
 
     SERVER = "https://connect.prusa3d.com"
     SN = 'SERIAL_NUMBER_FROM_PRINTER'
-    TOKEN = 'secret token from lan_settings.ini'
+    FINGERPRINT = 'Printer fingerprint'
+    TOKEN = 'secret token from prusa_printer_settings.ini'
     printer = Printer(const.PrinterType.I3MK3, SN, SERVER, TOKEN)
 
     printer.loop()  # communication loop
@@ -26,7 +27,8 @@ Or you can use `Printer.from_config()` method which reads these values from the 
 
     SERVER = "https://connect.prusa3d.com"
     SN = 'SERIAL_NUMBER_FROM_PRINTER'
-    printer = Printer.from_config("./lan_settings.ini", const.PrinterType.I3MK3, SN)
+    printer = Printer.from_config("./prusa_printer_settings.ini",
+                                  const.PrinterType.I3MK3, SN)
 
     printer.loop()  # communication loop
 
@@ -109,7 +111,8 @@ You can inform Connect about some specific situation using events.
         ...
     except Exception as err:
         # send event to internal queue
-        printer.event_cb(const.Event.ATTENTION, const.Source.WUI, reason=str(err))
+        printer.event_cb(const.Event.ATTENTION, const.Source.WUI,
+                         reason=str(err))
 
 Printer state
 -------------
@@ -153,7 +156,7 @@ also the `event` key must be set in the returned dictionary.
 Additional data for this event is passed using the `data` key with
 a dictionary as a value.
 
-For further detail see http://dev.connect.prusa:8000/docs/printer_communication
+For further detail see https://connect.prusa3d.com/docs/printer_communication
 or have a look at the implementation details in the SDK (INFO event
 handled by the `Printer.get_info()` method).
 
