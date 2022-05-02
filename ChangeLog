@@ -16,6 +16,7 @@ ChangeLog
     * Removed ready information from get_info and event_cb functions
     * 400 responses handling change
     * 403 response handling change
+    * Fix handling of the addition of file subtrees
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`

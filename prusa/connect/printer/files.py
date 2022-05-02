@@ -570,10 +570,20 @@ class InotifyHandler:
         """
         walk_mount = os.walk(abs_mount, topdown=True)
 
-        abs_paths = [abs_path for abs_path, _, _ in walk_mount]
-        self.update_watch_dir(abs_paths)
+        dir_paths = []
+        file_paths = []
+        for dir_path, _, file_names in walk_mount:
+            dir_paths.append(dir_path)
+            for file_name in file_names:
+                if not self._filename_ignored(file_name):
+                    file_path = path.join(dir_path, file_name)
+                    file_paths.append(file_path)
 
-        Filesystem.update(abs_paths, abs_mount, node)
+        self.update_watch_dir(dir_paths)
+        Filesystem.update(dir_paths, abs_mount, node)
+
+        for file_path in file_paths:
+            self.process_create(file_path, is_dir=False)
 
     def filter_delete_events(self, events):
         """Because we are adding inotify watch descriptors to all
@@ -606,6 +616,11 @@ class InotifyHandler:
         result = [e for (e, i) in zip(rev_events, ignorelist) if not i]
         return result[::-1]
 
+    @staticmethod
+    def _filename_ignored(name):
+        """Is the file with this name supposed to be left out?"""
+        return name.startswith(".")
+
     def __call__(self, timeout=0):
         """Process inotify events. This picks the proper `process_$FLAG`
         handler method and executes it with the absolute_path of the
@@ -630,7 +645,7 @@ class InotifyHandler:
 
                 abs_path = path.join(parent_dir, event.name)
                 # Ignore hidden files .<filename>
-                if not event.name.startswith("."):
+                if not self._filename_ignored(event.name):
                     log.debug("Flag: %s %s %s", flag.name, abs_path, event)
                     handler = self.HANDLERS[flag.name]
                     log.debug("Calling %s: %s", handler, abs_path)
