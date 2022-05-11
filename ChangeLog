@@ -19,6 +19,7 @@ ChangeLog
     * Add sheet settings and mbl data
     * Add Transfer ID as a 64-bit int
     * Added new SET_PRINTER_READY / CANCEL_PRINTER_READY cmds
+    * Inotify fix - handling nested files
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`

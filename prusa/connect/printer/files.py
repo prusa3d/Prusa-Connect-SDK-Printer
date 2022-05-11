@@ -315,6 +315,7 @@ class Filesystem:
         """
         self.sep = sep
         self.mounts: typing.Dict[str, Mount] = {}
+        self.checked_files: typing.List = []
         self.event_cb = event_cb
 
     def mount(self,
@@ -570,10 +571,23 @@ class InotifyHandler:
         """
         walk_mount = os.walk(abs_mount, topdown=True)
 
-        abs_paths = [abs_path for abs_path, _, _ in walk_mount]
-        self.update_watch_dir(abs_paths)
+        dir_paths = []
+        file_paths = []
 
-        Filesystem.update(abs_paths, abs_mount, node)
+        for dir_path, _, file_names in walk_mount:
+            dir_paths.append(dir_path)
+            for file_name in file_names:
+                if not file_name.startswith('.'):
+                    file_path = path.join(dir_path, file_name)
+                    file_paths.append(file_path)
+
+        self.update_watch_dir(dir_paths)
+        Filesystem.update(dir_paths, abs_mount, node)
+
+        for file_path in file_paths:
+            if not file_path in self.fs.checked_files:
+                self.process_create(file_path, is_dir=False)
+                self.fs.checked_files.append(file_path)
 
     def filter_delete_events(self, events):
         """Because we are adding inotify watch descriptors to all
@@ -698,7 +712,10 @@ class InotifyHandler:
         mount = self.mount_for(abs_path)
         parts = self.__rel_path_parts(abs_path, mount)
         *parent, name = parts
-        node = mount.tree.get(parent).add(name, is_dir=is_dir)
+        parent = mount.tree.get(parent)
+        if not parent:
+            return
+        node = parent.add(name, is_dir=is_dir)
         node.set_attrs(abs_path)
         if is_dir:
             # add inotify watch
