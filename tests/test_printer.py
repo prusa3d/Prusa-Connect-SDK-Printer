@@ -705,6 +705,12 @@ class TestPrinter:
         event = printer.queue.get_nowait()
         assert event.event == const.Event.MEDIUM_INSERTED
 
+        # before1.txt
+        event = printer.queue.get_nowait()
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.data['old_path'] is None
+        assert event.data['new_path'] == '/data1/before1.txt'
+
         # mount of dir2
         event = printer.queue.get_nowait()
         assert event.event == const.Event.MEDIUM_INSERTED
@@ -726,7 +732,10 @@ class TestPrinter:
             printer.queue.get_nowait()
 
     @staticmethod
-    def _send_file_info(dirpath, filename, requests_mock, printer):
+    def _send_file_info(dirpath, filename, requests_mock, printer,
+                        accept_req):
+        # accept_req is to determine, which request is ACCEPTED, in case of
+        # FILE_CHANGE event appearing
         printer.mount(dirpath, "test")
         # MEDIUM_INSERTED event resulting from mounting
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -747,9 +756,9 @@ class TestPrinter:
 
         assert printer.command.state == const.Event.ACCEPTED
 
-        assert str(requests_mock.request_history[2]) == \
+        assert str(requests_mock.request_history[accept_req]) == \
                f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[2].json()
+        info = requests_mock.request_history[accept_req].json()
         assert info["event"] == "ACCEPTED"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
@@ -760,8 +769,8 @@ class TestPrinter:
 
         requests_mock.post(SERVER + "/p/events", status_code=204)
         assert (str(
-            requests_mock.request_history[3]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[3].json()
+            requests_mock.request_history[accept_req+1]) == f"POST {SERVER}/p/events")
+        info = requests_mock.request_history[accept_req+1].json()
         assert info['command_id'] == 42
         return info
 
@@ -785,7 +794,8 @@ class TestPrinter:
             f.write("; thin_walls = 0\n")
 
         filename = '/test/hello.gcode'
-        info = self._send_file_info(dir.name, filename, requests_mock, printer)
+        info = self._send_file_info(dir.name, filename, requests_mock, printer,
+                                    accept_req=3)
         assert info["event"] == "FILE_INFO"
         assert info["source"] == "CONNECT"
         assert info["data"]['path'] == filename
@@ -800,7 +810,7 @@ class TestPrinter:
         directory = tempfile.TemporaryDirectory()
         filename = '/N/A/file.txt'
         info = self._send_file_info(directory.name, filename, requests_mock,
-                                    printer)
+                                    printer, accept_req=2)
         assert info['event'] == 'REJECTED'
         assert info['source'] == 'WUI'
         assert info['reason'] == 'Command error'

@@ -411,12 +411,14 @@ class TestINotify:
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event
         """
+        with inotify.queue.mutex:
+            inotify.queue.queue.clear()
+
         p = os.path.join(inotify.path, "simple.gcode")
         open(p, "w").close()
         inotify.handler()
         assert inotify.fs.get("/test/simple.gcode")
         assert inotify.fs.get("/test/does-not-exit.gcode") is None
-
         # check event to Connect
         event = inotify.queue.get_nowait()
         assert event.event == const.Event.FILE_CHANGED
@@ -430,6 +432,9 @@ class TestINotify:
 
     def test_CREATE_dir(self, inotify):
         """Same as CREATE_file but this time a directory is used."""
+        with inotify.queue.mutex:
+            inotify.queue.queue.clear()
+
         p = os.path.join(inotify.path, "directory")
         os.mkdir(p)
         inotify.handler()
@@ -523,6 +528,9 @@ class TestINotify:
         """Test that after deleting a directory it is removed from the
         Filesystem.
         """
+        with inotify.queue.mutex:
+            inotify.queue.queue.clear()
+
         node = inotify.fs.get("/test/a/b")
         path = node.abs_path(inotify.path)
         assert inotify.fs.get("/test/a/b")
