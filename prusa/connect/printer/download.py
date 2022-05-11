@@ -2,7 +2,7 @@
 import os
 import threading
 import time
-
+from random import randint
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
 from typing import Optional
@@ -256,6 +256,7 @@ class Transfer:
     to_select: Optional[bool] = None
 
     def __init__(self):
+        self.transfer_id = randint(0, 2 ** 64 - 1)
         self.type = const.TransferType.NO_TRANSFER
         self.path = None
         self.size = None
@@ -343,6 +344,7 @@ class Transfer:
             if isinstance(time_remaining, float):
                 time_remaining = int(time_remaining)
             return {
+                "transfer_id": self.transfer_id,
                 "type": self.type.value,
                 "path": self.path,
                 "url": self.url,

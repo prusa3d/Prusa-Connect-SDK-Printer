@@ -17,6 +17,7 @@ ChangeLog
     * 400 responses handling change
     * 403 response handling change
     * Add sheet settings and mbl data
+    * Add Transfer ID as a 64-bit int
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
