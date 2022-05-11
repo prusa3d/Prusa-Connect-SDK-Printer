@@ -317,6 +317,7 @@ class Printer:
         if self.job_id:
             kwargs['job_id'] = self.job_id
         if self.transfer.in_progress and self.transfer.start_ts:
+            kwargs['transfer_id'] = self.transfer.transfer_id
             kwargs['transfer_progress'] = self.transfer.progress
             kwargs['transfer_time_remaining'] = self.transfer.time_remaining()
             kwargs['transfer_transferred'] = self.transfer.transferred
