@@ -225,6 +225,10 @@ class FDMMetaData(MetaData):
         r"^(?P<name>.*?)_(?P<height>[0-9\.]+)mm_"
         r"(?P<material>\w+)_(?P<printer>\w+)_(?P<time>.*)\.")
 
+    def __init__(self, path: str):
+        super().__init__(path)
+        self.last_file_and_result = None
+
     def load_from_path(self, path):
         """Try to obtain any usable metadata from the path itself"""
         filename = os.path.basename(path)
@@ -340,6 +344,7 @@ class FDMMetaData(MetaData):
         returns True if it thinks parsing succeeded
         """
         # pylint: disable=too-many-branches
+
         for line in file_descriptor:
             if not line.strip():
                 continue
@@ -373,6 +378,14 @@ class FDMMetaData(MetaData):
         wanted = set(self.Attrs.keys())
         got = set(data.meta.keys())
         missed = wanted - got
+
+        # --- Was parsing successful? ---
+
+        file_and_result = (file_descriptor.name, comment_lines, missed)
+
+        if self.last_file_and_result == file_and_result:
+            log.disabled = True
+
         log.debug("Wanted: %s", wanted)
         log.debug("Parsed: %s", got)
 
@@ -380,14 +393,14 @@ class FDMMetaData(MetaData):
             "By not reading the whole file, "
             "we have managed to miss %s", list(missed))
 
-        # --- Was parsing successful? ---
+        success = True
 
         if comment_lines < 10:
             log.warning("Not enough comments discovered, "
                         "file not uploaded yet?")
-            return False
+            success = False
 
-        if missed and is_last_retry:
+        elif missed and is_last_retry:
             if len(missed) == len(wanted):
                 log.warning("No metadata parsed!")
             else:
@@ -396,9 +409,12 @@ class FDMMetaData(MetaData):
                 log.warning("Missing meta tolerated, missing count < %s",
                             TOLERATED_COUNT)
             else:
-                return False
+                success = False
 
-        return True
+        self.last_file_and_result = file_and_result
+        log.disabled = False
+
+        return success
 
 
 class SLMetaData(MetaData):
