@@ -149,6 +149,11 @@ class Printer:
                          self.set_printer_ready)
         self.set_handler(const.Command.CANCEL_PRINTER_READY,
                          self.cancel_printer_ready)
+        # Compatibility, PREPARED is deprecated
+        self.set_handler(const.Command.SET_PRINTER_PREPARED,
+                         self.set_printer_ready)
+        self.set_handler(const.Command.CANCEL_PRINTER_PREPARED,
+                         self.cancel_printer_ready)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
