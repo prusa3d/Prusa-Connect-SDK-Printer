@@ -1,4 +1,4 @@
-"""Python printer library for Prusa Connect.
+"""Python printer library for PrusaConnect.
 
     Copyright (C) 2022 PrusaResearch
 
@@ -43,7 +43,7 @@ __copyright__ = "(c) 2022 Prusa 3D"
 __author_name__ = "Prusa Link Developers"
 __author_email__ = "link@prusa3d.cz"
 __author__ = f"{__author_name__} <{__author_email__}>"
-__description__ = "Python printer library for Prusa Connect"
+__description__ = "Python printer library for PrusaConnect"
 
 __credits__ = "Ondřej Tůma, Martin Užák, Michal Zoubek, Tomáš Jozífek"
 __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
