@@ -1,4 +1,4 @@
-"""Setup of Prusa Connect SDK for Printer."""
+"""Setup of PrusaConnect SDK for Printer."""
 import re
 
 from setuptools import setup, find_namespace_packages  # type: ignore

@@ -1,7 +1,7 @@
-Prusa Connect SDK for Printer
+PrusaConnect SDK for Printer
 =============================
 
-:Requirements: basic knowledge of `Prusa Connect API docs <https://connect.prusa3d.com/docs/>`_.
+:Requirements: basic knowledge of `PrusaConnect API docs <https://connect.prusa3d.com/docs/>`_.
 
 Printer instance
 ----------------
