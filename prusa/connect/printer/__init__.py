@@ -136,9 +136,11 @@ class Printer:
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
-        self.set_handler(const.Command.CREATE_DIRECTORY, self.create_directory)
+        self.set_handler(const.Command.CREATE_FOLDER, self.create_folder)
+        self.set_handler(const.Command.CREATE_DIRECTORY, self.create_folder)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
-        self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_directory)
+        self.set_handler(const.Command.DELETE_FOLDER, self.delete_folder)
+        self.set_handler(const.Command.DELETE_DIRECTORY, self.delete_folder)
         self.set_handler(const.Command.START_URL_DOWNLOAD,
                          self.start_url_download)
         self.set_handler(const.Command.START_CONNECT_DOWNLOAD,
@@ -465,7 +467,7 @@ class Printer:
             raise ValueError(f"File does not exist: {path}")
 
         if node.is_dir:
-            raise ValueError("FILE_INFO doesn't work for directories")
+            raise ValueError("FILE_INFO doesn't work for folders")
 
         info = dict(
             source=const.Source.CONNECT,
@@ -503,8 +505,8 @@ class Printer:
 
         return dict(source=const.Source.CONNECT)
 
-    def delete_directory(self, caller: Command) -> Dict[str, Any]:
-        """Handler for delete a directory."""
+    def delete_folder(self, caller: Command) -> Dict[str, Any]:
+        """Handler for delete a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command} requires kwargs")
 
@@ -514,8 +516,8 @@ class Printer:
 
         return dict(source=const.Source.CONNECT)
 
-    def create_directory(self, caller: Command) -> Dict[str, Any]:
-        """Handler for create a directory."""
+    def create_folder(self, caller: Command) -> Dict[str, Any]:
+        """Handler for create a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command} requires kwargs")
 
@@ -732,12 +734,12 @@ class Printer:
         """Set internal variable, to stop the loop method."""
         self.__running_loop = False
 
-    def mount(self, dirpath: str, mountpoint: str):
-        """Create a listing of `dirpath` and mount it under `mountpoint`.
+    def mount(self, folderpath: str, mountpoint: str):
+        """Create a listing of `folderpath` and mount it under `mountpoint`.
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.from_dir(dirpath, mountpoint)
+        self.fs.from_dir(folderpath, mountpoint)
         self.inotify_handler = InotifyHandler(self.fs)
 
     def unmount(self, mountpoint: str):
