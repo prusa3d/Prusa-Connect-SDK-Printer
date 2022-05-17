@@ -261,9 +261,9 @@ class TestFile:
         assert "a" in nodes
 
     def test_str(self):
-        d = File("directory", is_dir=True)
+        d = File("folder", is_dir=True)
         f = File("filename")
-        assert str(d) == "directory"
+        assert str(d) == "folder"
         assert str(f) == "filename"
 
     def test_abs_parts(self, nodes):
@@ -431,14 +431,14 @@ class TestINotify:
         assert event.data['old_path'] is None
 
     def test_CREATE_dir(self, inotify):
-        """Same as CREATE_file but this time a directory is used."""
+        """Same as CREATE_file but this time a folder is used."""
         with inotify.queue.mutex:
             inotify.queue.queue.clear()
 
-        p = os.path.join(inotify.path, "directory")
+        p = os.path.join(inotify.path, "folder")
         os.mkdir(p)
         inotify.handler()
-        d = inotify.fs.get("/test/directory")
+        d = inotify.fs.get("/test/folder")
         assert d
         assert d.is_dir
 
@@ -447,10 +447,10 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert len(str(event.data['file']['m_timestamp'])) == 10
-        assert event.data['file']['name'] == "directory"
+        assert event.data['file']['name'] == "folder"
         assert not event.data['file']['ro']
         assert event.data['file']['type'] == "DIR"
-        assert event.data['new_path'] == '/test/directory'
+        assert event.data['new_path'] == '/test/folder'
         assert event.data['old_path'] is None
 
         # test that a inotify watch has also been installed for the
@@ -458,7 +458,7 @@ class TestINotify:
         file_path = os.path.join(p, "file.gcode")
         open(file_path, "w").close()
         inotify.handler()
-        assert inotify.fs.get("/test/directory/file.gcode")
+        assert inotify.fs.get("/test/folder/file.gcode")
 
     def test_DELETE_file(self, inotify):
         """Test deleting a file by creating it first, then deleting it and
@@ -525,7 +525,7 @@ class TestINotify:
         assert not os.path.exists(meta)
 
     def test_DELETE_dir(self, inotify):
-        """Test that after deleting a directory it is removed from the
+        """Test that after deleting a folder it is removed from the
         Filesystem.
         """
         with inotify.queue.mutex:
@@ -566,7 +566,7 @@ class TestINotify:
         assert event.data['file']['name'] == "test"
 
     def test_MOVE_file(self, inotify):
-        """Create a file and move it to a different directory"""
+        """Create a file and move it to a different folder"""
         src = inotify.fs.get("/test/a/1.gcode")
         assert src
         src_path = src.abs_path(inotify.path)

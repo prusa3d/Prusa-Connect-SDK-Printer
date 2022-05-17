@@ -458,7 +458,7 @@ class TestPrinter:
         }
         assert os.path.exists(file_path) is False
 
-    def test_call_create_directory(self, requests_mock, printer):
+    def test_call_create_folder(self, requests_mock, printer):
         tmp_dir = tempfile.TemporaryDirectory()
         printer.mount(tmp_dir.name, "test")
 
@@ -481,7 +481,7 @@ class TestPrinter:
         }
 
         cmd = {
-            "command": "CREATE_DIRECTORY",
+            "command": "CREATE_FOLDER",
             "kwargs": {
                 "path": "/test/test_dir"
             }
@@ -518,7 +518,7 @@ class TestPrinter:
             'ro': False
         }
 
-        printer.command()  # exec CREATE_DIRECTORY
+        printer.command()  # exec CREATE_FOLDER
         printer.inotify_handler()
 
         run_loop(printer.loop)

@@ -39,10 +39,10 @@ def common_start(sa, sb):
 
 
 def delete(abs_path, is_dir):
-    """Delete file or directory.
+    """Delete file or folder.
 
     :param abs_path: absolute path
-    :param is_dir: True if directory
+    :param is_dir: True if folder
     """
     if os.path.exists(abs_path):
         if is_dir:
@@ -51,11 +51,11 @@ def delete(abs_path, is_dir):
             os.unlink(abs_path)
     else:
         raise FileNotFoundError(f"{abs_path}."
-                                f" File or directory doesn't exist.")
+                                f" File or folder doesn't exist.")
 
 
 class File:
-    """A node of a Filesystem representing either a file or a directory"""
+    """A node of a Filesystem representing either a file or a folder"""
     def __init__(self,
                  name: str,
                  is_dir: bool = False,
@@ -64,7 +64,7 @@ class File:
         """Create a File object
 
         :param name: Filename
-        :param is_dir: Flag whether this is a directory
+        :param is_dir: Flag whether this is a folder
         :param parent: Parent for this File, which itself is a
             File(is_dir=True)
         :param attrs: Any attributes for the file you want to store. File's
@@ -83,12 +83,12 @@ class File:
     @property
     def size(self):
         """Return `size` from `self.attrs` for a FILE or compute it for
-        a directory.
+        a folder.
         """
         if not self.is_dir:  # file
             return self.attrs.get('size', 0)
 
-        # directory
+        # folder
         size = 0
         for child in self.children.values():
             size += child.size
@@ -112,12 +112,12 @@ class File:
 
     def add(self, name: str, is_dir: bool = False, **attrs):
         """Add a file to this File's children.
-        Note that `self` must be a directory.
+        Note that `self` must be a folder.
 
         :param name: name of the file
-        :param is_dir: Is this a directory?
+        :param is_dir: Is this a folder?
         :param attrs: arbitrary File attributes
-        :raise ValueError: if self is not a directory
+        :raise ValueError: if self is not a folder
         :return the added file.
         """
         if not self.is_dir:
@@ -174,7 +174,7 @@ class File:
             del self.parent.children[self.name]
 
     def pprint(self, file=None, _prefix="", _last=True, _first=True):
-        """Pretty print the File as  a tree. `self` should be a directory
+        """Pretty print the File as  a tree. `self` should be a folder
         for this method to make any makes sense.
 
         :param file: file object to that the tree will be printed
@@ -401,8 +401,8 @@ class Filesystem:
         Add the nearest part of real file system to tree.
 
         Example:
-        Filesystem.update(['/tmp/tmpvbqhald4/directory/a'],
-        '/tmp/tmpvbqhald4/directory', File('test'))
+        Filesystem.update(['/tmp/tmpvbqhald4/folder/a'],
+        '/tmp/tmpvbqhald4/folder', File('test'))
 
         result is node File('a') is add to File('test')
 
@@ -443,7 +443,7 @@ class Filesystem:
     def from_dir(self, dirpath: str, mountpoint: str):
         """Initialize a (File) tree from `dirpath` and mount it.
 
-        :param dirpath: The directory on store from which to create the FS
+        :param dirpath: The folder on store from which to create the FS
         :param mountpoint: Mountpoint
         """
         # normalize dirpath
@@ -545,8 +545,8 @@ class InotifyHandler:
     def get_relative_paths(relative_point: str, abs_paths: list) -> list:
         """Returns paths relative to the relative_point.
 
-        >>> InotifyHandler.get_relative_paths('/tmp/r', ['/tmp/r/directory'])
-        ['directory']
+        >>> InotifyHandler.get_relative_paths('/tmp/r', ['/tmp/r/folder'])
+        ['folder']
 
         :param relative_point: relativ point
         :param abs_paths: absolute patths
@@ -704,9 +704,9 @@ class InotifyHandler:
         return rel_path.rstrip(self.fs.sep).split(self.fs.sep)
 
     def process_create(self, abs_path, is_dir):
-        """Handle CREATE inotify signal by creating the file/directory
+        """Handle CREATE inotify signal by creating the file/folder
         determined by `abs_path`. `is_dir` is set, if the event was generated
-        for a directory.
+        for a folder.
         """
         # pylint: disable=unused-argument
         mount = self.mount_for(abs_path)
@@ -748,7 +748,7 @@ class InotifyHandler:
                                    free_space=
                                    mount.get_space_info().get("free_space"))
         else:
-            # some watched directory other than top level was deleted
+            # some watched folder other than top level was deleted
             node = mount.tree.get(parts)
             node.delete()
             path_ = node.abs_path(mount.mountpoint)
