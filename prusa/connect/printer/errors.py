@@ -1,4 +1,8 @@
 """SDK Exceptions"""
+from warnings import warn
+
+warn('errors are deprecated, use conditions instead',
+     DeprecationWarning, stacklevel=2)
 
 
 # pylint: disable=too-many-instance-attributes
