@@ -30,6 +30,7 @@ from requests.exceptions import ConnectionError
 
 from . import const, errors
 from .command import Command
+from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry, Sheet
@@ -250,6 +251,7 @@ class Printer:
                            and self.__type is not None)
         if not initialised:
             errors.API.ok = False
+            API.state = CondState.NOK
         return initialised
 
     def make_headers(self, timestamp: float = None) -> dict:
@@ -348,6 +350,7 @@ class Printer:
         self.server = Printer.connect_url(host, tls, port)
         self.token = config['service::connect']['token']
         errors.TOKEN.ok = True
+        TOKEN.state = CondState.OK
 
     def get_connection_details(self):
         """Returns currently set server and headers"""
@@ -633,12 +636,16 @@ class Printer:
             self.code = code
             self.queue.put(Register(code))
             errors.API.ok = True
+            API.state = CondState.OK
             return code
 
         errors.HTTP.ok = True
+        HTTP.state = CondState.OK
         errors.API.ok = False
+        API.state = CondState.NOK
         if res.status_code >= 500:
             errors.HTTP.ok = False
+            HTTP.state = CondState.NOK
         log.debug("Status code: {res.status_code}")
         raise RuntimeError(res.text)
 
@@ -694,6 +701,7 @@ class Printer:
                     if res.status_code == 200:
                         self.token = res.headers["Token"]
                         errors.TOKEN.ok = True
+                        TOKEN.state = CondState.OK
                         log.info("New token was set.")
                         self.register_handler(self.token)
                         self.code = None
@@ -706,28 +714,34 @@ class Printer:
                     continue  # No token - no communication
 
                 errors.API.ok = True
+                API.state = CondState.OK
 
                 if res.status_code == 400:
                     log.debug(res.text)
 
                 elif res.status_code == 403:
                     errors.TOKEN.ok = False
+                    TOKEN.state = CondState.NOK
                     log.warning(res.text)
 
                 elif res.status_code > 400:
                     errors.API.ok = False
+                    API.state = CondState.NOK
                     log.debug(res.text)
 
             except Empty:
                 continue
             except ConnectionError as err:
                 errors.HTTP.ok = False
+                HTTP.state = CondState.NOK
                 log.error(err)
             except RequestException as err:
                 errors.INTERNET.ok = False
+                INTERNET.state = CondState.NOK
                 log.error(err)
             except Exception:  # pylint: disable=broad-except
                 errors.INTERNET.ok = False
+                INTERNET.state = CondState.NOK
                 log.exception('Unhandled error')
 
     def stop_loop(self):

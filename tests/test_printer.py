@@ -14,6 +14,7 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 from prusa.connect.printer import Printer, const, Command, \
     Register, errors
 from prusa.connect.printer.models import Telemetry, Event
+from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=no-self-use
@@ -227,7 +228,9 @@ class TestPrinter:
         run_loop(printer.loop)
 
         assert errors.INTERNET.ok is True
+        assert INTERNET.state is CondState.OK
         assert errors.HTTP.ok is False
+        assert HTTP.state is CondState.NOK
 
     def test_set_handler(self, printer):
         def send_info(caller: Command) -> Any:
@@ -611,7 +614,9 @@ class TestPrinter:
             printer.register()
 
         assert errors.HTTP.ok is True
+        assert HTTP.state is CondState.OK
         assert errors.API.ok is False
+        assert API.state is CondState.NOK
 
     def test_register_400_no_server(self, printer):
         printer.server = None
@@ -620,7 +625,9 @@ class TestPrinter:
             printer.register()
 
         assert errors.HTTP.ok is True
+        assert HTTP.state is CondState.OK
         assert errors.API.ok is False
+        assert API.state is CondState.NOK
 
     def test_get_token(self, requests_mock, printer):
         tmp_code = "f4c8996fb9"
