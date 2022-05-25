@@ -510,7 +510,7 @@ class InotifyHandler:
         # init mount watches
         for mount in self.fs.mounts.values():
             if mount.use_inotify and mount.path_storage is not None:
-                self.__init_wd(mount.path_storage)
+                self.__init_wd(mount.path_storage, init=True)
 
     def create_cache(self, new_path):
         """When a file is created, the cache file is created"""
@@ -561,33 +561,40 @@ class InotifyHandler:
 
         return relative_paths
 
-    def __init_wd(self, abs_mount: str, node: File = None):
+    def __init_wd(self, abs_mount: str, node: File = None, init=True):
         """Update all dirs from root to bottom.
 
         Add all dirs to inotify to watcher.
 
         :param abs_mount: absolute path to mount
         :param node: instance of File
+        :param init: wheter the function is called on init or create handler
         """
         walk_mount = os.walk(abs_mount, topdown=True)
 
-        dir_paths = []
-        file_paths = []
+        if init:
+            abs_paths = [abs_path for abs_path, _, _ in walk_mount]
+            self.update_watch_dir(abs_paths)
+            Filesystem.update(abs_paths, abs_mount, node)
 
-        for dir_path, _, file_names in walk_mount:
-            dir_paths.append(dir_path)
-            for file_name in file_names:
-                if not file_name.startswith('.'):
-                    file_path = path.join(dir_path, file_name)
-                    file_paths.append(file_path)
+        else:
+            dir_paths = []
+            file_paths = []
 
-        self.update_watch_dir(dir_paths)
-        Filesystem.update(dir_paths, abs_mount, node)
+            for dir_path, _, file_names in walk_mount:
+                dir_paths.append(dir_path)
+                for file_name in file_names:
+                    if not file_name.startswith('.'):
+                        file_path = path.join(dir_path, file_name)
+                        file_paths.append(file_path)
 
-        for file_path in file_paths:
-            if not file_path in self.fs.checked_files:
-                self.process_create(file_path, is_dir=False)
-                self.fs.checked_files.append(file_path)
+            self.update_watch_dir(dir_paths)
+            Filesystem.update(dir_paths, abs_mount, node)
+
+            for file_path in file_paths:
+                if not file_path in self.fs.checked_files:
+                    self.process_create(file_path, is_dir=False)
+                    self.fs.checked_files.append(file_path)
 
     def filter_delete_events(self, events):
         """Because we are adding inotify watch descriptors to all
@@ -719,7 +726,7 @@ class InotifyHandler:
         node.set_attrs(abs_path)
         if is_dir:
             # add inotify watch
-            self.__init_wd(abs_path, node)  # add inotify watch
+            self.__init_wd(abs_path, node, init=False)  # add inotify watch
         else:
             self.create_cache(node.abs_path(mount.mountpoint))
         self.send_file_changed(file=node,
