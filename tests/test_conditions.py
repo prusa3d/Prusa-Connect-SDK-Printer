@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock  # type: ignore
 
 import pytest
 
