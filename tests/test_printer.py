@@ -712,12 +712,6 @@ class TestPrinter:
         event = printer.queue.get_nowait()
         assert event.event == const.Event.MEDIUM_INSERTED
 
-        # before1.txt
-        event = printer.queue.get_nowait()
-        assert event.event == const.Event.FILE_CHANGED
-        assert event.data['old_path'] is None
-        assert event.data['new_path'] == '/data1/before1.txt'
-
         # mount of dir2
         event = printer.queue.get_nowait()
         assert event.event == const.Event.MEDIUM_INSERTED
@@ -802,7 +796,7 @@ class TestPrinter:
 
         filename = '/test/hello.gcode'
         info = self._send_file_info(dir.name, filename, requests_mock, printer,
-                                    accept_req=3)
+                                    accept_req=2)
         assert info["event"] == "FILE_INFO"
         assert info["source"] == "CONNECT"
         assert info["data"]['path'] == filename
