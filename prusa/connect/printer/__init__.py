@@ -713,10 +713,11 @@ class Printer:
                               item)
                     continue  # No token - no communication
 
-                errors.API.ok = True
-                API.state = CondState.OK
+                if 299 >= res.status_code >= 200:
+                    errors.API.ok = True
+                    API.state = CondState.OK
 
-                if res.status_code == 400:
+                elif res.status_code == 400:
                     log.debug(res.text)
 
                 elif res.status_code == 403:
