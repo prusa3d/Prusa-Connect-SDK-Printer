@@ -232,34 +232,34 @@ class File:
         self.attrs["m_timestamp"] = int(stats.st_mtime)
 
 
-class Mount:
-    """Represent a mountpoint"""
+class Storage:
+    """Represent a storage"""
     def __init__(self,
                  tree: File,
-                 mountpoint: str,
+                 storage: str,
                  abs_path_storage: str = None,
                  use_inotify=True):
         """
-        Initialize a Mount.
+        Initialize a Storage.
 
         :param tree: tree of File instances
-        :param mountpoint: mount point on the virtual FS
+        :param storage: storage on the virtual FS
         :param abs_path_storage: absolute path on the physical storage
-        :param use_inotify: whether to handle this mount point using inotify
+        :param use_inotify: whether to handle this storage using inotify
         """
         if use_inotify:
             if not abs_path_storage:
                 msg = "`use_inotify` requires `abs_path_storage` to be set"
                 raise ValueError(msg)
-        # TODO check other mounts if there is already abs_path_storage used
+        # TODO check other storage if there is already abs_path_storage used
         self.tree = tree
-        self.mountpoint = mountpoint
+        self.storage = storage
         self.path_storage = abs_path_storage
         self.use_inotify = use_inotify
         self.last_updated = time()
 
     def get_space_info(self):
-        """Returns free space of mountpoint in bytes"""
+        """Returns free space of storage in bytes"""
         if os.path.exists(self.path_storage):
             path_ = os.statvfs(self.path_storage)
             free_space = path_.f_bavail * path_.f_bsize
@@ -287,13 +287,13 @@ class Mount:
         return tree
 
     def __str__(self):
-        return f"Mount({self.mountpoint} -> {self.path_storage})"
+        return f"Storage({self.storage} -> {self.path_storage})"
 
     __repr__ = __str__
 
 
-class InvalidMountpointError(ValueError):
-    """Mountpoint is not valid"""
+class InvalidStorageError(ValueError):
+    """Storage is not valid"""
 
 
 class Filesystem:
@@ -302,71 +302,76 @@ class Filesystem:
     trees cannot be nested in each other.
 
     A filesystem translates from physical representation on the storage to
-    virtual organised by mount (points). This virtual one is then
-    sent to Connect.
+    virtual. This virtual one is then sent to Connect.
     """
     def __init__(self, sep: str = "/", event_cb: EventCallback = None):
         """Create a Filesystem (FS).
 
         :sep: Separator on the FS
         :event_cb: SDK's Printer.event_cb method. If set, the FS
-            will call callback to put events to event queue on mount/unmount
+            will call callback to put events to event queue on attach/dettach
             operations and the InotifyHandler on changes to the FS.
         """
         self.sep = sep
-        self.mounts: typing.Dict[str, Mount] = {}
+        self.storage_dict: typing.Dict[str, Storage] = {}
         self.checked_files: typing.List = []
         self.event_cb = event_cb
 
-    def mount(self,
+    def attach(self,
               name: str,
               tree: File,
               storage_path: str = "",
               use_inotify=True):
-        """Mount the tree under a mountpoint.
+        """Attach the tree under a storage.
 
-        :param name: The mountpoint
-        :param tree: The tree of `File` instances to be mounted
+        :param name: The storage
+        :param tree: The tree of `File` instances to be attached
         :param storage_path: Path on storage
-        :param use_inotify: Whether to use inotify on this mountpoint or not
-        :raises InvalidMountpointError: If the mountpoint is already used,
+        :param use_inotify: Whether to use inotify on this storage or not
+        :raises InvalidStorageError
+        : If the storage is already used,
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
         """
         if not name:
-            raise InvalidMountpointError("Mountpoint cannot be empty")
+            raise InvalidStorageError\
+                ("Storage cannot be empty")
 
         if name == '/':
             name = ROOT
 
         if self.sep in name:
-            msg = f"Mountpoints cannot contain {self.sep}"
-            raise InvalidMountpointError(msg)
+            msg = f"Storage cannot contain {self.sep}"
+            raise InvalidStorageError\
+                (msg)
 
-        if name in self.mounts:
-            raise InvalidMountpointError(f"`{name}` is already used")
+        if name in self.storage_dict:
+            raise InvalidStorageError\
+                (f"`{name}` is already used")
 
-        self.mounts[name] = Mount(tree, name, storage_path, use_inotify)
+        self.storage_dict[name] = Storage(tree, name, storage_path, use_inotify)
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
             payload = {
                 "root": f"{self.sep}{name}",
-                "files": self.mounts[name].to_dict()
+                "files": self.storage_dict[name].to_dict()
             }
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
-    def unmount(self, name: str):
-        """Unmount a mountpoint.
+    def dettach(self, name: str):
+        """Dettach a storage.
 
-        :param name: The mountpoint
-        :raises InvalidMountpointError: if `name` is not mounted
+        :param name: The storage
+        :raises InvalidStorageError
+        : if `name` is not atached
         """
-        if name not in self.mounts:
-            msg = f"`{name}` is not used as a mountpoint"
-            raise InvalidMountpointError(msg)
+        if name not in self.storage_dict:
+            msg = f"`{name}` is not used as a storage"
+            raise InvalidStorageError\
+                (msg)
 
-        del self.mounts[name]
+        del self.storage_dict[name]
 
         # send MEDIUM_EJECTED event
         if self.event_cb:
@@ -382,21 +387,21 @@ class Filesystem:
         :return File: return the File or none
         """
         abs_path = abs_path.strip(self.sep)
-        mountpoint, *parts = abs_path.split(self.sep)
+        storage, *parts = abs_path.split(self.sep)
 
-        if ROOT in self.mounts:
+        if ROOT in self.storage_dict:
             abs_path = '/'.join([ROOT, abs_path])
-            mountpoint, *parts = abs_path.split(self.sep)
-            if mountpoint not in self.mounts:
+            storage, *parts = abs_path.split(self.sep)
+            if storage not in self.storage_dict:
                 return None
-        elif mountpoint not in self.mounts:
+        elif storage not in self.storage_dict:
             return None
 
-        return self.mounts[mountpoint].tree.get(parts)
+        return self.storage_dict[storage].tree.get(parts)
 
     @staticmethod
-    def update(abs_paths: list, abs_mount: str, node: File = None):
-        """Update mount.tree structure.
+    def update(abs_paths: list, abs_storage: str, node: File = None):
+        """Update storage.tree structure.
 
         Add the nearest part of real file system to tree.
 
@@ -407,12 +412,12 @@ class Filesystem:
         result is node File('a') is add to File('test')
 
         :param abs_paths: absolute paths
-        :param abs_mount: absolute path to mount
+        :param abs_storage: absolute path to storage
         :param node: instance of File
         """
         if node:
             relative_paths = InotifyHandler.get_relative_paths(
-                abs_mount, abs_paths)
+                abs_storage, abs_paths)
 
             for item in relative_paths:
                 if os.sep not in item and os.sep != item:
@@ -422,9 +427,9 @@ class Filesystem:
         """Gets the OS file path of the file specified by abs_path"""
         file = self.get(abs_path)
         abs_path = abs_path.strip(self.sep)
-        mount_name = abs_path.split(self.sep)[0]
-        mount = self.mounts[mount_name]
-        return file.abs_path(mount.path_storage)
+        storage_name = abs_path.split(self.sep)[0]
+        storage = self.storage_dict[storage_name]
+        return file.abs_path(storage.path_storage)
 
     def to_dict(self):
         """Returns all the tree in the representation Connect requires
@@ -433,25 +438,25 @@ class Filesystem:
         """
         root = {"type": "DIR", "name": "/", "ro": True, "children": []}
 
-        if ROOT in self.mounts:
-            root = self.mounts[ROOT].to_dict()
+        if ROOT in self.storage_dict:
+            root = self.storage_dict[ROOT].to_dict()
 
         root["children"].extend(
-            [v.to_dict() for k, v in self.mounts.items() if k != ROOT])
+            [v.to_dict() for k, v in self.storage_dict.items() if k != ROOT])
         return root
 
-    def from_dir(self, dirpath: str, mountpoint: str):
-        """Initialize a (File) tree from `dirpath` and mount it.
+    def from_dir(self, dirpath: str, storage: str):
+        """Initialize a (File) tree from `dirpath` and attach it.
 
         :param dirpath: The folder on store from which to create the FS
-        :param mountpoint: Mountpoint
+        :param storage: Storage
         """
         # normalize dirpath
         dirpath = path.abspath(dirpath)
         if not dirpath.endswith(path.sep):
             dirpath += path.sep
 
-        root = File(mountpoint, is_dir=True)
+        root = File(storage, is_dir=True)
         root.set_attrs(dirpath)
 
         for abs_dir, dirs, files in walk(dirpath):
@@ -473,8 +478,7 @@ class Filesystem:
                 node = parent.add(name)
                 node.set_attrs(path.join(abs_dir, name))
 
-        # mount
-        self.mount(mountpoint, root, dirpath)
+        self.attach(storage, root, dirpath)
 
     def connect_event(self, event: const.Event, data: dict):
         """Send an event to connect if `self.events` is set"""
@@ -495,7 +499,7 @@ class Filesystem:
 
 class InotifyHandler:
     """This handler is initialised with a Filesystem instance and
-    using it makes sure that all its mounts' `tree`s are updated on changes
+    using it makes sure that all its storage' `trees are updated on changes
     on the physical storage"""
 
     WATCH_FLAGS = flags.CREATE | flags.DELETE | flags.MODIFY | \
@@ -507,10 +511,10 @@ class InotifyHandler:
         self.fs = fs
         self.inotify = INotify()
         self.wds: typing.Dict[int, str] = {}  # watch descriptors
-        # init mount watches
-        for mount in self.fs.mounts.values():
-            if mount.use_inotify and mount.path_storage is not None:
-                self.__init_wd(mount.path_storage, init=True)
+        # init storage watches
+        for storage in self.fs.storage_dict.values():
+            if storage.use_inotify and storage.path_storage is not None:
+                self.__init_wd(storage.path_storage, init=True)
 
     def create_cache(self, new_path):
         """When a file is created, the cache file is created"""
@@ -561,27 +565,27 @@ class InotifyHandler:
 
         return relative_paths
 
-    def __init_wd(self, abs_mount: str, node: File = None, init=True):
+    def __init_wd(self, abs_storage: str, node: File = None, init=True):
         """Update all dirs from root to bottom.
 
         Add all dirs to inotify to watcher.
 
-        :param abs_mount: absolute path to mount
+        :param abs_storage: absolute path to storage
         :param node: instance of File
         :param init: wheter the function is called on init or create handler
         """
-        walk_mount = os.walk(abs_mount, topdown=True)
+        walk_storage = os.walk(abs_storage, topdown=True)
 
         if init:
-            abs_paths = [abs_path for abs_path, _, _ in walk_mount]
+            abs_paths = [abs_path for abs_path, _, _ in walk_storage]
             self.update_watch_dir(abs_paths)
-            Filesystem.update(abs_paths, abs_mount, node)
+            Filesystem.update(abs_paths, abs_storage, node)
 
         else:
             dir_paths = []
             file_paths = []
 
-            for dir_path, _, file_names in walk_mount:
+            for dir_path, _, file_names in walk_storage:
                 dir_paths.append(dir_path)
                 for file_name in file_names:
                     if not file_name.startswith('.'):
@@ -589,7 +593,7 @@ class InotifyHandler:
                         file_paths.append(file_path)
 
             self.update_watch_dir(dir_paths)
-            Filesystem.update(dir_paths, abs_mount, node)
+            Filesystem.update(dir_paths, abs_storage, node)
 
             for file_path in file_paths:
                 if not file_path in self.fs.checked_files:
@@ -636,9 +640,9 @@ class InotifyHandler:
         events = self.filter_delete_events(events)
         for event in events:
             parent_dir = self.wds[event.wd]
-            for mount in self.fs.mounts.values():
-                if parent_dir.startswith(mount.path_storage):
-                    mount.last_updated = time()
+            for storage in self.fs.storage_dict.values():
+                if parent_dir.startswith(storage.path_storage):
+                    storage.last_updated = time()
             for flag in flags.from_mask(event.mask):
                 # remove wds that are no longer needed
                 if flag.name == "IGNORED":
@@ -666,48 +670,48 @@ class InotifyHandler:
         split_path = normal_path.split(os.sep)
         split_path.remove('')
         try:
-            split_path[0] = self.fs.mounts[split_path[0]].path_storage
+            split_path[0] = self.fs.storage_dict[split_path[0]].path_storage
         except KeyError as error:
-            raise FileNotFoundError("Mount doesn't exist.") from error
+            raise FileNotFoundError("Storage doesn't exist.") from error
 
         return os.path.join(*split_path)
 
     # pylint: disable=inconsistent-return-statements
-    def mount_for(self, abs_path):
-        """Find the proper mount for the `path` in self.fs"""
-        mounts = []
-        # exclude non-applicable mounts
-        for mount in self.fs.mounts.values():
-            if not mount.use_inotify:
+    def attach_for(self, abs_path):
+        """Find the proper storage for the `path` in self.fs"""
+        storage_list = []
+        # exclude non-applicable storage
+        for storage in self.fs.storage_dict.values():
+            if not storage.use_inotify:
                 continue
-            if not abs_path.startswith(mount.path_storage):
+            if not abs_path.startswith(storage.path_storage):
                 continue
-            mounts.append(mount)
-        # return the mount with the longest match
+            storage_list.append(storage)
+        # return the storage with the longest match
         # NOTE this is still not really deterministic. Consider the scenario
-        # mount1:       /tmp/
-        # mount2:       /tmp/a
+        # storage1:       /tmp/
+        # storage2:       /tmp/a
         # abs_path:     /tmp/a/d
         # which one to take in this case?
         counter = Counter()
-        for mount in mounts:
-            overlap = common_start(mount.path_storage.rstrip(path.sep),
+        for storage in storage_list:
+            overlap = common_start(storage.path_storage.rstrip(path.sep),
                                    abs_path)
-            counter[mount] = len(overlap)
+            counter[storage] = len(overlap)
         result = counter.most_common()[0]
         assert result[1] > 0
         return result[0]
 
-    def __rel_path_parts(self, abs_path, mount) -> typing.List[str]:
+    def __rel_path_parts(self, abs_path, storage) -> typing.List[str]:
         """
-        Return the relative part of `abs_path` minus the `mount` split by
+        Return the relative part of `abs_path` minus the `storage` split by
         self.fs.sep
 
         :param abs_path: path
-        :param mount: mount point - beginning of the abs_path
+        :param storage: storage - beginning of the abs_path
         :return: list of parts of the relative path
         """
-        rel_path = abs_path[len(mount.path_storage):]
+        rel_path = abs_path[len(storage.path_storage):]
         return rel_path.rstrip(self.fs.sep).split(self.fs.sep)
 
     def process_create(self, abs_path, is_dir):
@@ -716,10 +720,10 @@ class InotifyHandler:
         for a folder.
         """
         # pylint: disable=unused-argument
-        mount = self.mount_for(abs_path)
-        parts = self.__rel_path_parts(abs_path, mount)
+        base_storage = self.attach_for(abs_path)
+        parts = self.__rel_path_parts(abs_path, base_storage)
         *parent, name = parts
-        parent = mount.tree.get(parent)
+        parent = base_storage.tree.get(parent)
         if not parent:
             return
         node = parent.add(name, is_dir=is_dir)
@@ -728,57 +732,57 @@ class InotifyHandler:
             # add inotify watch
             self.__init_wd(abs_path, node, init=False)  # add inotify watch
         else:
-            self.create_cache(node.abs_path(mount.mountpoint))
+            self.create_cache(node.abs_path(base_storage.storage))
         self.send_file_changed(file=node,
-                               new_path=node.abs_path(mount.mountpoint),
+                               new_path=node.abs_path(base_storage.storage),
                                free_space=
-                               mount.get_space_info().get("free_space"))
+                               base_storage.get_space_info().get("free_space"))
 
     def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
         indicated by `abs_path`.
         """
         # pylint: disable=unused-argument
-        mount = self.mount_for(abs_path)
-        parts = self.__rel_path_parts(abs_path, mount)
-        # top level dir (mount.tree) was deleted or unmounted
-        if abs_path == mount.path_storage:
-            node = mount.tree
+        base_storage = self.attach_for(abs_path)
+        parts = self.__rel_path_parts(abs_path, base_storage)
+        # top level dir (storage.tree) was deleted or detached
+        if abs_path == base_storage.path_storage:
+            node = base_storage.tree
             node.children = {}
             node.attrs = {}
-            path_ = node.abs_path(mount.mountpoint)
+            path_ = node.abs_path(base_storage.storage)
             self.delete_cache(path_)
             self.create_cache(path_)
             self.send_file_changed(old_path=path_,
                                    new_path=path_,
                                    file=node,
                                    free_space=
-                                   mount.get_space_info().get("free_space"))
+                                   base_storage.get_space_info().get("free_space"))
         else:
             # some watched folder other than top level was deleted
-            node = mount.tree.get(parts)
+            node = base_storage.tree.get(parts)
             node.delete()
-            path_ = node.abs_path(mount.mountpoint)
+            path_ = node.abs_path(base_storage.storage)
             self.delete_cache(path_)
             self.send_file_changed(old_path=path_,
                                    free_space=
-                                   mount.get_space_info().get("free_space"))
+                                   base_storage.get_space_info().get("free_space"))
 
     def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
         attributes for a file indicated by `abs_path`.
         """
         # pylint: disable=unused-argument
-        mount = self.mount_for(abs_path)
-        parts = self.__rel_path_parts(abs_path, mount)
-        node = mount.tree.get(parts)
+        base_storage = self.attach_for(abs_path)
+        parts = self.__rel_path_parts(abs_path, base_storage)
+        node = base_storage.tree.get(parts)
         node.set_attrs(abs_path)
-        path_ = node.abs_path(mount.mountpoint)
+        path_ = node.abs_path(base_storage.storage)
         self.send_file_changed(old_path=path_,
                                new_path=path_,
                                file=node,
                                free_space=
-                               mount.get_space_info().get("free_space"))
+                               base_storage.get_space_info().get("free_space"))
 
     def send_file_changed(self,
                           old_path: str = None,
