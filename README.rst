@@ -88,7 +88,7 @@ Events are a way to send information about the printer to Connect. They can be s
     * **State change** - indicating that the printer state has changed. This are sent
       by `Printer.set_state` method.
     * **FILE INFO** events which are created by `FileSystem` object.
-    * Alternatively you can inform Connect about other events like (un)mounting storage.
+    * Alternatively you can inform Connect about other events like attaching/detaching of storage.
       You can do this by calling `Printer.event_cb`.
 
 Examples for these groups follow below.

@@ -130,21 +130,21 @@ class DownloadMgr:
         """Translate virtual `destination` of self.fs to real OS path."""
         if not os.path.isabs(path):
             raise ValueError('Destination must be absolute')
-        mount_name = None
+        storage_name = None
         try:
-            _, mount_name, rest = path.split(self.fs.sep, 2)
-            mount = self.fs.mounts[mount_name]
-            path_storage = mount.path_storage.rstrip(self.fs.sep)
+            _, storage_name, rest = path.split(self.fs.sep, 2)
+            storage = self.fs.storage_dict[storage_name]
+            path_storage = storage.path_storage.rstrip(self.fs.sep)
             os_path_ = self.fs.sep.join([path_storage, rest])
             os_path_ = normpath(os_path_)
             if not os_path_.startswith(path_storage):
                 msg = "Destination is outside of defined path_storage for " \
-                      "mount_point: %s"
-                raise ValueError(msg % mount_name)
+                      "storage: %s"
+                raise ValueError(msg % storage_name)
             return os_path_
         except KeyError as err:
-            raise ValueError("Invalid mount point: `%s` in `%s`" %
-                             (mount_name, path)) from err
+            raise ValueError("Invalid storage: `%s` in `%s`" %
+                             (storage_name, path)) from err
 
     def loop(self):
         """Infinite download loop"""

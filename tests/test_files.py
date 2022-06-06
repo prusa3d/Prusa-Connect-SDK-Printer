@@ -13,7 +13,7 @@ import pytest  # type: ignore
 
 from prusa.connect.printer import const
 from prusa.connect.printer.files import File, Filesystem, \
-    InvalidMountpointError, InotifyHandler
+    InvalidStorageError, InotifyHandler
 from prusa.connect.printer.models import Event
 from prusa.connect.printer.metadata import MetaData
 
@@ -29,7 +29,7 @@ gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
 @pytest.fixture
 def nodes():
     """Create file tree in memory."""
-    root = File('mount-point', is_dir=True)
+    root = File('storage', is_dir=True)
     a = root.add("a", is_dir=True)
     a.add("1.gcode")
     a.add("b", is_dir=True)
@@ -109,7 +109,7 @@ def inotify(queue, nodes):
     tmp_dir = tempfile.TemporaryDirectory()
     create_on_storage(tmp_dir.name, nodes)
 
-    # mount storage:$tmp_dir as Filesystem:/test
+    # attach storage:$tmp_dir as Filesystem:/test
     fs = Filesystem(event_cb=event_cb)
     fs.from_dir(tmp_dir.name, "test")
     # Test event in queue
@@ -127,7 +127,7 @@ def inotify(queue, nodes):
 @pytest.fixture
 def fs(nodes):
     fs = Filesystem()
-    fs.mount("mount-point", nodes, storage_path="/tmp", use_inotify=False)
+    fs.attach("storage", nodes, storage_path="/tmp", use_inotify=False)
     return fs
 
 
@@ -279,39 +279,39 @@ class TestFile:
 
 class TestFilesystem:
     """Test Filesystem class interface."""
-    def test_mount(self, fs):
-        assert len(fs.mounts) == 1
-        assert "mount-point" in fs.mounts
+    def test_storage(self, fs):
+        assert len(fs.storage_dict) == 1
+        assert "storage" in fs.storage_dict
 
-    def test_mount_root(self, root_from_dir):
-        assert len(root_from_dir.mounts) == 1
+    def test_attach_root(self, root_from_dir):
+        assert len(root_from_dir.storage_dict) == 1
         assert root_from_dir.get('/')
         assert root_from_dir.get('/1.gcode')
 
-    def test_mount_empty(self, fs, nodes):
-        with pytest.raises(InvalidMountpointError):
-            fs.mount("", nodes)
+    def test_attach_empty(self, fs, nodes):
+        with pytest.raises(InvalidStorageError):
+            fs.attach("", nodes)
 
-    def test_mount_contains_sep(self, fs, nodes):
-        with pytest.raises(InvalidMountpointError):
-            fs.mount("/b", nodes)
+    def test_storage_contains_sep(self, fs, nodes):
+        with pytest.raises(InvalidStorageError):
+            fs.attach("/b", nodes)
 
-    def test_mount_already_used(self, fs, nodes):
-        with pytest.raises(InvalidMountpointError):
-            fs.mount("mount-point", nodes)
+    def test_storage_already_used(self, fs, nodes):
+        with pytest.raises(InvalidStorageError):
+            fs.attach("storage", nodes)
 
     def test_get_space_info(self, fs):
-        assert fs.mounts["mount-point"].get_space_info().get("free_space") > 0
-        assert fs.mounts["mount-point"].get_space_info().get("total_space") > 0
+        assert fs.storage_dict["storage"].get_space_info().get("free_space") > 0
+        assert fs.storage_dict["storage"].get_space_info().get("total_space") > 0
 
-    def test_unmount(self, fs):
-        fs.unmount("mount-point")
-        assert len(fs.mounts) == 0
+    def test_dettach(self, fs):
+        fs.dettach("storage")
+        assert len(fs.storage_dict) == 0
 
-    def test_unmount_invalid_mountpoint(self):
+    def test_dettach_invalid_storage(self):
         fs = Filesystem()
         with pytest.raises(ValueError):
-            fs.unmount("doesn-not-exist")
+            fs.dettach("doesn-not-exist")
 
     def test_from_dir(self, fs_from_dir, fs):
         b = fs_from_dir.get("/a/b")
@@ -334,16 +334,16 @@ class TestFilesystem:
             assert not h.is_dir
 
     def test_get_root(self, fs):
-        a = fs.get("mount-point")
-        assert a.name == "mount-point"
+        a = fs.get("storage")
+        assert a.name == "storage"
         assert a.is_dir
         assert len(a.children) == 1
 
     def test_get_deep(self, fs):
         """Test walking along the file tree using get()"""
-        assert fs.get("mount-point/a/1.gcode")
-        assert fs.get("mount-point/a/c/2.sl1")
-        assert fs.get("mount-point/a/c/3.txt")
+        assert fs.get("storage/a/1.gcode")
+        assert fs.get("storage/a/c/2.sl1")
+        assert fs.get("storage/a/c/3.txt")
 
     def test_to_dict(self, fs):
         fs_dict = fs.to_dict()
@@ -363,7 +363,7 @@ class TestFilesystem:
                 'type':
                 'DIR',
                 'name':
-                'mount-point',
+                'storage',
                 'size':
                 0,
                 'children': [{
@@ -546,7 +546,7 @@ class TestINotify:
         assert event.data['new_path'] is None
 
     def test_DELETE_root_dir(self, inotify):
-        """Test removing the root of a mount `Mount.path_storage` in a
+        """Test removing the root of a storage `storage.path_storage` in a
         `Filesystem`
         """
         shutil.rmtree(inotify.path)
@@ -618,19 +618,19 @@ class TestINotify:
         assert event.data['free_space'] > 0
 
     def test_connect_302(self, inotify, nodes):
-        inotify.fs.mount("wrong", nodes, storage_path="/t")
-        inotify.fs.mount("right", nodes, storage_path="/tmp")
+        inotify.fs.attach("wrong", nodes, storage_path="/t")
+        inotify.fs.attach("right", nodes, storage_path="/tmp")
 
-        mount = inotify.handler.mount_for("/tmp/a/b")
-        assert mount.mountpoint == 'right'
+        base_storage = inotify.handler.attach_for("/tmp/a/b")
+        assert base_storage.storage == 'right'
 
     def test_timestamp(self, fs, inotify, nodes):
-        mount_b = File('mount-point', is_dir=True)
-        mount_c = File('mount-point', is_dir=True)
-        inotify.fs.mount("b", mount_b, storage_path="/tmp/b")
-        inotify.fs.mount("c", mount_c, storage_path="/tmp/c")
+        storage_b = File('storage', is_dir=True)
+        storage_c = File('storage', is_dir=True)
+        inotify.fs.attach("b", storage_b, storage_path="/tmp/b")
+        inotify.fs.attach("c", storage_c, storage_path="/tmp/c")
 
-        first = inotify.handler.mount_for("/tmp/b")
-        second = inotify.handler.mount_for("/tmp/c")
+        first = inotify.handler.attach_for("/tmp/b")
+        second = inotify.handler.attach_for("/tmp/c")
 
         assert first.last_updated < second.last_updated

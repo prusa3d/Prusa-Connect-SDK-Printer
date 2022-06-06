@@ -749,18 +749,18 @@ class Printer:
         """Set internal variable, to stop the loop method."""
         self.__running_loop = False
 
-    def mount(self, folderpath: str, mountpoint: str):
-        """Create a listing of `folderpath` and mount it under `mountpoint`.
+    def attach(self, folderpath: str, storage: str):
+        """Create a listing of `folderpath` and attach it under `storage`.
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.from_dir(folderpath, mountpoint)
+        self.fs.from_dir(folderpath, storage)
         self.inotify_handler = InotifyHandler(self.fs)
 
-    def unmount(self, mountpoint: str):
-        """unmount `mountpoint`.
+    def dettach(self, storage: str):
+        """Dettach `storage`.
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.unmount(mountpoint)
+        self.fs.dettach(storage)
         self.inotify_handler = InotifyHandler(self.fs)

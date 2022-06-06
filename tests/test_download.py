@@ -56,8 +56,8 @@ def run_test_loop(download_mgr, timeout=.1, unset_stop=False):
     download_mgr.loop()
 
 
-def storage_path(fs, filename, mount='sdcard'):
-    return os.path.join(fs.mounts[mount].path_storage, filename)
+def storage_path(fs, filename, storage='sdcard'):
+    return os.path.join(fs.storage_dict[storage].path_storage, filename)
 
 
 def test_download_ok(download_mgr, gcode):
@@ -213,7 +213,7 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
 
 def test_printed_file_cb(download_mgr, printer):
     """Transfer will be aborted if currently printed file is the same"""
-    printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
+    printer.queue.get_nowait()  # MEDIUM_INSERTED from attaching `tmp`
     download_mgr.printed_file_cb = lambda: \
         os.path.abspath(download_mgr.os_path)
     download_mgr.start(const.TransferType.FROM_WEB,
@@ -229,7 +229,7 @@ def test_printed_file_cb(download_mgr, printer):
 
 
 def test_download_twice_in_a_row(gcode, download_mgr, printer):
-    printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting `tmp`
+    printer.queue.get_nowait()  # MEDIUM_INSERTED from attaching `tmp`
     download_mgr.start(const.TransferType.FROM_WEB,
                        DST,
                        GCODE_URL,
@@ -298,7 +298,7 @@ def test_download_finished_cb(download_mgr, printer):
 
     assert res
 
-    printer.queue.get_nowait()  # MEDIUM_INSERTED from mounting
+    printer.queue.get_nowait()  # MEDIUM_INSERTED from attaching
     item = printer.queue.get_nowait()
     assert item.event in (const.Event.TRANSFER_FINISHED,
                           const.Event.TRANSFER_STOPPED)

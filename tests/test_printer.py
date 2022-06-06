@@ -94,12 +94,12 @@ def printer_no_fp():
 
 @pytest.fixture
 def printer_sdcard():
-    """Printer with sdcard mounted"""
+    """Printer with sdcard attached"""
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.server = SERVER
     printer.token = TOKEN
     tmp_dir = tempfile.TemporaryDirectory()
-    printer.mount(tmp_dir.name, "sdcard")
+    printer.attach(tmp_dir.name, "sdcard")
     printer.queue.get_nowait()  # consume MEDIUM_INSERTED event
     yield printer
 
@@ -284,18 +284,18 @@ class TestPrinter:
 
     def test_call_delete_directory(self, requests_mock, printer):
         tmp_dir = tempfile.TemporaryDirectory()
-        # mount
-        printer.mount(tmp_dir.name, "test")
 
-        # get mount for test purpose
-        mount = printer.inotify_handler.fs.mounts["test"]
+        printer.attach(tmp_dir.name, "test")
 
-        # create temp dir in mount
+        # get storage for test purpose
+        storage = printer.inotify_handler.fs.storage_dict["test"]
+
+        # create temp dir in storage
         path = os.path.join(tmp_dir.name, "test_dir")
         os.makedirs(path)
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type': 'DIR',
@@ -304,7 +304,7 @@ class TestPrinter:
             'size': 0
         }
 
-        # MEDIUM_INSERTED event resulting from mounting
+        # MEDIUM_INSERTED event resulting from ataching
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         cmd = {
@@ -336,7 +336,7 @@ class TestPrinter:
         assert info["source"] == "WUI"
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type':
@@ -361,7 +361,7 @@ class TestPrinter:
         run_loop(printer.loop)
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type': 'DIR',
@@ -375,19 +375,19 @@ class TestPrinter:
     def test_call_delete_file(self, requests_mock, printer):
         tmp_dir = tempfile.TemporaryDirectory()
         tmp_file = "test-file.hex"
-        # mount
-        printer.mount(tmp_dir.name, "test")
 
-        # get mount for test purpose
-        mount = printer.inotify_handler.fs.mounts["test"]
+        printer.attach(tmp_dir.name, "test")
 
-        # create temp file in mount
+        # get storage for test purpose
+        storage = printer.inotify_handler.fs.storage_dict["test"]
+
+        # create temp file in storage
         file_path = os.path.join(tmp_dir.name, tmp_file)
         with open(file_path, 'wb') as file_tmp:
             file_tmp.write(os.urandom(1))
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type': 'DIR',
@@ -396,7 +396,7 @@ class TestPrinter:
             'size': 0
         }
 
-        # MEDIUM_INSERTED event resulting from mounting
+        # MEDIUM_INSERTED event resulting from attaching
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         cmd = {
@@ -426,7 +426,7 @@ class TestPrinter:
         assert info["source"] == "WUI"
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type':
@@ -451,7 +451,7 @@ class TestPrinter:
         run_loop(printer.loop)
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type': 'DIR',
@@ -463,18 +463,18 @@ class TestPrinter:
 
     def test_call_create_folder(self, requests_mock, printer):
         tmp_dir = tempfile.TemporaryDirectory()
-        printer.mount(tmp_dir.name, "test")
+        printer.attach(tmp_dir.name, "test")
 
-        # get mount for test purpose
-        mount = printer.inotify_handler.fs.mounts["test"]
+        # get storage for test purpose
+        storage = printer.inotify_handler.fs.storage_dict["test"]
 
-        # MEDIUM_INSERTED event resulting from mounting
+        # MEDIUM_INSERTED event resulting from attaching
         requests_mock.post(SERVER + "/p/events", status_code=204)
         dir_name = "test_dir"
         path = os.path.join(tmp_dir.name, dir_name)
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type': 'DIR',
@@ -512,7 +512,7 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type': 'DIR',
@@ -527,7 +527,7 @@ class TestPrinter:
         run_loop(printer.loop)
 
         # check file structure
-        file_system = mount.tree.to_dict()
+        file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
             'type':
@@ -694,25 +694,25 @@ class TestPrinter:
 
     def test_inotify(self, printer):
         # create two dirs. This will test if recreating the InotifyHandler
-        # in mount/unmount has side effects of creating multiple events
+        # in attach/dettach has side effects of creating multiple events
         # for the same thing
         dir1 = tempfile.TemporaryDirectory()
         open(f"{dir1.name}/before1.txt", "w").close()
-        printer.mount(dir1.name, "data1")
+        printer.attach(dir1.name, "data1")
 
         dir2 = tempfile.TemporaryDirectory()
-        printer.mount(dir2.name, "data2")
+        printer.attach(dir2.name, "data2")
 
         open(f"{dir1.name}/after1.txt", "w").close()
         open(f"{dir2.name}/after2.txt", "w").close()
 
         printer.inotify_handler()  # process inotify events
 
-        # mount of dir1
+        # attach of dir1
         event = printer.queue.get_nowait()
         assert event.event == const.Event.MEDIUM_INSERTED
 
-        # mount of dir2
+        # attach of dir2
         event = printer.queue.get_nowait()
         assert event.event == const.Event.MEDIUM_INSERTED
 
@@ -737,8 +737,8 @@ class TestPrinter:
                         accept_req):
         # accept_req is to determine, which request is ACCEPTED, in case of
         # FILE_CHANGE event appearing
-        printer.mount(dirpath, "test")
-        # MEDIUM_INSERTED event resulting from mounting
+        printer.attach(dirpath, "test")
+        # MEDIUM_INSERTED event resulting from attaching
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         cmd = {"command": "SEND_FILE_INFO", "kwargs": {"path": filename}}
@@ -776,7 +776,7 @@ class TestPrinter:
         return info
 
     def test_send_file_info(self, requests_mock, printer):
-        # create directory to be mounted with some content
+        # create directory to be attached with some content
         dir = tempfile.TemporaryDirectory()
         with open(f"{dir.name}/hello.gcode", "w") as f:
             # noqa: E501
@@ -850,7 +850,7 @@ class TestPrinter:
         run_loop(printer.download_mgr.loop)
 
         # check the file is on the disk
-        dir_ = printer.fs.mounts['sdcard'].path_storage
+        dir_ = printer.fs.storage_dict['sdcard'].path_storage
         downloaded_file = f'/{dir_}/my.gcode'
         assert os.path.exists(downloaded_file)
         os.remove(downloaded_file)
@@ -939,7 +939,7 @@ class TestPrinter:
 
     def test_download_rejected(self, printer):
         tmp_dir = tempfile.TemporaryDirectory()
-        printer.mount(tmp_dir.name, "sdcard")
+        printer.attach(tmp_dir.name, "sdcard")
 
         printer.queue.get_nowait()  # consume
 
