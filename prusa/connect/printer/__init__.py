@@ -717,17 +717,25 @@ class Printer:
                     errors.API.ok = True
                     API.state = CondState.OK
 
-                elif res.status_code == 400:
-                    log.debug(res.text)
+                if res.status_code <= 499:
+                    errors.HTTP.ok = True
+                    HTTP.state = CondState.OK
+                    if res.status_code == 400:
+                        log.debug(res.text)
 
-                elif res.status_code == 403:
-                    errors.TOKEN.ok = False
-                    TOKEN.state = CondState.NOK
-                    log.warning(res.text)
+                    if res.status_code == 403:
+                        errors.TOKEN.ok = False
+                        TOKEN.state = CondState.NOK
+                        log.warning(res.text)
 
-                elif res.status_code > 400:
+                if res.status_code > 400:
                     errors.API.ok = False
                     API.state = CondState.NOK
+                    log.debug(res.text)
+
+                if res.status_code >= 500:
+                    errors.HTTP.ok = False
+                    HTTP.state = CondState.NOK
                     log.debug(res.text)
 
             except Empty:
