@@ -624,7 +624,7 @@ class Printer:
         data = {
             "sn": self.sn,
             "fingerprint": self.fingerprint,
-            "printer_type": self.__type.__str__(),
+            "printer_type": str(self.__type),
             "firmware": self.firmware
         }
         res = self.conn.post(self.server + "/p/register",
