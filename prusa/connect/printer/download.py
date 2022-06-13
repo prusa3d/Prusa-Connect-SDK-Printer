@@ -260,12 +260,28 @@ class Transfer:
         self.type = const.TransferType.NO_TRANSFER
         self.path = None
         self.size = None
-        self.transferred = 0
+        self._transferred = 0
         self.event_cb = None
         self.lock = threading.Lock()
 
+        self.started_cb = lambda: None
+        self.progress_cb = lambda: None
+        self.stopped_cb = lambda: None
+
         self.start_ts = 0
         self.stop_ts = 0
+
+    @property
+    def transferred(self):
+        """Returns the number of bytes already transferred"""
+        return self._transferred
+
+    @transferred.setter
+    def transferred(self, transferred):
+        """Sets the number of bytes transferred and calls back, so UI can
+        update and whatnot"""
+        self._transferred = transferred
+        self.progress_cb()
 
     @property
     def in_progress(self):
@@ -296,10 +312,12 @@ class Transfer:
             self.url = url
             self.to_print = to_print
             self.to_select = to_select
+            self.started_cb()
 
     def stop(self):
         """Stop transfer - set the stop timestamp"""
         self.stop_ts = time.time()
+        self.stopped_cb()
 
     def reset(self):
         """Reset transfer data"""
