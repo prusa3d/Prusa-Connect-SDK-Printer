@@ -50,6 +50,8 @@ class Condition:
     def set_parent(self, parent: Condition):
         """Add a parent condition - meant for joining condition trees"""
         with cond_lock:
+            if parent == self.parent:
+                return
             if self.parent is not None:
                 raise ValueError("Can't replace a parent with another")
             if not parent.state == self.state == CondState.UNKNOWN:
