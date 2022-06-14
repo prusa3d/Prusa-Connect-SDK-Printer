@@ -133,6 +133,20 @@ def test_forbidden_replanting():
         Condition("Child", "Lorem ipsum", priority=0, parent=root)
 
 
+def test_set_parent():
+    root = Condition("Root", "Lorem ipsum", priority=0)
+    fake_rooot = Condition("FakeRoot", "Lorem ipsum", priority=0)
+    child = Condition("Child", "Lorem ipsum", priority=0)
+
+    child.set_parent(root)
+    # Setting the same parent is ok
+    child.set_parent(root)
+    # Changing the parent is not ok
+    with pytest.raises(ValueError):
+        child.set_parent(fake_rooot)
+
+
+
 def test_bool():
     cond = Condition("Condition", "Lorem ipsum", )
     assert not bool(cond)
