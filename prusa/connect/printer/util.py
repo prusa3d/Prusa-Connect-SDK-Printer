@@ -1,10 +1,16 @@
 """Various utilities for the Printer SDK project"""
 
 import logging
+from time import time
 
 import requests
+from prusa.connect.printer import const
 
 log = logging.getLogger("connect-printer")
+
+
+def get_timestamp(timestamp: float = None):
+    return timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
 
 
 class RetryingSession(requests.Session):

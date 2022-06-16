@@ -19,7 +19,7 @@ class Command:
     """Command singleton/state like structure."""
 
     state: Optional[const.Event]
-    command: Optional[str]
+    name: Optional[str]
     args: Optional[List[Any]]
     kwargs: Optional[Dict[str, Any]]
     handlers: Dict[const.Command, Callable[["Command"], Dict[str, Any]]]
@@ -29,7 +29,7 @@ class Command:
         self.state = None
         self.last_state = const.Event.REJECTED
         self.command_id = 0  # 0 means that there was no command before
-        self.command = None
+        self.name = None
         self.force = False
         self.args = []
         self.kwargs = {}
@@ -68,14 +68,14 @@ class Command:
     def accept(  # pylint: disable=too-many-arguments
             self,
             command_id: int,
-            command: str,
+            command_name: str,
             args: Optional[List[Any]] = None,
             kwargs: Optional[Dict[str, Any]] = None,
             force=False):
         """Accept command (add event to queue)."""
         self.state = const.Event.ACCEPTED
         self.command_id = command_id
-        self.command = command
+        self.name = command_name
         self.args = args
         self.kwargs = kwargs
         self.force = force
@@ -117,16 +117,16 @@ class Command:
         if self.state != const.Event.ACCEPTED:
             return None
 
-        log.debug("Try to handle %s command.", self.command)
+        log.debug("Try to handle %s command.", self.name)
         handler = None
         try:
-            cmd = const.Command(self.command)
+            cmd = const.Command(self.name)
             handler = self.handlers[cmd]
         except ValueError:
-            log.error("Unknown printer command %s.", self.command)
+            log.error("Unknown printer command %s.", self.name)
             return self.reject(const.Source.WUI, reason="Unknown command")
         except KeyError:
-            log.error("Printer command %s not implemented.", self.command)
+            log.error("Printer command %s not implemented.", self.name)
             return self.reject(const.Source.WUI, reason="Not Implemented")
         try:
             kwargs = handler(self)

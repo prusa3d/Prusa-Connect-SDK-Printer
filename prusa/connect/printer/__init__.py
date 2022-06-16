@@ -22,7 +22,7 @@ import re
 from logging import getLogger
 from queue import Queue, Empty
 from time import time, sleep
-from typing import Optional, List, Any, Callable, Dict, Union
+from typing import Optional, List, Any, Callable, Dict
 
 from requests import Session, RequestException
 # pylint: disable=redefined-builtin
@@ -33,10 +33,10 @@ from .command import Command
 from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
-from .models import Event, Telemetry, Sheet
+from .models import Event, Telemetry, Sheet, Register, LoopObject
 from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
-from .util import RetryingSession
+from .util import RetryingSession, get_timestamp
 
 __version__ = "0.7.0.dev2"
 __date__ = "28 Apr 2022"  # version date
@@ -56,21 +56,12 @@ __url__ = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
 
-CODE_TIMEOUT = 60 * 30  # 30 min
-
 log = getLogger("connect-printer")
 re_conn_reason = re.compile(r"] (.*)")
 
 __all__ = ["Printer"]
 
 CommandArgs = Optional[List[Any]]
-
-
-class Register:
-    """Item for get_token action."""
-    def __init__(self, code):
-        self.code = code
-        self.timeout = int(time()) + CODE_TIMEOUT
 
 
 def default_register_handler(token):
@@ -89,7 +80,7 @@ class Printer:
     """
     # pylint: disable=too-many-public-methods
 
-    queue: "Queue[Union[Event, Telemetry, Register]]"
+    queue: Queue[LoopObject]
     server: Optional[str] = None
     token: Optional[str] = None
     conn: Session
@@ -118,7 +109,6 @@ class Printer:
             "digest": None
         }
         self.api_key: Optional[str] = None
-        self.code: Optional[str] = None
 
         self.__ready: bool = False
         self.__state: const.State = const.State.BUSY
@@ -256,7 +246,7 @@ class Printer:
 
     def make_headers(self, timestamp: float = None) -> dict:
         """Returns request headers from connection variables."""
-        timestamp = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
+        timestamp = get_timestamp(timestamp)
 
         headers = {
             "Fingerprint": self.fingerprint,
@@ -500,7 +490,7 @@ class Printer:
     def delete_file(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete a file."""
         if not caller.kwargs or "path" not in caller.kwargs:
-            raise ValueError(f"{caller.command} requires kwargs")
+            raise ValueError(f"{caller.name} requires kwargs")
 
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
@@ -511,7 +501,7 @@ class Printer:
     def delete_folder(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
-            raise ValueError(f"{caller.command} requires kwargs")
+            raise ValueError(f"{caller.name} requires kwargs")
 
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
@@ -522,7 +512,7 @@ class Printer:
     def create_folder(self, caller: Command) -> Dict[str, Any]:
         """Handler for create a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
-            raise ValueError(f"{caller.command} requires kwargs")
+            raise ValueError(f"{caller.name} requires kwargs")
 
         relative_path_parameter = caller.kwargs["path"]
         abs_path = self.inotify_handler.get_abs_os_path(
@@ -631,34 +621,24 @@ class Printer:
                              headers=self.make_headers(),
                              json=data,
                              timeout=const.CONNECTION_TIMEOUT)
-        if res.status_code == 200:
-            code = res.headers["Code"]
-            self.code = code
-            self.queue.put(Register(code))
-            errors.API.ok = True
-            API.state = CondState.OK
-            return code
 
-        errors.HTTP.ok = True
-        HTTP.state = CondState.OK
-        errors.API.ok = False
-        API.state = CondState.NOK
-        if res.status_code >= 500:
-            errors.HTTP.ok = False
-            HTTP.state = CondState.NOK
-        log.debug("Status code: {res.status_code}")
-        raise RuntimeError(res.text)
+        if res.status_code != 200:
+            errors.API.ok = False
+            API.state = CondState.NOK
+            if res.status_code >= 500:
+                errors.HTTP.ok = False
+                HTTP.state = CondState.NOK
+            else:
+                errors.HTTP.ok = True
+                HTTP.state = CondState.OK
+            log.debug("Status code: {res.status_code}")
+            raise RuntimeError(res.text)
 
-    def get_token(self, tmp_code):
-        """Prepare request and return response for GET /p/register."""
-        if not self.server:
-            raise RuntimeError("Server is not set")
-
-        headers = self.make_headers()
-        headers["Code"] = tmp_code
-        return self.conn.get(self.server + "/p/register",
-                             headers=headers,
-                             timeout=const.CONNECTION_TIMEOUT)
+        code = res.headers["Code"]
+        self.queue.put(Register(code))
+        errors.API.ok = True
+        API.state = CondState.OK
+        return code
 
     def loop(self):
         """This method is responsible for communication with Connect.
@@ -671,75 +651,28 @@ class Printer:
         self.__running_loop = True
         while self.__running_loop:
             try:
+                # Get the item to send
                 item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
-                if not self.server:
-                    log.warning("Server is not set, skipping item from queue")
-                    continue
-
-                if isinstance(item, Telemetry) and self.token:
-                    headers = self.make_headers(item.timestamp)
-                    log.debug("Sending telemetry: %s", item)
-                    res = self.conn.post(self.server + '/p/telemetry',
-                                         headers=headers,
-                                         json=item.to_payload(),
-                                         timeout=const.CONNECTION_TIMEOUT)
-                    log.debug("Telemetry response: %s", res.text)
-                    self.parse_command(res)
-                elif isinstance(item, Event) and self.token:
-                    log.debug("Sending event: %s", item)
-                    headers = self.make_headers(item.timestamp)
-                    res = self.conn.post(self.server + '/p/events',
-                                         headers=headers,
-                                         json=item.to_payload(),
-                                         timeout=const.CONNECTION_TIMEOUT)
-                    log.debug("Event response: %s", res.text)
-                elif isinstance(item, Register):
-                    log.debug("Getting token")
-                    res = self.get_token(item.code)
-                    log.debug("Get register response: (%d) %s",
-                              res.status_code, res.text)
-                    if res.status_code == 200:
-                        self.token = res.headers["Token"]
-                        errors.TOKEN.ok = True
-                        TOKEN.state = CondState.OK
-                        log.info("New token was set.")
-                        self.register_handler(self.token)
-                        self.code = None
-                    elif res.status_code == 202 and item.timeout > time():
-                        self.queue.put(item)
-                        sleep(1)
-                else:
-                    log.debug("Item `%s` not sent, probably token isn't set.",
-                              item)
-                    continue  # No token - no communication
-
-                if 299 >= res.status_code >= 200:
-                    errors.API.ok = True
-                    API.state = CondState.OK
-
-                if res.status_code <= 499:
-                    errors.HTTP.ok = True
-                    HTTP.state = CondState.OK
-                    if res.status_code == 400:
-                        log.debug(res.text)
-
-                    if res.status_code == 403:
-                        errors.TOKEN.ok = False
-                        TOKEN.state = CondState.NOK
-                        log.warning(res.text)
-
-                if res.status_code > 400:
-                    errors.API.ok = False
-                    API.state = CondState.NOK
-                    log.debug(res.text)
-
-                if res.status_code >= 500:
-                    errors.HTTP.ok = False
-                    HTTP.state = CondState.NOK
-                    log.debug(res.text)
-
             except Empty:
                 continue
+
+            # Make sure we're able to send it
+            if not self.server:
+                log.warning("Server is not set, skipping item: %s", item)
+                continue
+            if not issubclass(type(item), LoopObject):
+                log.warning("Enqueued an unknown item: %s", item)
+                continue
+            if item.needs_token and not self.token:
+                errors.TOKEN.ok = False
+                TOKEN.state = CondState.NOK
+                log.warning("No token, skipping item: %s", item)
+                continue
+
+            # Send it
+            headers = self.make_headers(item.timestamp)
+            try:
+                res = item.send(self.conn, self.server, headers)
             except ConnectionError as err:
                 errors.HTTP.ok = False
                 HTTP.state = CondState.NOK
@@ -752,6 +685,39 @@ class Printer:
                 errors.INTERNET.ok = False
                 INTERNET.state = CondState.NOK
                 log.exception('Unhandled error')
+            else:
+                # Handle the response
+                if isinstance(item, Telemetry):
+                    self.parse_command(res)
+                elif isinstance(item, Register):
+                    if res.status_code == 200:
+                        self.token = res.headers["Token"]
+                        errors.TOKEN.ok = True
+                        TOKEN.state = CondState.OK
+                        log.info("New token was set.")
+                        self.register_handler(self.token)
+                    elif res.status_code == 202 and item.timeout > time():
+                        self.queue.put(item)
+                        sleep(1)
+
+                # Deduce our state from the response
+                if 299 >= res.status_code >= 200:
+                    errors.API.ok = True
+                    API.state = CondState.OK
+
+                elif res.status_code == 400:
+                    log.debug(res.text)
+
+                elif res.status_code == 403:
+                    errors.TOKEN.ok = False
+                    TOKEN.state = CondState.NOK
+                    log.warning(res.text)
+
+                elif res.status_code > 400:
+                    errors.API.ok = False
+                    API.state = CondState.NOK
+                    log.debug(res.text)
+
 
     def stop_loop(self):
         """Set internal variable, to stop the loop method."""
