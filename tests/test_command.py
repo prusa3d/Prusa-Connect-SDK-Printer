@@ -87,7 +87,7 @@ def test_call(command, queue):
         assert len(caller.args) == 0, caller.args
         return dict(event=const.Event.INFO, source=const.Source.CONNECT, x='x')
 
-    command.command = "SEND_INFO"
+    command.name = "SEND_INFO"
     command.state = const.Event.ACCEPTED
     command.handlers[const.Command.SEND_INFO] = handler
     command()
@@ -96,7 +96,7 @@ def test_call(command, queue):
 
 
 def test_call_unknown_command(command, queue):
-    command.command = "TEST"
+    command.name = "TEST"
     command.state = const.Event.ACCEPTED
     command()
     event = check_event(queue, const.Event.REJECTED)
@@ -104,7 +104,7 @@ def test_call_unknown_command(command, queue):
 
 
 def test_call_not_implemented(command, queue):
-    command.command = "SEND_INFO"
+    command.name = "SEND_INFO"
     command.state = const.Event.ACCEPTED
     command()
     event = check_event(queue, const.Event.REJECTED)
@@ -115,7 +115,7 @@ def test_call_exception(command, queue):
     def handler(caller):
         raise RuntimeError(str(caller.args))
 
-    command.command = "SEND_INFO"
+    command.name = "SEND_INFO"
     command.state = const.Event.ACCEPTED
     command.handlers[const.Command.SEND_INFO] = handler
     command()

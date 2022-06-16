@@ -1,12 +1,19 @@
 """Connect printer data models."""
+from logging import getLogger
 from time import time
 from typing import Dict, Any, Callable, Optional, TypedDict
 from mypy_extensions import Arg, DefaultArg, KwArg
+from requests import Session
 
-from . import const
+from . import const, get_timestamp
 
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
+from .const import CONNECTION_TIMEOUT
+
+log = getLogger("connect-printer")
+
+CODE_TIMEOUT = 60 * 30  # 30 min
 
 EventCallback = Callable[[
     Arg(const.Event, 'event'),  # noqa
@@ -42,8 +49,50 @@ def filter_null(obj):
     return obj
 
 
+class LoopObject:
+    endpoint = None
+    method = None
+    needs_token = True
+
+    timestamp: float
+
+    def __init__(self, timestamp: float = None):
+        self.timestamp = get_timestamp(timestamp)
+
+    def send(self, conn: Session, server, headers):
+        name = self.__class__.__name__
+        log.debug("Sending %s: %s", name, self)
+        res = conn.request(method=self.method,
+                           url=server + self.endpoint,
+                           headers=headers,
+                           json=self.to_payload,
+                           timeout=CONNECTION_TIMEOUT)
+
+        log.debug("%s response: %s", name, res.text)
+        return res
+
+    def to_payload(self):
+        return None
+
+
+class Register(LoopObject):
+    endpoint = "/p/register"
+    method = "GET"
+    needs_token = False
+    
+    """Item for get_token action."""
+    def __init__(self, code):
+        super().__init__()
+        self.code = code
+        self.timeout = int(time()) + CODE_TIMEOUT
+
+    def send(self, conn: Session, server, headers):
+        headers["Code"] = self.code
+        super().send(conn, server, headers)
+
+
 # pylint: disable=too-many-instance-attributes
-class Event:
+class Event(LoopObject):
     """Event object must contain at least Event type and source.
 
     timestamp : float
@@ -53,7 +102,10 @@ class Event:
     **kwargs : dict
         Any other name attributes will be stored in data structure.
     """
-    timestamp: float
+
+    endpoint = "/p/events"
+    method = "POST"
+    needs_token = True
     data: Dict[str, Any]
 
     # pylint: disable=too-many-arguments
@@ -66,8 +118,7 @@ class Event:
                  reason: str = None,
                  state: const.State = None,
                  **kwargs):
-        self.timestamp = timestamp or int(
-            time() * 10) * const.TIMESTAMP_PRECISION
+        super().__init__(timestamp=timestamp)
         self.event = event
         self.source = source
         self.command_id = command_id
@@ -98,17 +149,19 @@ class Event:
                 f" [{self.source}], {data}")
 
 
-class Telemetry:
+class Telemetry(LoopObject):
     """Telemetry object must contain at least Printer state"""
-    timestamp: float
+
+    endpoint = "/p/telemetry"
+    method = "POST"
+    needs_token = True
 
     def __init__(self, state: const.State, timestamp: float = None, **kwargs):
         """
         timestamp : float
             If not set int(time.time()*10)/10 is used.
         """
-        self.timestamp = timestamp or int(
-            time() * 10) * const.TIMESTAMP_PRECISION
+        super().__init__(timestamp=timestamp)
         self.__data = kwargs
         self.__data['state'] = state.value
 
