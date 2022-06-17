@@ -57,6 +57,7 @@ class Event(Enum):
     """Events known by Connect."""
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
+    FAILED = "FAILED"
     FINISHED = "FINISHED"
 
     INFO = "INFO"
@@ -141,3 +142,7 @@ class RegistrationStatus(Enum):
     FINISHED = "FINISHED"  # Finished registration
     IN_PROGRESS = "IN_PROGRESS"  # Unfinished registration, code exists
     NO_REGISTRATION = "NO_REGISTRATION"  # No registration, code doesn't exist
+
+
+# Drop everything and execute these when they come
+PRIORITY_COMMANDS = {Command.RESET_PRINTER}

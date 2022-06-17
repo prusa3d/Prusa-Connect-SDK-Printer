@@ -629,17 +629,6 @@ class TestPrinter:
         assert errors.API.ok is False
         assert API.state is CondState.NOK
 
-    def test_get_token(self, requests_mock, printer):
-        tmp_code = "f4c8996fb9"
-        token = "9TKC0M6mH7WNZTk4NbHG"
-        requests_mock.get(SERVER + "/p/register",
-                          headers={"Token": token},
-                          status_code=200)
-
-        res = printer.get_token(tmp_code)
-        assert res.status_code == 200
-        assert res.headers["Token"] == token
-
     def test_get_token_loop(self, requests_mock, printer):
         tmp_code = "f4c8996fb9"
         token = "9TKC0M6mH7WNZTk4NbHG"
@@ -812,7 +801,7 @@ class TestPrinter:
         filename = '/N/A/file.txt'
         info = self._send_file_info(directory.name, filename, requests_mock,
                                     printer, accept_req=2)
-        assert info['event'] == 'REJECTED'
+        assert info['event'] == 'FAILED'
         assert info['source'] == 'WUI'
         assert info['reason'] == 'Command error'
         assert info['data'] == {'error': "ValueError('File does not exist: "

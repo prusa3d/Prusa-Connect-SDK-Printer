@@ -4,12 +4,14 @@ import logging
 from time import time
 
 import requests
-from prusa.connect.printer import const
+from . import const
 
 log = logging.getLogger("connect-printer")
 
 
 def get_timestamp(timestamp: float = None):
+    """If given None, gets the current timestamp, otherwise leaves the
+    value alone"""
     return timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
 
 

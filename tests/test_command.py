@@ -1,5 +1,7 @@
 """Test Command interface"""
+import threading
 from queue import Queue
+from time import sleep
 
 import pytest
 
@@ -29,28 +31,31 @@ def command(queue):
     return Command(create_event)
 
 
-def check_event(queue, event: const.Event):
+def check_event(queue, event: const.Event, command_id=None, timeout=None):
     """Check right event is in queue."""
-    assert not queue.empty()
-    event_ = queue.get_nowait()
+    if timeout is None:
+        assert not queue.empty()
+    event_ = queue.get(timeout=timeout)
     assert event_.event == event, event
+    if command_id is not None:
+        assert event_.command_id == command_id
     return event_
 
 
 def test_check_state(command, queue):
     # no conflict
-    command.check_state(1)
+    command.check_state(1, const.Command.SEND_INFO.value)
     assert queue.empty()
 
     # last command_id is same
     command.command_id = 1
     command.last_state = const.Event.REJECTED
-    command.check_state(1)
+    command.check_state(1, const.Command.SEND_INFO.value)
     check_event(queue, const.Event.REJECTED)
 
     # last command not finished yet
     command.state = const.Event.ACCEPTED
-    command.check_state(1)
+    command.check_state(1, const.Command.SEND_INFO.value)
     check_event(queue, const.Event.ACCEPTED)
 
 
@@ -87,7 +92,7 @@ def test_call(command, queue):
         assert len(caller.args) == 0, caller.args
         return dict(event=const.Event.INFO, source=const.Source.CONNECT, x='x')
 
-    command.name = "SEND_INFO"
+    command.command_name = "SEND_INFO"
     command.state = const.Event.ACCEPTED
     command.handlers[const.Command.SEND_INFO] = handler
     command()
@@ -96,7 +101,7 @@ def test_call(command, queue):
 
 
 def test_call_unknown_command(command, queue):
-    command.name = "TEST"
+    command.command_name = "TEST"
     command.state = const.Event.ACCEPTED
     command()
     event = check_event(queue, const.Event.REJECTED)
@@ -104,7 +109,7 @@ def test_call_unknown_command(command, queue):
 
 
 def test_call_not_implemented(command, queue):
-    command.name = "SEND_INFO"
+    command.command_name = "SEND_INFO"
     command.state = const.Event.ACCEPTED
     command()
     event = check_event(queue, const.Event.REJECTED)
@@ -115,11 +120,11 @@ def test_call_exception(command, queue):
     def handler(caller):
         raise RuntimeError(str(caller.args))
 
-    command.name = "SEND_INFO"
+    command.command_name = "SEND_INFO"
     command.state = const.Event.ACCEPTED
     command.handlers[const.Command.SEND_INFO] = handler
     command()
-    event = check_event(queue, const.Event.REJECTED)
+    event = check_event(queue, const.Event.FAILED)
     assert event.reason == "Command error"
     assert 'error' in event.data
 
@@ -131,7 +136,7 @@ def test_unknown(command, queue):
     command()
     check_event(queue, const.Event.REJECTED)
 
-    command.check_state(24)
+    command.check_state(24, "STANDUP")
     check_event(queue, const.Event.REJECTED)
 
 
@@ -147,5 +152,29 @@ def test_command_recall(command, queue):
     command()
     check_event(queue, const.Event.INFO)
 
-    command.check_state(24)
+    command.check_state(24, const.Command.SEND_INFO.value)
     check_event(queue, const.Event.FINISHED)
+
+
+def test_priority_command(command, queue):
+    event = threading.Event()
+
+    def handler(_):
+        event.wait()
+        raise RuntimeError("Failed!")
+
+    def stop_cb():
+        ti = threading.Timer(0.1, event.set)
+        ti.start()
+
+    command.stop_cb = stop_cb
+    command.handlers[const.Command.SEND_INFO] = handler
+    command.accept(24, "SEND_INFO", [])
+    check_event(queue, const.Event.ACCEPTED)
+    t = threading.Thread(target=command)
+    t.start()
+    assert command.check_state(25, const.Command.RESET_PRINTER.value)
+    event.wait()
+    check_event(queue, const.Event.FAILED, command_id=24, timeout=0.1)
+
+
