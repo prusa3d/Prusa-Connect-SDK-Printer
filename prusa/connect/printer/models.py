@@ -5,11 +5,11 @@ from typing import Dict, Any, Callable, Optional, TypedDict
 from mypy_extensions import Arg, DefaultArg, KwArg
 from requests import Session
 
-from . import const, get_timestamp
+from . import const
+from .util import get_timestamp
 
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
-from .const import CONNECTION_TIMEOUT
 
 log = getLogger("connect-printer")
 
@@ -50,9 +50,10 @@ def filter_null(obj):
 
 
 class LoopObject:
-    endpoint = None
-    method = None
-    needs_token = True
+    """A common object that can be sent out"""
+    endpoint: str
+    method: str
+    needs_token: bool = True
 
     timestamp: float
 
@@ -60,35 +61,40 @@ class LoopObject:
         self.timestamp = get_timestamp(timestamp)
 
     def send(self, conn: Session, server, headers):
+        """A universal send function"""
         name = self.__class__.__name__
         log.debug("Sending %s: %s", name, self)
         res = conn.request(method=self.method,
                            url=server + self.endpoint,
                            headers=headers,
-                           json=self.to_payload,
-                           timeout=CONNECTION_TIMEOUT)
+                           json=self.to_payload(),
+                           timeout=const.CONNECTION_TIMEOUT)
 
         log.debug("%s response: %s", name, res.text)
         return res
 
     def to_payload(self):
+        """By default, LoopObjects don't send any payload"""
         return None
 
 
 class Register(LoopObject):
+    """A request to Connect to register the printer
+    does not need the token, this one is needed to get it"""
+
     endpoint = "/p/register"
     method = "GET"
     needs_token = False
-    
-    """Item for get_token action."""
+
     def __init__(self, code):
         super().__init__()
         self.code = code
         self.timeout = int(time()) + CODE_TIMEOUT
 
     def send(self, conn: Session, server, headers):
+        """Register needs an extra code in the headers, this adds it"""
         headers["Code"] = self.code
-        super().send(conn, server, headers)
+        return super().send(conn, server, headers)
 
 
 # pylint: disable=too-many-instance-attributes

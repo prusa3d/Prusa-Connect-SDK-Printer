@@ -31,6 +31,7 @@ from requests.exceptions import ConnectionError
 from . import const, errors
 from .command import Command
 from .conditions import CondState, API, TOKEN, HTTP, INTERNET
+from .const import PRIORITY_COMMANDS
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry, Sheet, Register, LoopObject
@@ -80,7 +81,7 @@ class Printer:
     """
     # pylint: disable=too-many-public-methods
 
-    queue: Queue[LoopObject]
+    queue: "Queue[LoopObject]"
     server: Optional[str] = None
     token: Optional[str] = None
     conn: Session
@@ -109,6 +110,7 @@ class Printer:
             "digest": None
         }
         self.api_key: Optional[str] = None
+        self.code: Optional[str] = None
 
         self.__ready: bool = False
         self.__state: const.State = const.State.BUSY
@@ -490,7 +492,7 @@ class Printer:
     def delete_file(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete a file."""
         if not caller.kwargs or "path" not in caller.kwargs:
-            raise ValueError(f"{caller.name} requires kwargs")
+            raise ValueError(f"{caller.command_name} requires kwargs")
 
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
@@ -501,7 +503,7 @@ class Printer:
     def delete_folder(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
-            raise ValueError(f"{caller.name} requires kwargs")
+            raise ValueError(f"{caller.command_name} requires kwargs")
 
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
@@ -512,7 +514,7 @@ class Printer:
     def create_folder(self, caller: Command) -> Dict[str, Any]:
         """Handler for create a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
-            raise ValueError(f"{caller.name} requires kwargs")
+            raise ValueError(f"{caller.command_name} requires kwargs")
 
         relative_path_parameter = caller.kwargs["path"]
         abs_path = self.inotify_handler.get_abs_os_path(
@@ -576,17 +578,20 @@ class Printer:
             try:
                 if content_type.startswith("application/json"):
                     data = res.json()
-                    if self.command.check_state(command_id):
-                        self.command.accept(command_id,
-                                            data.get("command",
-                                                     ""), data.get("args"),
-                                            data.get('kwargs'))
+                    command_name = data.get("command", "")
+                    if self.command.check_state(command_id, command_name):
+                        self.command.accept(
+                            command_id,
+                            command_name=command_name,
+                            args=data.get("args"),
+                            kwargs=data.get('kwargs'))
                 elif content_type == "text/x.gcode":
-                    if self.command.check_state(command_id):
+                    command_name = const.Command.GCODE.value
+                    if self.command.check_state(command_id, command_name):
                         force = ("Force" in res.headers
                                  and res.headers["Force"] == "1")
                         self.command.accept(command_id,
-                                            const.Command.GCODE.value,
+                                            command_name,
                                             [res.text], {"gcode": res.text},
                                             force=force)
                 else:
@@ -634,11 +639,11 @@ class Printer:
             log.debug("Status code: {res.status_code}")
             raise RuntimeError(res.text)
 
-        code = res.headers["Code"]
-        self.queue.put(Register(code))
+        self.code = res.headers["Code"]
+        self.queue.put(Register(self.code))
         errors.API.ok = True
         API.state = CondState.OK
-        return code
+        return self.code
 
     def loop(self):
         """This method is responsible for communication with Connect.
@@ -696,28 +701,31 @@ class Printer:
                         TOKEN.state = CondState.OK
                         log.info("New token was set.")
                         self.register_handler(self.token)
+                        self.code = None
                     elif res.status_code == 202 and item.timeout > time():
                         self.queue.put(item)
                         sleep(1)
 
-                # Deduce our state from the response
-                if 299 >= res.status_code >= 200:
-                    errors.API.ok = True
-                    API.state = CondState.OK
-
+                self.deduce_state_from_code(res.status_code)
+                if res.status_code > 400:
+                    log.warning(res.text)
                 elif res.status_code == 400:
                     log.debug(res.text)
 
-                elif res.status_code == 403:
-                    errors.TOKEN.ok = False
-                    TOKEN.state = CondState.NOK
-                    log.warning(res.text)
+    @staticmethod
+    def deduce_state_from_code(status_code):
+        """Deduce our state from the HTTP status code"""
+        if 299 >= status_code >= 200:
+            errors.API.ok = True
+            API.state = CondState.OK
 
-                elif res.status_code > 400:
-                    errors.API.ok = False
-                    API.state = CondState.NOK
-                    log.debug(res.text)
+        elif status_code == 403:
+            errors.TOKEN.ok = False
+            TOKEN.state = CondState.NOK
 
+        elif status_code > 400:
+            errors.API.ok = False
+            API.state = CondState.NOK
 
     def stop_loop(self):
         """Set internal variable, to stop the loop method."""
