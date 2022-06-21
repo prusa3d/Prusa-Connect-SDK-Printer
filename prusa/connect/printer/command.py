@@ -135,4 +135,4 @@ class Command:
             log.exception("")
             return self.reject(const.Source.WUI,
                                reason="Command error",
-                               error=str(err))
+                               error=repr(err))
