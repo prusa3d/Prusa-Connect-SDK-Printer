@@ -53,6 +53,13 @@ class PrinterType(Enum):
         return '.'.join(str(i) for i in self.value)
 
 
+class StorageType(Enum):
+    """Storage Type"""
+    LOCAL = 'LOCAL'
+    SDCARD = 'SDCARD'
+    USB = 'USB'
+
+
 class Event(Enum):
     """Events known by Connect."""
     ACCEPTED = "ACCEPTED"
