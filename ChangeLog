@@ -21,6 +21,7 @@ ChangeLog
     * Added new SET_PRINTER_READY / CANCEL_PRINTER_READY cmds
     * Inotify fix - handling nested files
     * Introduce a new conditions system
+    * Added StorageType enum to const
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
