@@ -646,71 +646,80 @@ class Printer:
         return self.code
 
     def loop(self):
-        """This method is responsible for communication with Connect.
-
-        In a loop it gets an item (Event or Telemetry) from queue and sets
-        Printer.command object, when the command is in the answer to telemetry.
-        """
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-statements
+        """Calls loop_step in a loop. Handles any unexpected Exceptions"""
         self.__running_loop = True
         while self.__running_loop:
             try:
-                # Get the item to send
-                item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
-            except Empty:
-                continue
+                self.loop_step()
+            # pylint: disable=broad-except
+            except Exception:
+                log.exception("Unexpected exception caught in SDK loop!")
 
-            # Make sure we're able to send it
-            if not self.server:
-                log.warning("Server is not set, skipping item: %s", item)
-                continue
-            if not issubclass(type(item), LoopObject):
-                log.warning("Enqueued an unknown item: %s", item)
-                continue
-            if item.needs_token and not self.token:
-                errors.TOKEN.ok = False
-                TOKEN.state = CondState.NOK
-                log.warning("No token, skipping item: %s", item)
-                continue
+    def loop_step(self):
+        """
+        Gets an item LoopObject from queue, sends it and handles the response
+        The LoopObject is either an Event - in which case it's just sent,
+        a Telemetry, in which case the response might contain a command to
+        execute, a Register object in which case the response contains the
+        credentials for further communication.
+        """
+        # pylint: disable=too-many-branches
+        try:
+            # Get the item to send
+            item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
+        except Empty:
+            return
 
-            # Send it
-            headers = self.make_headers(item.timestamp)
-            try:
-                res = item.send(self.conn, self.server, headers)
-            except ConnectionError as err:
-                errors.HTTP.ok = False
-                HTTP.state = CondState.NOK
-                log.error(err)
-            except RequestException as err:
-                errors.INTERNET.ok = False
-                INTERNET.state = CondState.NOK
-                log.error(err)
-            except Exception:  # pylint: disable=broad-except
-                errors.INTERNET.ok = False
-                INTERNET.state = CondState.NOK
-                log.exception('Unhandled error')
-            else:
-                # Handle the response
-                if isinstance(item, Telemetry):
-                    self.parse_command(res)
-                elif isinstance(item, Register):
-                    if res.status_code == 200:
-                        self.token = res.headers["Token"]
-                        errors.TOKEN.ok = True
-                        TOKEN.state = CondState.OK
-                        log.info("New token was set.")
-                        self.register_handler(self.token)
-                        self.code = None
-                    elif res.status_code == 202 and item.timeout > time():
-                        self.queue.put(item)
-                        sleep(1)
+        # Make sure we're able to send it
+        if not self.server:
+            log.warning("Server is not set, skipping item: %s", item)
+            return
+        if not issubclass(type(item), LoopObject):
+            log.warning("Enqueued an unknown item: %s", item)
+            return
+        if item.needs_token and not self.token:
+            errors.TOKEN.ok = False
+            TOKEN.state = CondState.NOK
+            log.warning("No token, skipping item: %s", item)
+            return
 
-                self.deduce_state_from_code(res.status_code)
-                if res.status_code > 400:
-                    log.warning(res.text)
-                elif res.status_code == 400:
-                    log.debug(res.text)
+        # Send it
+        headers = self.make_headers(item.timestamp)
+        try:
+            res = item.send(self.conn, self.server, headers)
+        except ConnectionError as err:
+            errors.HTTP.ok = False
+            HTTP.state = CondState.NOK
+            log.error(err)
+        except RequestException as err:
+            errors.INTERNET.ok = False
+            INTERNET.state = CondState.NOK
+            log.error(err)
+        except Exception:  # pylint: disable=broad-except
+            errors.INTERNET.ok = False
+            INTERNET.state = CondState.NOK
+            log.exception('Unhandled error')
+        else:
+            # Handle the response
+            if isinstance(item, Telemetry):
+                self.parse_command(res)
+            elif isinstance(item, Register):
+                if res.status_code == 200:
+                    self.token = res.headers["Token"]
+                    errors.TOKEN.ok = True
+                    TOKEN.state = CondState.OK
+                    log.info("New token was set.")
+                    self.register_handler(self.token)
+                    self.code = None
+                elif res.status_code == 202 and item.timeout > time():
+                    self.queue.put(item)
+                    sleep(1)
+
+            self.deduce_state_from_code(res.status_code)
+            if res.status_code > 400:
+                log.warning(res.text)
+            elif res.status_code == 400:
+                log.debug(res.text)
 
     @staticmethod
     def deduce_state_from_code(status_code):
