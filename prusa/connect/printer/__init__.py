@@ -29,7 +29,7 @@ from requests import Session, RequestException
 from requests.exceptions import ConnectionError
 
 from . import const, errors
-from .command import Command
+from .command import Command, CommandFailed
 from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .const import PRIORITY_COMMANDS
 from .files import Filesystem, InotifyHandler, delete
@@ -386,17 +386,18 @@ class Printer:
                 f"{const.Command.START_URL_DOWNLOAD} requires kwargs")
 
         try:
-            self.download_mgr.start(
+            retval = self.download_mgr.start(
                 const.TransferType.FROM_WEB,
                 caller.kwargs["path"],
                 caller.kwargs["url"],
                 to_print=caller.kwargs.get("printing", False),
-                to_select=caller.kwargs.get("selecting", False))
+                to_select=caller.kwargs.get("selecting", False),
+                start_cmd_id=caller.command_id)
+            retval['source'] = const.Source.CONNECT
+            return retval
         except KeyError as err:
             raise ValueError(f"{const.Command.START_URL_DOWNLOAD} requires "
                              f"kwarg {err}.") from None
-
-        return dict(source=const.Source.CONNECT)
 
     def start_connect_download(self, caller: Command) -> Dict[str, Any]:
         """Download a gcode from Connect, compose an URL using
@@ -406,19 +407,20 @@ class Printer:
                 f"{const.Command.START_CONNECT_DOWNLOAD} requires kwargs")
 
         try:
-            self.download_mgr.start(
+            retval = self.download_mgr.start(
                 const.TransferType.FROM_CONNECT,
                 caller.kwargs["path"],
                 self.server + caller.kwargs["source"],
                 to_print=caller.kwargs.get("printing", False),
-                to_select=caller.kwargs.get("selecting", False))
-
+                to_select=caller.kwargs.get("selecting", False),
+                start_cmd_id=caller.command_id,
+                hash_=caller.kwargs["hash"])
+            retval['source'] = const.Source.CONNECT
+            return retval
         except KeyError as err:
             raise ValueError(
                 f"{const.Command.START_CONNECT_DOWNLOAD} requires "
                 f"kwarg {err}.") from None
-
-        return dict(source=const.Source.CONNECT)
 
     def transfer_stop(self, caller: Command) -> Dict[str, Any]:
         """Stop current transfer, if any"""
@@ -428,7 +430,10 @@ class Printer:
 
     def transfer_info(self, caller: Command) -> Dict[str, Any]:
         """Provide info of the running transfer"""
-        # pylint: disable=unused-argument
+        kwargs = caller.kwargs or {}
+        transfer_id = kwargs.get('transfer_id')
+        if transfer_id and transfer_id != self.transfer.transfer_id:
+            raise CommandFailed("Not current transfer.")
         info = self.download_mgr.info()
         info['source'] = const.Source.CONNECT
         info['event'] = const.Event.TRANSFER_INFO

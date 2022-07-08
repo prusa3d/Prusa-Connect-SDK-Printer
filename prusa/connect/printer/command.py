@@ -16,6 +16,10 @@ log = getLogger("connect-printer")
 CommandArgs = Optional[List[Any]]
 
 
+class CommandFailed(RuntimeError):
+    """Exception class for signalling that a command has failed."""
+
+
 class Command:
     """Command singleton/state like structure."""
 

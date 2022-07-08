@@ -22,6 +22,7 @@ ChangeLog
     * Inotify fix - handling nested files
     * Introduce a new conditions system
     * Added StorageType enum to const
+    * TRANSFER_INFO improvement
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
