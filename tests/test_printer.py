@@ -17,8 +17,8 @@ from prusa.connect.printer.models import Telemetry, Event
 from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
 
 # pylint: disable=missing-function-docstring
-# pylint: disable=no-self-use
 # pylint: disable=redefined-outer-name
+# pylint: disable=too-many-lines
 
 FINGERPRINT = "__fingerprint__"
 SN = "SN001002XP003"
@@ -845,7 +845,17 @@ class TestPrinter:
         assert os.path.exists(downloaded_file)
         os.remove(downloaded_file)
 
-    def test_download_info(self, printer_sdcard, requests_mock):
+        run_loop(printer.loop)
+
+        assert str(requests_mock.request_history[3]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[3].json()
+
+        assert info["event"] == "TRANSFER_INFO"
+        assert info["source"] == "CONNECT"
+        assert info["data"]["start_command_id"] == 42
+
+    def test_transfer_info(self, printer_sdcard, requests_mock):
         # prepare command and mocks
         printer = printer_sdcard
         path = '/sdcard/test-download-info.gcode'
@@ -860,7 +870,7 @@ class TestPrinter:
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        # send telemetry - obtain download info command
+        #send telemetry - obtain download info command
         printer.telemetry()
 
         run_loop(printer.loop)
@@ -895,6 +905,107 @@ class TestPrinter:
         assert info["data"]['time_remaining'] > 0
         assert info["data"]['to_print'] is False
         assert info["data"]['to_select'] is True
+
+    def test_transfer_info_id(self, printer_sdcard, requests_mock):
+        # prepare command and mocks
+        printer = printer_sdcard
+        path = '/sdcard/test-download-info.gcode'
+        url = "http://prusaprinters.org/my.gcode"
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        run_loop(printer.loop)
+
+        # mock printer.download_mgr.current
+        now = time.time() - 1
+        event = printer.download_mgr.start(TYPE,
+                                           path,
+                                           url,
+                                           to_print=False,
+                                           to_select=True)
+        printer.event_cb(**event)  # send initial TRANSFER_INFO
+
+        transfer = printer.download_mgr.transfer
+        transfer.start_ts = now
+        transfer.size = 1000
+        transfer.transferred = 100
+        assert not printer.download_mgr.transfer.stop_ts
+
+        run_loop(printer.loop)
+
+        info = requests_mock.request_history[0].json()
+        transfer_id = info["data"]['transfer_id']
+        cmd = {"command":"SEND_TRANSFER_INFO", "transfer_id": transfer_id}
+
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=json.dumps(cmd),
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+
+        #send telemetry - obtain download info command
+        printer.telemetry()
+        run_loop(printer.loop)
+
+        # exec download info
+        printer.command()
+        run_loop(printer.loop)
+
+        info = requests_mock.request_history[3].json()
+        assert info["event"] == "TRANSFER_INFO"
+        assert info["source"] == "CONNECT"
+        assert info["command_id"] == 42
+        assert info["data"]['transfer_id'] == transfer_id
+
+    def test_transfer_info_failed(self, printer_sdcard, requests_mock):
+        # prepare command and mocks
+        printer = printer_sdcard
+        path = '/sdcard/test-download-info.gcode'
+        url = "http://prusaprinters.org/my.gcode"
+        cmd = {"command":"SEND_TRANSFER_INFO", "transfer_id": -1}
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=json.dumps(cmd),
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        run_loop(printer.loop)
+
+        # mock printer.download_mgr.current
+        now = time.time() - 1
+        event = printer.download_mgr.start(TYPE,
+                                           path,
+                                           url,
+                                           to_print=False,
+                                           to_select=True)
+        printer.event_cb(**event)  # send initial TRANSFER_INFO
+
+        transfer = printer.download_mgr.transfer
+        transfer.start_ts = now
+        transfer.size = 1000
+        transfer.transferred = 100
+        assert not printer.download_mgr.transfer.stop_ts
+
+        run_loop(printer.loop)
+
+        #send telemetry - obtain download info command
+        printer.telemetry()
+        run_loop(printer.loop)
+
+        # exec download info
+        printer.command()
+        run_loop(printer.loop)
+
+        info = requests_mock.request_history[3].json()
+        assert info["event"] == "TRANSFER_INFO"
+        assert info["source"] == "CONNECT"
+        assert info["command_id"] == 42
+
 
     def test_download_stop(self, printer_sdcard, requests_mock):
         # post telemetry - obtain command
@@ -934,22 +1045,23 @@ class TestPrinter:
         printer.queue.get_nowait()  # consume
 
         url = "http://prusaprinters.org/test-download-rejected.gcode"
-        printer.download_mgr.start(TYPE,
+        item = printer.download_mgr.start(TYPE,
                                    '/sdcard/test-download-rejected.gcode',
                                    url,
                                    to_print=False,
                                    to_select=False)
+        assert item['event'] == const.Event.TRANSFER_INFO
+
         # 2nd will get rejected
-        printer.download_mgr.start(TYPE,
+        item = printer.download_mgr.start(TYPE,
                                    url,
                                    '/sdcard/test-download-rejected.gcode',
                                    to_print=False,
                                    to_select=False)
 
-        item = printer.queue.get_nowait()
-        assert isinstance(item, Event)
-        assert item.event == const.Event.REJECTED
-        assert item.source == const.Source.CONNECT
+        assert item['event'] == const.Event.REJECTED
+        assert item['source'] == const.Source.CONNECT
+
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 

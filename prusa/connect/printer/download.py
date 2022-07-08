@@ -5,11 +5,15 @@ import time
 from random import randint
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
-from typing import Optional
+from typing import Optional, Callable
 
 import requests
 
 from . import const
+from .const import TransferType, Event, Source
+from .models import EventCallback
+from .files import Filesystem
+
 
 log = getLogger("connect-printer")
 
@@ -17,8 +21,8 @@ log = getLogger("connect-printer")
 # NOTE: Temporary for pylint with python3.9
 # pylint: disable=unsubscriptable-object
 
-DOWNLOAD_TYPES = (const.TransferType.FROM_WEB, const.TransferType.FROM_CONNECT,
-                  const.TransferType.FROM_PRINTER)
+DOWNLOAD_TYPES = (TransferType.FROM_WEB, TransferType.FROM_CONNECT,
+                  TransferType.FROM_PRINTER)
 
 
 class TransferRunningError(Exception):
@@ -75,193 +79,22 @@ def foldername_too_long(path):
     return any(len(folder) > const.MAX_NAME_LENGTH for folder in path_)
 
 
-class DownloadMgr:
-    """Download manager."""
-    LOOP_INTERVAL = .1
-    VALID_MIME_TYPES = ('application/gcode', 'text/plain',
-                        'application/binary', 'application/octet-stream')
-    SMALL_BUFFER = 1024
-    BIG_BUFFER = 1024 * 100
-
-    def __init__(self, fs, transfer, conn_details_cb, event_cb,
-                 printed_file_cb, download_finished_cb):
-        # pylint: disable=invalid-name
-        # pylint: disable=too-many-arguments
-        self.buffer_size = self.BIG_BUFFER
-        self.throttle = 0
-        self.fs = fs
-        self.conn_details_cb = conn_details_cb
-        self.event_cb = event_cb
-        self.printed_file_cb = printed_file_cb
-        self._running_loop = False
-        self.headers = None
-        self.transfer = transfer
-        self.download_finished_cb = download_finished_cb
-
-    def start(self, type_, path, url=None, to_print=None, to_select=None):
-        """Start a download of `url` saving it into the `path`.
-        This `path` is the absolute virtual path in `self.fs`
-        (:class:prusa.connect.printer.files.Filesystem)
-        """
-        # pylint: disable=too-many-arguments
-        # Check if no other transfer is running
-        try:
-            self.transfer.start(type_, path, url, to_print, to_select)
-        except TransferRunningError:
-            self.event_cb(const.Event.REJECTED,
-                          const.Source.CONNECT,
-                          reason="Another transfer in progress")
-            return
-
-        log.info("Starting download: %s", url)
-
-        # transform destination to OS path and validate
-        self.transfer.os_path = self.to_os_path(path)
-        # make dir (in case filename contains a subdir)
-        dir_ = None
-        # This needs refactoring
-        try:
-            dir_ = dirname(self.transfer.os_path)
-            os.makedirs(dir_)
-        except FileExistsError:
-            log.debug("%s already exists", dir_)
-
-    def to_os_path(self, path):
-        """Translate virtual `destination` of self.fs to real OS path."""
-        if not os.path.isabs(path):
-            raise ValueError('Destination must be absolute')
-        storage_name = None
-        try:
-            _, storage_name, rest = path.split(self.fs.sep, 2)
-            storage = self.fs.storage_dict[storage_name]
-            path_storage = storage.path_storage.rstrip(self.fs.sep)
-            os_path_ = self.fs.sep.join([path_storage, rest])
-            os_path_ = normpath(os_path_)
-            if not os_path_.startswith(path_storage):
-                msg = "Destination is outside of defined path_storage for " \
-                      "storage: %s"
-                raise ValueError(msg % storage_name)
-            return os_path_
-        except KeyError as err:
-            raise ValueError("Invalid storage: `%s` in `%s`" %
-                             (storage_name, path)) from err
-
-    def loop(self):
-        """Infinite download loop"""
-        # pylint: disable=too-many-nested-blocks
-        self._running_loop = True
-        while self._running_loop:
-            if self.transfer.type in DOWNLOAD_TYPES:
-                try:
-                    self.download()
-                    abs_fn = abspath(self.transfer.os_path)
-                    if self.transfer.stop_ts:  # download was stopped
-                        tmp_fn = self.tmp_filename()
-                        if os.path.exists(tmp_fn):
-                            os.remove(tmp_fn)
-                    else:
-                        if self.printed_file_cb() != abs_fn:
-                            os.rename(self.tmp_filename(), abs_fn)
-                        else:
-                            msg = "Gcode being printed would be" \
-                                  "overwritten by downloaded file -> aborting."
-                            self.event_cb(const.Event.TRANSFER_ABORTED,
-                                          const.Source.CONNECT,
-                                          reason=msg)
-
-                    self.event_cb(const.Event.TRANSFER_FINISHED,
-                                  const.Source.CONNECT,
-                                  url=self.transfer.url,
-                                  destination=self.transfer.path)
-                    self.download_finished_cb(self.transfer)
-
-                except TransferStoppedError:
-                    self.event_cb(const.Event.TRANSFER_STOPPED,
-                                  const.Source.CONNECT)
-
-                except Exception as err:  # pylint: disable=broad-except
-                    log.error(err)
-                    self.event_cb(const.Event.TRANSFER_ABORTED,
-                                  const.Source.CONNECT,
-                                  reason=str(err))
-                finally:
-                    # End of transfer - reset transfer data
-                    self.transfer.type = const.TransferType.NO_TRANSFER
-
-            time.sleep(self.LOOP_INTERVAL)
-
-    def stop_loop(self):
-        """Set internal variable to stop the download loop."""
-        self._running_loop = False
-
-    def info(self):
-        """Returns important info of Download Manager"""
-        return self.transfer.to_dict()
-
-    def download(self):
-        """Execute the download and store the file in `self.tmp_filename()`"""
-        self.transfer.start_ts = time.time()
-        server, self.headers = self.conn_details_cb()
-
-        # server is not connect server, set token to None
-        if not server or \
-                not self.transfer.url.lower().startswith(server.lower()):
-            self.headers = {}
-
-        res = requests.get(self.transfer.url,
-                           stream=True,
-                           headers=self.headers)
-
-        if res.status_code != 200:
-            raise TransferAbortedError("Invalid status code: %s" %
-                                       res.status_code)
-        mime_type = res.headers.get('Content-Type')
-
-        if mime_type and mime_type.lower() not in self.VALID_MIME_TYPES:
-            raise TransferAbortedError("Invalid content type: %s" % mime_type)
-        self.transfer.size = res.headers.get('Content-Length')
-
-        if self.transfer.size is not None:
-            self.transfer.size = int(self.transfer.size)
-
-        # pylint: disable=invalid-name
-        log.debug("Save download to: %s (%s)", self.tmp_filename(),
-                  self.transfer.url)
-
-        with open(self.tmp_filename(), 'wb') as f:
-            for data in res.iter_content(chunk_size=self.buffer_size):
-                if self.transfer.stop_ts > 0:
-                    raise TransferStoppedError("Transfer was stopped")
-                f.write(data)
-                if self.throttle:
-                    time.sleep(self.throttle)
-                self.transfer.transferred += len(data)
-
-        if not self.transfer.transferred:
-            raise TransferAbortedError("Empty response")
-
-    def tmp_filename(self):
-        """Generate a temporary filename for download based on
-        `self.destination`"""
-        dir_ = dirname(self.transfer.os_path)
-        base = basename(self.transfer.path)
-        return abspath(os.path.join(dir_, ".%s.part" % base))
-
-
 class Transfer:
     """File transfer representation object"""
 
     url: Optional[str] = None
     to_print: Optional[bool] = None
     to_select: Optional[bool] = None
+    start_cmd_id: Optional[int] = None
+    path: Optional[str] = None
+    size: Optional[int] = None
+    hash: Optional[str] = None
+    os_path: str
 
     def __init__(self):
         self.transfer_id = randint(0, 2 ** 64 - 1)
-        self.type = const.TransferType.NO_TRANSFER
-        self.path = None
-        self.size = None
+        self.type = TransferType.NO_TRANSFER
         self._transferred = 0
-        self.event_cb = None
         self.lock = threading.Lock()
 
         self.started_cb = lambda: None
@@ -286,11 +119,14 @@ class Transfer:
     @property
     def in_progress(self):
         """Return True if any transfer is in progress"""
-        return self.type != const.TransferType.NO_TRANSFER
+        return self.type != TransferType.NO_TRANSFER
 
-    def start(self, type_, path, url=None, to_print=None, to_select=None):
+    def start(self, type_: TransferType, path: str, url: Optional[str] = None,
+              to_print: Optional[bool] = None, to_select: Optional[bool] = None,
+              start_cmd_id:Optional[int] = None, hash_: Optional[str] = None) -> dict:
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
+        self.start_cmd_id = start_cmd_id
         filename = basename(path)
 
         if forbidden_characters(filename):
@@ -312,7 +148,13 @@ class Transfer:
             self.url = url
             self.to_print = to_print
             self.to_select = to_select
+            self.hash = hash_
             self.started_cb()
+
+            retval = self.to_dict()
+            retval['event'] = Event.TRANSFER_INFO
+            retval['source'] = Source.WUI
+            return retval
 
     def stop(self):
         """Stop transfer - set the stop timestamp"""
@@ -363,11 +205,13 @@ class Transfer:
                 time_remaining = int(time_remaining)
             return {
                 "transfer_id": self.transfer_id,
+                "start_command_id": self.start_cmd_id,
                 "type": self.type.value,
                 "path": self.path,
                 "url": self.url,
+                "hash": self.hash,
                 "size": self.size,
-                "start": int(self.start_ts),
+                "start": int(self.start_ts) if self.start_ts else None,
                 "progress": float("%.2f" % self.progress),
                 "transferred": self.transferred,
                 "time_remaining": time_remaining,
@@ -375,3 +219,190 @@ class Transfer:
                 "to_print": self.to_print,
             }
         return {"type": self.type.value}
+
+
+class DownloadMgr:
+    """Download manager."""
+    LOOP_INTERVAL = .1
+    VALID_MIME_TYPES = ('application/gcode', 'text/plain',
+                        'application/binary', 'application/octet-stream')
+    SMALL_BUFFER = 1024
+    BIG_BUFFER = 1024 * 100
+
+    def __init__(self, fs: Filesystem, transfer:Transfer,
+                 conn_details_cb: Callable, event_cb: EventCallback,
+                 printed_file_cb: Callable, download_finished_cb: Callable):
+        # pylint: disable=invalid-name
+        # pylint: disable=too-many-arguments
+        self.buffer_size = self.BIG_BUFFER
+        self.throttle = 0
+        self.fs = fs
+        self.conn_details_cb = conn_details_cb
+        self.event_cb = event_cb
+        self.printed_file_cb = printed_file_cb
+        self._running_loop = False
+        self.headers = None
+        self.transfer = transfer
+        self.download_finished_cb = download_finished_cb
+
+    def start(self, type_: TransferType, path: str, url: Optional[str] = None,
+              to_print: Optional[bool] = None, to_select: Optional[bool] = None,
+              start_cmd_id: Optional[int] = None, hash_: Optional[str] = None
+              ) -> dict:
+        """Start a download of `url` saving it into the `path`.
+        This `path` is the absolute virtual path in `self.fs`
+        (:class:prusa.connect.printer.files.Filesystem)
+        """
+        # pylint: disable=too-many-arguments
+        # Check if no other transfer is running
+        retval = {}
+        try:
+            retval = self.transfer.start(type_, path, url, to_print, to_select,
+                                         start_cmd_id, hash_)
+        except TransferRunningError:
+            return dict(event=Event.REJECTED,
+                        source=Source.CONNECT,
+                        reason="Another transfer in progress")
+
+        log.info("Starting download: %s", url)
+
+        # transform destination to OS path and validate
+        self.transfer.os_path = self.to_os_path(path)
+        # make dir (in case filename contains a subdir)
+        dir_ = None
+        # This needs refactoring
+        try:
+            dir_ = dirname(self.transfer.os_path)
+            os.makedirs(dir_)
+        except FileExistsError:
+            log.debug("%s already exists", dir_)
+
+        return retval
+
+    def to_os_path(self, path: str):
+        """Translate virtual `destination` of self.fs to real OS path."""
+        if not os.path.isabs(path):
+            raise ValueError('Destination must be absolute')
+        storage_name = None
+        try:
+            _, storage_name, rest = path.split(self.fs.sep, 2)
+            storage = self.fs.storage_dict[storage_name]
+            if not storage.path_storage:
+                raise ValueError("Storage does not have path_storage.")
+            path_storage = storage.path_storage.rstrip(self.fs.sep)
+            os_path_ = self.fs.sep.join([path_storage, rest])
+            os_path_ = normpath(os_path_)
+            if not os_path_.startswith(path_storage):
+                msg = "Destination is outside of defined path_storage for " \
+                      "storage: %s"
+                raise ValueError(msg % storage_name)
+            return os_path_
+        except KeyError as err:
+            raise ValueError("Invalid storage: `%s` in `%s`" %
+                             (storage_name, path)) from err
+
+    def loop(self):
+        """Infinite download loop"""
+        # pylint: disable=too-many-nested-blocks
+        self._running_loop = True
+        while self._running_loop:
+            if self.transfer.type in DOWNLOAD_TYPES:
+                try:
+                    self.download()
+                    abs_fn = abspath(self.transfer.os_path)
+                    if self.transfer.stop_ts:  # download was stopped
+                        tmp_fn = self.tmp_filename()
+                        if os.path.exists(tmp_fn):
+                            os.remove(tmp_fn)
+                    else:
+                        if self.printed_file_cb() != abs_fn:
+                            os.rename(self.tmp_filename(), abs_fn)
+                        else:
+                            msg = "Gcode being printed would be" \
+                                  "overwritten by downloaded file -> aborting."
+                            self.event_cb(Event.TRANSFER_ABORTED,
+                                          Source.CONNECT,
+                                          reason=msg)
+
+                    self.event_cb(Event.TRANSFER_FINISHED,
+                                  Source.CONNECT,
+                                  start_command_id=self.transfer.start_cmd_id,
+                                  url=self.transfer.url,
+                                  destination=self.transfer.path)
+                    self.download_finished_cb(self.transfer)
+
+                except TransferStoppedError:
+                    self.event_cb(Event.TRANSFER_STOPPED,
+                                  Source.CONNECT)
+
+                except Exception as err:  # pylint: disable=broad-except
+                    log.error(err)
+                    self.event_cb(Event.TRANSFER_ABORTED,
+                                  Source.CONNECT,
+                                  reason=str(err))
+                finally:
+                    # End of transfer - reset transfer data
+                    self.transfer.type = TransferType.NO_TRANSFER
+
+            time.sleep(self.LOOP_INTERVAL)
+
+    def stop_loop(self):
+        """Set internal variable to stop the download loop."""
+        self._running_loop = False
+
+    def info(self):
+        """Returns important info of Download Manager"""
+        return self.transfer.to_dict()
+
+    def download(self):
+        """Execute the download and store the file in `self.tmp_filename()`"""
+        self.transfer.start_ts = time.time()
+        server, self.headers = self.conn_details_cb()
+
+        # server is not connect server, set token to None
+        if not server or \
+                not self.transfer.url.lower().startswith(server.lower()):
+            self.headers = {}
+
+        res = requests.get(self.transfer.url,
+                           stream=True,
+                           headers=self.headers)
+
+        if res.status_code != 200:
+            raise TransferAbortedError("Invalid status code: %s" %
+                                       res.status_code)
+        mime_type = res.headers.get('Content-Type')
+
+        if mime_type and mime_type.lower() not in self.VALID_MIME_TYPES:
+            raise TransferAbortedError("Invalid content type: %s" % mime_type)
+        self.transfer.size = res.headers.get('Content-Length')
+
+        if self.transfer.size is not None:
+            self.transfer.size = int(self.transfer.size)
+
+        # pylint: disable=invalid-name
+        log.debug("Save download to: %s (%s)", self.tmp_filename(),
+                  self.transfer.url)
+
+        with open(self.tmp_filename(), 'wb') as f:
+            self.event_cb(
+                Event.TRANSFER_INFO,
+                Source.WUI,
+                **self.info())
+            for data in res.iter_content(chunk_size=self.buffer_size):
+                if self.transfer.stop_ts > 0:
+                    raise TransferStoppedError("Transfer was stopped")
+                f.write(data)
+                if self.throttle:
+                    time.sleep(self.throttle)
+                self.transfer.transferred += len(data)
+
+        if not self.transfer.transferred:
+            raise TransferAbortedError("Empty response")
+
+    def tmp_filename(self):
+        """Generate a temporary filename for download based on
+        `self.destination`"""
+        dir_ = dirname(self.transfer.os_path)
+        base = basename(self.transfer.path)
+        return abspath(os.path.join(dir_, ".%s.part" % base))
