@@ -154,7 +154,7 @@ class Printer:
         self.inotify_handler = InotifyHandler(self.fs)
         # Handler blocks communication with Connect in loop method!
         self.register_handler = default_register_handler
-        self.printed_file_cb = lambda: None
+        self.__printed_file_cb = lambda: None
         self.download_finished_cb = lambda Transfer: None
 
         self.clock_watcher = ClockWatcher()
@@ -165,9 +165,8 @@ class Printer:
         self.transfer = Transfer()
         self.download_mgr = DownloadMgr(self.fs, self.transfer,
                                         self.get_connection_details,
-                                        self.event_cb, self.printed_file_cb,
+                                        self.event_cb, self.__printed_file_cb,
                                         self.download_finished_cb)
-
         self.__running_loop = False
 
     @staticmethod
@@ -185,6 +184,17 @@ class Printer:
         if port:
             return f"{protocol}://{host}:{port}"
         return f"{protocol}://{host}"
+
+    @property
+    def printed_file_cb(self):
+        """Returns path of currently printed file"""
+        return self.__printed_file_cb
+
+    @printed_file_cb.setter
+    def printed_file_cb(self, value):
+        """Sets path of currently printed file"""
+        self.__printed_file_cb = value
+        self.download_mgr.printed_file_cb = value
 
     @property
     def ready(self):
@@ -494,6 +504,9 @@ class Printer:
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command_name} requires kwargs")
 
+        if self.printed_file_cb() == caller.kwargs["path"]:
+            raise ValueError("This file is currently printed")
+
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
         delete(abs_path, False)
@@ -504,6 +517,11 @@ class Printer:
         """Handler for delete a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command_name} requires kwargs")
+
+        if self.printed_file_cb():
+            if caller.kwargs["path"] in self.printed_file_cb():
+                raise ValueError(
+                    "The file inside of this folder is currently printed")
 
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
