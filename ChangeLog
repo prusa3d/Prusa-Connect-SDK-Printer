@@ -2,7 +2,7 @@ ChangeLog
 =========
 
 0.7.0
-    * Flag checked replaced by prepared
+    * IDLE / READY states correction
     * Improve error callbacks
     * File and Folder name validation
     * Registration headers update
@@ -11,11 +11,7 @@ ChangeLog
     * Make on the fly download throttling possible
     * Add mesh bed levelling event
     * Added command_id to telemetry, if there's a command in progress
-    * READY state changed to IDLE, PREPARED state changed to READY
-    * Added CANCEL_PRINTER_READY command handler
-    * Removed ready information from get_info and event_cb functions
-    * 400 responses handling change
-    * 403 response handling change
+    * 4xx responses handling change
     * Add sheet settings and mbl data
     * Add Transfer ID as a 64-bit int
     * Added new SET_PRINTER_READY / CANCEL_PRINTER_READY cmds
