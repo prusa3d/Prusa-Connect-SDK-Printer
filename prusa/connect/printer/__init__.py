@@ -416,11 +416,15 @@ class Printer:
             raise ValueError(
                 f"{const.Command.START_CONNECT_DOWNLOAD} requires kwargs")
 
+        if not self.server:
+            raise RuntimeError("Printer.server must be set!")
+
         try:
+            uri = "/p/teams/{team_id}/files/{hash}/raw".format(**caller.kwargs)
             retval = self.download_mgr.start(
                 const.TransferType.FROM_CONNECT,
                 caller.kwargs["path"],
-                self.server + caller.kwargs["source"],
+                self.server + uri,
                 to_print=caller.kwargs.get("printing", False),
                 to_select=caller.kwargs.get("selecting", False),
                 start_cmd_id=caller.command_id,

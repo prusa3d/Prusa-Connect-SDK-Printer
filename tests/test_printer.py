@@ -807,7 +807,7 @@ class TestPrinter:
         assert info['data'] == {'error': "ValueError('File does not exist: "
                                          "/N/A/file.txt')"}
 
-    def test_download(self, requests_mock, printer_sdcard):
+    def test_url_download(self, requests_mock, printer_sdcard):
         url = "http://prusaprinters.org/my.gcode"
         path = "/sdcard/my.gcode"
         kwargs = {
@@ -825,6 +825,53 @@ class TestPrinter:
                            },
                            status_code=200)
         requests_mock.get(url,
+                          body=io.BytesIO(os.urandom(16)),
+                          status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        # get the command from telemetry
+        printer = printer_sdcard
+        printer.telemetry()
+
+        run_loop(printer.loop)
+
+        # exec download
+        printer.command()
+        run_loop(printer.download_mgr.loop)
+
+        # check the file is on the disk
+        dir_ = printer.fs.storage_dict['sdcard'].path_storage
+        downloaded_file = f'/{dir_}/my.gcode'
+        assert os.path.exists(downloaded_file)
+        os.remove(downloaded_file)
+
+        run_loop(printer.loop)
+
+        assert str(requests_mock.request_history[3]) == \
+               f"POST {SERVER}/p/events"
+        info = requests_mock.request_history[3].json()
+
+        assert info["event"] == "TRANSFER_INFO"
+        assert info["source"] == "CONNECT"
+        assert info["data"]["start_command_id"] == 42
+
+    def test_connect_download(self, requests_mock, printer_sdcard):
+        path = "/sdcard/my.gcode"
+        kwargs = {
+            "path": path,
+            "team_id": 321,
+            "hash": '0123456789abcdef'
+        }
+        uri = "/p/teams/{team_id}/files/{hash}/raw".format(**kwargs)
+        cmd = {"command": "START_CONNECT_DOWNLOAD", "kwargs": kwargs}
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=json.dumps(cmd),
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.get(SERVER + uri,
                           body=io.BytesIO(os.urandom(16)),
                           status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
