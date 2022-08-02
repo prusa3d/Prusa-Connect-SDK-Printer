@@ -19,6 +19,7 @@ ChangeLog
     * Introduce a new conditions system
     * Added StorageType enum to const
     * TRANSFER_INFO improvement
+    * Make downloads from connect time out after 30s of inactivity
 
 0.6.0 (2021-12-17)
     * Introduce `const.State.PREPARED`
