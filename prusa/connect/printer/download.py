@@ -10,7 +10,7 @@ from typing import Optional, Callable
 import requests
 
 from . import const
-from .const import TransferType, Event, Source
+from .const import TransferType, Event, Source, CONNECTION_TIMEOUT
 from .models import EventCallback
 from .files import Filesystem
 
@@ -366,7 +366,8 @@ class DownloadMgr:
 
         res = requests.get(self.transfer.url,
                            stream=True,
-                           headers=self.headers)
+                           headers=self.headers,
+                           timeout=CONNECTION_TIMEOUT)
 
         if res.status_code != 200:
             raise TransferAbortedError("Invalid status code: %s" %
