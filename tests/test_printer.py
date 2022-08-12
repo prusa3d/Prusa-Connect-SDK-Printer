@@ -69,7 +69,7 @@ def remove_m_time(file_data):
         if key == "m_timestamp":
             del file_data[key]
             continue
-        elif key == 'children':
+        if key == 'children':
             for i in file_data['children']:
                 remove_m_time(i)
 
@@ -1055,7 +1055,6 @@ class TestPrinter:
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
 
-
     def test_download_stop(self, printer_sdcard, requests_mock):
         # post telemetry - obtain command
         printer = printer_sdcard
@@ -1086,6 +1085,80 @@ class TestPrinter:
         # exec the command from telemetry - `cmd
         printer.command()
         assert printer.download_mgr.transfer.stop_ts
+
+    def test_download_stop_with_id(self, printer_sdcard, requests_mock):
+        # post telemetry - obtain command
+        printer = printer_sdcard
+        path = '/sdcard/test-download-stop.gcode'
+        url = "http://prusaprinters.org/my.gcode"
+
+        # pretend we're downloading
+        printer.download_mgr.start(TYPE,
+                                   path,
+                                   url,
+                                   to_print=False,
+                                   to_select=False)
+        assert not printer.download_mgr.transfer.stop_ts
+
+        cmd = ('{"command":"STOP_TRANSFER", "transfer_id": %s}' %
+                printer.transfer.transfer_id)
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry()
+
+        run_loop(printer.loop)
+
+        # exec the command from telemetry - `cmd
+        printer.command()
+        assert printer.download_mgr.transfer.stop_ts
+
+    def test_download_stop_wrong_id(self, printer_sdcard, requests_mock):
+        # post telemetry - obtain command
+        printer = printer_sdcard
+        path = '/sdcard/test-download-stop.gcode'
+        url = "http://prusaprinters.org/my.gcode"
+
+        # pretend we're downloading
+        printer.download_mgr.start(TYPE,
+                                   path,
+                                   url,
+                                   to_print=False,
+                                   to_select=False)
+        assert not printer.download_mgr.transfer.stop_ts
+
+        cmd = '{"command":"STOP_TRANSFER", "kwargs": {"transfer_id": 666}}'
+        requests_mock.post(SERVER + "/p/telemetry",
+                           text=cmd,
+                           headers={
+                               "Command-Id": "42",
+                               "Content-Type": "application/json"
+                           },
+                           status_code=200)
+        requests_mock.post(SERVER + "/p/events", status_code=204)
+
+        printer.telemetry()
+
+        run_loop(printer.loop)
+
+        # exec the command from telemetry - `cmd
+        printer.command()
+        assert not printer.download_mgr.transfer.stop_ts
+
+        item = printer.queue.get_nowait()
+        assert isinstance(item, Event)
+        event_obj = item.to_payload()
+        print(event_obj)
+        assert event_obj['event'] == 'FAILED'
+        assert event_obj['source'] == 'WUI'
+        assert event_obj['data']['error'] == \
+               "RuntimeError('Wrong transfer_id')"
 
     def test_download_rejected(self, printer):
         tmp_dir = tempfile.TemporaryDirectory()

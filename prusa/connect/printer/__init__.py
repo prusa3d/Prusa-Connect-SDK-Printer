@@ -440,6 +440,9 @@ class Printer:
     def transfer_stop(self, caller: Command) -> Dict[str, Any]:
         """Stop current transfer, if any"""
         # pylint: disable=unused-argument
+        transfer_id = (caller.kwargs or {}).get("transfer_id")
+        if transfer_id and transfer_id != self.transfer.transfer_id:
+            raise RuntimeError("Wrong transfer_id")
         self.transfer.stop()
         return dict(source=const.Source.CONNECT)
 
