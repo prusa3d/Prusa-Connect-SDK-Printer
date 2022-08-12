@@ -14,7 +14,6 @@ from .const import TransferType, Event, Source, CONNECTION_TIMEOUT
 from .models import EventCallback
 from .files import Filesystem
 
-
 log = getLogger("connect-printer")
 
 # pylint: disable=too-many-instance-attributes
@@ -93,7 +92,7 @@ class Transfer:
     os_path: str
 
     def __init__(self):
-        self.transfer_id = randint(0, 2 ** 64 - 1)
+        self.transfer_id = randint(0, 2**64 - 1)
         self.type = TransferType.NO_TRANSFER
         self._transferred = 0
         self.lock = threading.Lock()
@@ -122,9 +121,14 @@ class Transfer:
         """Return True if any transfer is in progress"""
         return self.type != TransferType.NO_TRANSFER
 
-    def start(self, type_: TransferType, path: str, url: Optional[str] = None,
-              to_print: Optional[bool] = None, to_select: Optional[bool] = None,
-              start_cmd_id:Optional[int] = None, hash_: Optional[str] = None,
+    def start(self,
+              type_: TransferType,
+              path: str,
+              url: Optional[str] = None,
+              to_print: Optional[bool] = None,
+              to_select: Optional[bool] = None,
+              start_cmd_id: Optional[int] = None,
+              hash_: Optional[str] = None,
               team_id: Optional[int] = None) -> dict:
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
@@ -233,7 +237,7 @@ class DownloadMgr:
     SMALL_BUFFER = 1024
     BIG_BUFFER = 1024 * 100
 
-    def __init__(self, fs: Filesystem, transfer:Transfer,
+    def __init__(self, fs: Filesystem, transfer: Transfer,
                  conn_details_cb: Callable, event_cb: EventCallback,
                  printed_file_cb: Callable, download_finished_cb: Callable):
         # pylint: disable=invalid-name
@@ -249,11 +253,15 @@ class DownloadMgr:
         self.transfer = transfer
         self.download_finished_cb = download_finished_cb
 
-    def start(self, type_: TransferType, path: str, url: Optional[str] = None,
-              to_print: Optional[bool] = None, to_select: Optional[bool] = None,
-              start_cmd_id: Optional[int] = None, hash_: Optional[str] = None,
-              team_id: Optional[int] = None
-              ) -> dict:
+    def start(self,
+              type_: TransferType,
+              path: str,
+              url: Optional[str] = None,
+              to_print: Optional[bool] = None,
+              to_select: Optional[bool] = None,
+              start_cmd_id: Optional[int] = None,
+              hash_: Optional[str] = None,
+              team_id: Optional[int] = None) -> dict:
         """Start a download of `url` saving it into the `path`.
         This `path` is the absolute virtual path in `self.fs`
         (:class:prusa.connect.printer.files.Filesystem)
@@ -325,26 +333,31 @@ class DownloadMgr:
                         else:
                             msg = "Gcode being printed would be" \
                                   "overwritten by downloaded file -> aborting."
-                            self.event_cb(Event.TRANSFER_ABORTED,
-                                          Source.CONNECT,
-                                          reason=msg)
+                            self.event_cb(
+                                Event.TRANSFER_ABORTED,
+                                Source.CONNECT,
+                                reason=msg,
+                                transfer_id=self.transfer.transfer_id)
 
                     self.event_cb(Event.TRANSFER_FINISHED,
                                   Source.CONNECT,
                                   start_command_id=self.transfer.start_cmd_id,
                                   url=self.transfer.url,
-                                  destination=self.transfer.path)
+                                  destination=self.transfer.path,
+                                  transfer_id=self.transfer.transfer_id)
                     self.download_finished_cb(self.transfer)
 
                 except TransferStoppedError:
                     self.event_cb(Event.TRANSFER_STOPPED,
-                                  Source.CONNECT)
+                                  Source.CONNECT,
+                                  transfer_id=self.transfer.transfer_id)
 
                 except Exception as err:  # pylint: disable=broad-except
                     log.error(err)
                     self.event_cb(Event.TRANSFER_ABORTED,
                                   Source.CONNECT,
-                                  reason=str(err))
+                                  reason=str(err),
+                                  transfer_id=self.transfer.transfer_id)
                 finally:
                     # End of transfer - reset transfer data
                     self.transfer.type = TransferType.NO_TRANSFER
@@ -391,10 +404,7 @@ class DownloadMgr:
                   self.transfer.url)
 
         with open(self.tmp_filename(), 'wb') as f:
-            self.event_cb(
-                Event.TRANSFER_INFO,
-                Source.WUI,
-                **self.info())
+            self.event_cb(Event.TRANSFER_INFO, Source.WUI, **self.info())
             for data in res.iter_content(chunk_size=self.buffer_size):
                 if self.transfer.stop_ts > 0:
                     raise TransferStoppedError("Transfer was stopped")

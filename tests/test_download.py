@@ -126,10 +126,10 @@ def test_download_stop(gcode, download_mgr):
 
 def test_download_info(gcode, download_mgr):
     info = download_mgr.start(const.TransferType.FROM_WEB,
-                       DST,
-                       GCODE_URL,
-                       to_print=False,
-                       to_select=True)
+                              DST,
+                              GCODE_URL,
+                              to_print=False,
+                              to_select=True)
 
     assert download_mgr.transfer.os_path == storage_path(
         download_mgr.fs, 'my_example.gcode')
@@ -224,13 +224,15 @@ def test_printed_file_cb(download_mgr, printer):
                        to_select=False)
     run_test_loop(download_mgr, unset_stop=True)
 
-    item = printer.queue.get_nowait() # Download response
+    item = printer.queue.get_nowait()  # Download response
     assert item.event == const.Event.TRANSFER_INFO
     assert item.source == const.Source.WUI
+    assert item.data['transfer_id'] == download_mgr.transfer.transfer_id
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.TRANSFER_ABORTED
     assert item.source == const.Source.CONNECT
+    assert item.data['transfer_id'] == download_mgr.transfer.transfer_id
 
 
 def test_download_twice_in_a_row(gcode, download_mgr, printer):
@@ -305,10 +307,11 @@ def test_download_finished_cb(download_mgr, printer):
 
     printer.queue.get_nowait()  # MEDIUM_INSERTED from attaching
 
-    item = printer.queue.get_nowait() # Download response
+    item = printer.queue.get_nowait()  # Download response
     assert item.event == const.Event.TRANSFER_INFO
     assert item.source == const.Source.WUI
 
     item = printer.queue.get_nowait()
     assert item.event in (const.Event.TRANSFER_FINISHED,
                           const.Event.TRANSFER_STOPPED)
+    assert item.data['transfer_id'] == download_mgr.transfer.transfer_id
