@@ -901,6 +901,8 @@ class TestPrinter:
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["data"]["start_command_id"] == 42
+        assert info["data"]["hash"] == kwargs["hash"]
+        assert info["data"]["team_id"] == kwargs["team_id"]
 
     def test_transfer_info(self, printer_sdcard, requests_mock):
         # prepare command and mocks

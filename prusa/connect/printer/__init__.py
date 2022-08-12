@@ -428,7 +428,8 @@ class Printer:
                 to_print=caller.kwargs.get("printing", False),
                 to_select=caller.kwargs.get("selecting", False),
                 start_cmd_id=caller.command_id,
-                hash_=caller.kwargs["hash"])
+                hash_=caller.kwargs["hash"],
+                team_id=caller.kwargs["team_id"])
             retval['source'] = const.Source.CONNECT
             return retval
         except KeyError as err:

@@ -89,6 +89,7 @@ class Transfer:
     path: Optional[str] = None
     size: Optional[int] = None
     hash: Optional[str] = None
+    team_id: Optional[int] = None
     os_path: str
 
     def __init__(self):
@@ -123,7 +124,8 @@ class Transfer:
 
     def start(self, type_: TransferType, path: str, url: Optional[str] = None,
               to_print: Optional[bool] = None, to_select: Optional[bool] = None,
-              start_cmd_id:Optional[int] = None, hash_: Optional[str] = None) -> dict:
+              start_cmd_id:Optional[int] = None, hash_: Optional[str] = None,
+              team_id: Optional[int] = None) -> dict:
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
         self.start_cmd_id = start_cmd_id
@@ -149,6 +151,7 @@ class Transfer:
             self.to_print = to_print
             self.to_select = to_select
             self.hash = hash_
+            self.team_id = team_id
             self.started_cb()
 
             retval = self.to_dict()
@@ -210,6 +213,7 @@ class Transfer:
                 "path": self.path,
                 "url": self.url,
                 "hash": self.hash,
+                "team_id": self.team_id,
                 "size": self.size,
                 "start": int(self.start_ts) if self.start_ts else None,
                 "progress": float("%.2f" % self.progress),
@@ -247,7 +251,8 @@ class DownloadMgr:
 
     def start(self, type_: TransferType, path: str, url: Optional[str] = None,
               to_print: Optional[bool] = None, to_select: Optional[bool] = None,
-              start_cmd_id: Optional[int] = None, hash_: Optional[str] = None
+              start_cmd_id: Optional[int] = None, hash_: Optional[str] = None,
+              team_id: Optional[int] = None
               ) -> dict:
         """Start a download of `url` saving it into the `path`.
         This `path` is the absolute virtual path in `self.fs`
@@ -258,7 +263,7 @@ class DownloadMgr:
         retval = {}
         try:
             retval = self.transfer.start(type_, path, url, to_print, to_select,
-                                         start_cmd_id, hash_)
+                                         start_cmd_id, hash_, team_id)
         except TransferRunningError:
             return dict(event=Event.REJECTED,
                         source=Source.CONNECT,
