@@ -307,6 +307,8 @@ class Printer:
             return
         if self.job_id:
             kwargs['job_id'] = self.job_id
+        if 'state' not in kwargs:
+            kwargs['state'] = self.state
         event_ = Event(event, source, timestamp, command_id, **kwargs)
         log.debug("Putting event to queue: %s", event_)
         if not self.is_initialised():
