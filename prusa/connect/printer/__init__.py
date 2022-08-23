@@ -29,9 +29,9 @@ from requests import Session, RequestException
 from requests.exceptions import ConnectionError
 
 from . import const, errors
+from .cameras import CameraController
 from .command import Command, CommandFailed
 from .conditions import CondState, API, TOKEN, HTTP, INTERNET
-from .const import PRIORITY_COMMANDS
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
 from .models import Event, Telemetry, Sheet, Register, LoopObject, \
@@ -171,6 +171,13 @@ class Printer:
                                         self.download_finished_cb)
         self.camera_mgr = CameraMgr(self.conn, self.queue)
         self.__running_loop = False
+
+        self.camera_controller = CameraController(self.event_cb)
+
+    def init_cameras(self, controller):
+        """Pass a camera controller for automatic triggering and photo
+        sending by the SDK"""
+        self.camera_controller = controller
 
     @staticmethod
     def connect_url(host: str, tls: bool, port: int = 0):
@@ -686,6 +693,13 @@ class Printer:
         """Calls loop_step in a loop. Handles any unexpected Exceptions"""
         self.__running_loop = True
         while self.__running_loop:
+            try:
+                self.camera_controller.tick()
+            # pylint: disable=broad-except
+            except Exception:
+                log.exception(
+                    "Unexpected exception from the camera module caught in"
+                    " SDK loop!")
             try:
                 self.loop_step()
             # pylint: disable=broad-except

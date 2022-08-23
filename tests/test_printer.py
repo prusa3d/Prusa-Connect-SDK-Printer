@@ -12,7 +12,7 @@ import requests
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Command, \
-    Register, errors
+    Register, errors, get_timestamp
 from prusa.connect.printer.models import Telemetry, Event, CameraRegister
 from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
 from prusa.connect.printer.camera import Snapshot
@@ -152,7 +152,7 @@ class TestPrinter:
         data = b'1010'
 
         camera_mgr.snapshot(data, "test_fingerprint", "test_token",
-                            time.time())
+                            get_timestamp())
         item = camera_mgr.snapshot_queue.get_nowait()
         assert isinstance(item, Snapshot)
         assert item.camera_fingerprint == "test_fingerprint"
@@ -165,7 +165,7 @@ class TestPrinter:
         token = "test_token"
         data = b'1010'
 
-        camera_mgr.snapshot(data, fingerprint, token, time.time())
+        camera_mgr.snapshot(data, fingerprint, token, get_timestamp())
         run_loop(camera_mgr.snapshot_loop)
         req = requests_mock.request_history[0]
         assert (str(req) == f"PUT {SERVER}/c/snapshot")

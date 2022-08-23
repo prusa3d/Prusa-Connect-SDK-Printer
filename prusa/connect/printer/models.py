@@ -197,3 +197,52 @@ class Sheet(TypedDict):
     """A model for type hinting the sheet settings list"""
     name: str
     z_offset: float
+
+
+class Resolution:
+    """A class to represent a camera resolution"""
+    def __init__(self, width, height):
+        self.width: int = width
+        self.height: int = height
+
+    def __reversed__(self):
+        """Reverses the width and height - rotates to portrait or landscape"""
+        return Resolution(width=self.height, height=self.width)
+
+    def __eq__(self, other):
+        """Compares two resolutions"""
+        if not isinstance(other, Resolution):
+            return False
+        return self.width == other.width and self.height == other.height
+
+    def __hash__(self):
+        """Makes a hash out of a given resolution"""
+        return f"{self.width}{self.height}".__hash__()
+
+    def __gt__(self, other):
+        """Compares the amount of pixels in each resolution to determine,
+        if this one is greater than the other one"""
+        return self.width * self.height > other.width * other.height
+
+    def __ge__(self, other):
+        """Compares the amount of pixels in each resolution to determine,
+        if this one is greater or equal than the other one"""
+        return self.width * self.height >= other.width * other.height
+
+    def __lt__(self, other):
+        """Compares the amount of pixels in each resolution to determine,
+        if this one has less than the other one"""
+        return self.width * self.height < other.width * other.height
+
+    def __le__(self, other):
+        """Compares the amount of pixels in each resolution to determine,
+        if this one has less or equal than the other one"""
+        return self.width * self.height <= other.width * other.height
+
+    def __str__(self):
+        """A simple <width>x<height> string representation"""
+        return f"{self.width}x{self.height}"
+
+    def __iter__(self):
+        yield "width", self.width
+        yield "height", self.height
