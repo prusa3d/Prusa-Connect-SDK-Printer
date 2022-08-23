@@ -86,8 +86,7 @@ class CameraMgr:
         while self.__running_snapshot_loop:
             try:
                 # Get the item to send
-                item = self.snapshot_queue.get(
-                    timeout=TIMESTAMP_PRECISION)
+                item = self.snapshot_queue.get(timeout=TIMESTAMP_PRECISION)
 
                 # Send it
                 res = item.send(self.conn, self.server)
@@ -99,6 +98,6 @@ class CameraMgr:
                     log.debug(res.text)
             except Empty:
                 continue
-            except Exception: # pylint: disable=broad-except
+            except Exception:  # pylint: disable=broad-except
                 log.exception(
                     "Unexpected exception caught in SDK snapshot loop!")

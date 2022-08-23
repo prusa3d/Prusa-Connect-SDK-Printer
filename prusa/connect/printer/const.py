@@ -3,6 +3,7 @@ from enum import Enum
 
 TIMESTAMP_PRECISION = 0.1  # 100ms
 CONNECTION_TIMEOUT = 30  # 30s
+PHOTO_TIMEOUT = 10  # 10s
 ONE_SECOND_TIMEOUT = 1  # 1s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
 SL_EXTENSIONS = (".sl1", )
@@ -161,3 +162,70 @@ PRIORITY_COMMANDS = {Command.RESET_PRINTER}
 METADATA_MAX_OFFSET = 2000  # bytes from the start and end of a file
 METADATA_CHUNK_SIZE = 200
 COMMENT_BLOCK_MAX_SIZE = 1000000  # Max 1MB of comments
+
+# --- Camera stuff ---
+
+
+class NotSupported(Exception):
+    """Exception for when a camera setting is not supported"""
+
+
+class CameraBusy(Exception):
+    """Exception for when the camera is busy and cannot do as told"""
+
+
+class DriverError(RuntimeError):
+    """Exception for when the driver errors out"""
+
+
+class ConfigError(RuntimeError):
+    """Exception for when the config makes no sense"""
+
+
+class CameraAlreadyExists(RuntimeError):
+    """Exception for an already existing camera"""
+
+
+class CameraNotDetected(RuntimeError):
+    """Raised when trying to ad a camera only by its ID and it is not
+    in the detected cameras"""
+
+
+class CameraStatus(Enum):
+    """Lists the different states the camera can find itself in"""
+    DETECTED = "Detected"
+    CONNECTED = "Connected"
+    ERROR = "Error"
+    DISCONNECTED = "Disconnected"
+
+
+# These settings are always required to instance a camera
+ALWAYS_REQURIED = {
+    "name": "The camera name. The more unique the better.",
+    "driver": "Which driver to give this setting to"
+}
+
+
+class CapabilityType(Enum):
+    """Camera capabilities - like the ability to return photos taken"""
+    TRIGGER_SCHEME = "trigger_scheme"  # Can trigger a camera
+    IMAGING = "imaging"  # Can get an image from a camera
+    RESOLUTION = "resolution"  # Can set a resolution of a camera
+    ROTATION = "rotation"  # Can rotate the image from a camera
+    EXPOSURE = "exposure"  # Can change the exposure compensation of a camera
+
+
+class TriggerScheme(Enum):
+    """On which event to trigger a photo - Enum"""
+    TEN_MIN = "Every 10 minutes"
+    EACH_LAYER = "On layer change"
+    MANUAL = "Manual"
+
+
+# The default values for camera settings if the camera does not supply its
+# own ones
+DEFAULT_CAMERA_SETTINGS = {
+    CapabilityType.TRIGGER_SCHEME.value: TriggerScheme.TEN_MIN,
+    CapabilityType.EXPOSURE.value: 0,
+    CapabilityType.ROTATION.value: 0
+}
