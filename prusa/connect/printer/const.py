@@ -47,6 +47,9 @@ class PrinterType(Enum):
     I3MK3 = (1, 3, 0)
     I3MK3S = (1, 3, 1)
     SL1 = (5, 1, 0)
+    TRILAB_DQ2 = (6, 2, 0)
+    TRILAB_DQ2P = (6, 2, 1)
+    TRILAB_AQI = (7, 2, 0)
 
     def __str__(self):
         # pylint: disable=not-an-iterable
