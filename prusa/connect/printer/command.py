@@ -4,7 +4,7 @@ from typing import Optional, List, Any, Dict, Callable
 from logging import getLogger
 
 from . import const
-from .const import PRIORITY_COMMANDS
+from .const import PRIORITY_COMMANDS, ONE_SECOND_TIMEOUT
 from .models import EventCallback
 
 log = getLogger("connect-printer")
@@ -40,6 +40,7 @@ class Command:
         self.kwargs = {}
         self.handlers = {}
         self.new_cmd_evt = Event()
+        self.cmd_end_evt = Event()
         self.stop_cb = lambda: None  # Called to stop the current command
 
     def check_state(self, command_id: int, command_name: str):
@@ -53,6 +54,9 @@ class Command:
             command_enum = const.Command(command_name)
             if command_enum in PRIORITY_COMMANDS:
                 self.stop_cb()
+                if not self.cmd_end_evt.wait(ONE_SECOND_TIMEOUT):
+                    log.warning("Previous command didn't stop in time, "
+                                "ignoring %s", command_name)
                 return True
         except Exception:  # pylint: disable=broad-except
             pass
@@ -95,6 +99,7 @@ class Command:
         self.force = force
         self.event_cb(self.state, const.Source.CONNECT, command_id=command_id)
         self.new_cmd_evt.set()
+        self.cmd_end_evt.clear()
 
     def reject(self, source: const.Source, reason: str, **kwargs):
         """Reject command with some reason"""
@@ -138,6 +143,7 @@ class Command:
         """Clear the last command state and prepare to accept a new one"""
         self.state = None
         self.new_cmd_evt.clear()
+        self.cmd_end_evt.set()
 
     def __call__(self):
         """Run handler command handler.

@@ -3,6 +3,7 @@ from enum import Enum
 
 TIMESTAMP_PRECISION = 0.1  # 100ms
 CONNECTION_TIMEOUT = 30  # 30s
+ONE_SECOND_TIMEOUT = 1  # 1s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
 SL_EXTENSIONS = (".sl1", )
 
