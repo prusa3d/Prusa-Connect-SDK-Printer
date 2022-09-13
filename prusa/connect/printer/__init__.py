@@ -39,8 +39,8 @@ from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession, get_timestamp
 
-__version__ = "0.7.0.dev2"
-__date__ = "28 Apr 2022"  # version date
+__version__ = "0.7.0.rc1"
+__date__ = "13 Sep 2022"  # version date
 __copyright__ = "(c) 2022 Prusa 3D"
 __author_name__ = "Prusa Link Developers"
 __author_email__ = "link@prusa3d.cz"
@@ -290,10 +290,7 @@ class Printer:
         elif ready is not None:
             self.__ready = ready
         self.__state = state
-        self.event_cb(const.Event.STATE_CHANGED,
-                      source,
-                      state=state,
-                      **kwargs)
+        self.event_cb(const.Event.STATE_CHANGED, source, state=state, **kwargs)
 
     def event_cb(self,
                  event: const.Event,
@@ -462,9 +459,7 @@ class Printer:
     def set_printer_ready(self, caller: Command) -> Dict[str, Any]:
         """Set READY state"""
         # pylint: disable=unused-argument
-        self.set_state(const.State.READY,
-                       const.Source.CONNECT,
-                       ready=True)
+        self.set_state(const.State.READY, const.Source.CONNECT, ready=True)
         return {'source': const.Source.CONNECT}
 
     def cancel_printer_ready(self, caller: Command) -> Dict[str, Any]:
@@ -613,19 +608,18 @@ class Printer:
                     data = res.json()
                     command_name = data.get("command", "")
                     if self.command.check_state(command_id, command_name):
-                        self.command.accept(
-                            command_id,
-                            command_name=command_name,
-                            args=data.get("args"),
-                            kwargs=data.get('kwargs'))
+                        self.command.accept(command_id,
+                                            command_name=command_name,
+                                            args=data.get("args"),
+                                            kwargs=data.get('kwargs'))
                 elif content_type == "text/x.gcode":
                     command_name = const.Command.GCODE.value
                     if self.command.check_state(command_id, command_name):
                         force = ("Force" in res.headers
                                  and res.headers["Force"] == "1")
                         self.command.accept(command_id,
-                                            command_name,
-                                            [res.text], {"gcode": res.text},
+                                            command_name, [res.text],
+                                            {"gcode": res.text},
                                             force=force)
                 else:
                     raise ValueError("Invalid command content type")
