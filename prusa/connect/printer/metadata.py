@@ -117,8 +117,8 @@ class MetaData:
 
     def is_cache_fresh(self):
         """If cache is fresher than file, returns True"""
-        file_time_created = os.path.getctime(self.path)
         try:
+            file_time_created = os.path.getctime(self.path)
             cache_time_created = os.path.getctime(self.cache_name)
             return file_time_created < cache_time_created
         except FileNotFoundError:
