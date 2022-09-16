@@ -20,6 +20,15 @@ RE_ESTIMATED = re.compile(r"((?P<days>[0-9]+)d\s*)?"
                           r"((?P<minutes>[0-9]+)m\s*)?"
                           r"((?P<seconds>[0-9]+)s)?")
 
+# These numbers are used for searching for the semicolon
+# The PrusaSlicer comment blocks are around 10000B
+# 85% of the lines there have less than 50 chars
+# This gets us around two shots at discovering a semicolon there
+# Some lines there are 200+ chars, so we definitely need two.
+# For better luck ;)
+SEARCH_SEEK_AMOUNT = 4500
+SEARCH_READ_AMOUNT = 50
+
 
 class UnknownGcodeFileType(ValueError):
     # pylint: disable=missing-class-docstring
@@ -77,6 +86,7 @@ class ParsedData:
     # pylint: disable=too-few-public-methods
 
     def __init__(self):
+        self.image_data = None
         self.dimension = ""
         self.size = None
         self.meta = {}
@@ -225,7 +235,7 @@ class FDMMetaData(MetaData):
 
     def __init__(self, path: str):
         super().__init__(path)
-        self.last_file_and_result = None
+        self.last_filename = None
 
     def load_from_path(self, path):
         """Try to obtain any usable metadata from the path itself"""
@@ -247,15 +257,13 @@ class FDMMetaData(MetaData):
         A generator that returns the lines of a file in reverse order
         """
         segment = None
-        offset = 0
-        file_descriptor.seek(0, os.SEEK_END)
-        file_size = remaining_size = file_descriptor.tell()
+        remaining_size = file_descriptor.tell()
         while remaining_size > 0:
-            offset = min(file_size, offset + buf_size)
-            file_descriptor.seek(file_size - offset)
-            buffer = file_descriptor.read(min(remaining_size, buf_size))
-            remaining_size -= buf_size
-            lines = buffer.split('\n')
+            offset = min(remaining_size, buf_size)
+            seek_to = remaining_size - offset
+            remaining_size = file_descriptor.seek(seek_to)
+            buffer = file_descriptor.read(offset)
+            lines = buffer.split(b'\n')
             # The first line of the buffer is probably not a complete line, so
             # we'll save it and append it to the last line of the next buffer
             # we read
@@ -263,19 +271,18 @@ class FDMMetaData(MetaData):
                 # If the previous chunk starts right from the beginning of
                 # line do not concat the segment to the last line of new
                 # chunk. Instead, yield the segment first
-                if buffer[-1] != '\n':
+                if buffer[-1] != b'\n':
                     lines[-1] += segment
                 else:
                     yield segment
             segment = lines[0]
-            for index in range(len(lines) - 1, 0, -1):
-                if lines[index]:
-                    yield lines[index]
+            for line in reversed(lines[1:]):
+                yield line
         # Don't yield None if the file was empty
         if segment is not None:
             yield segment
 
-    def from_line(self, data, line):
+    def from_line(self, data: ParsedData, line):
         """
         Parses data out of a given line
         data variable is used to store all temporary data
@@ -296,18 +303,20 @@ class FDMMetaData(MetaData):
             data.thumbnail = []
             data.dimension = ""
             return
+        # We store the image dimensions only during parsing
+        # If actively parsing:
         if data.dimension:
             line = line[2:].strip()
             data.thumbnail.append(line)
-        else:  # looking for metadata
-            match = self.KEY_VAL_PAT.match(line)
-            if match:
-                key, val = match.groups()
-                data.meta[key] = val
+
+        match = self.KEY_VAL_PAT.match(line)
+        if match:
+            key, val = match.groups()
+            data.meta[key] = val
 
     def load_from_file(self, path):
         """Load metadata from file
-        Tries to use the quick_parse function. Ff it keeps failing,
+        Tries to use the quick_parse function. If it keeps failing,
         tries the old technique of parsing.
 
         :path: Path to the file to load the metadata from
@@ -317,10 +326,13 @@ class FDMMetaData(MetaData):
         started_at = time()
         data = ParsedData()
 
-        retries = 10
+        retries = 2
         while retries:
-            with open(path, "r", encoding='utf-8') as file_descriptor:
-                if self.quick_parse(data, file_descriptor, retries == 1):
+            with open(path, "rb") as file_descriptor:
+                self.quick_parse(data, file_descriptor)
+                parsing_new_file = self.last_filename != file_descriptor.name
+                to_log = retries == 1 and parsing_new_file
+                if self.evaluate_quick_parse(data, to_log):
                     break
                 retries -= 1
                 sleep(0.2)
@@ -330,60 +342,22 @@ class FDMMetaData(MetaData):
                 data = ParsedData()
                 file_descriptor.seek(0, 0)
                 for line in file_descriptor:
+                    if ";" not in line:
+                        continue  # 3-4x speed up :D
                     self.from_line(data, line)
+
+        self.last_filename = file_descriptor.name
 
         self.set_data(data.meta)
         log.debug("Caching took %s", time() - started_at)
 
-    def quick_parse(self, data, file_descriptor, is_last_retry=False):
-        """
-        Parse metadata by looking at comment blocks in the beginning
-        and at the end of a file
-        returns True if it thinks parsing succeeded
-        """
-        # pylint: disable=too-many-branches
-
-        for line in file_descriptor:
-            if not line.strip():
-                continue
-            if not line.startswith(";"):
-                break
-            self.from_line(data, line)
-
-        comment_lines = 0
-        parsing_image = False
-        reverse_image = []
-        for line in self.reverse_readline(file_descriptor):
-            if not line.strip():
-                continue
-            if not line.startswith(";"):
-                break
-            comment_lines += 1
-
-            # Images cannot be parsed on reverse,
-            # so lets reverse them beforehand
-            if self.THUMBNAIL_END_PAT.match(line):
-                parsing_image = True
-            if parsing_image:
-                reverse_image.append(line)
-            else:
-                self.from_line(data, line)
-            if self.THUMBNAIL_BEGIN_PAT.match(line):
-                parsing_image = False
-                for image_line in reversed(reverse_image):
-                    self.from_line(data, image_line)
-
+    def evaluate_quick_parse(self, data: ParsedData, to_log=False):
+        """Evaluates if the parsed data is sufficient
+        Can log the result
+        Returns True if the data is sufficient"""
         wanted = set(self.Attrs.keys())
         got = set(data.meta.keys())
         missed = wanted - got
-
-        # --- Was parsing successful? ---
-
-        file_and_result = (file_descriptor.name, comment_lines, missed)
-
-        if self.last_file_and_result == file_and_result:
-            log.disabled = True
-
         log.debug("Wanted: %s", wanted)
         log.debug("Parsed: %s", got)
 
@@ -391,14 +365,13 @@ class FDMMetaData(MetaData):
             "By not reading the whole file, "
             "we have managed to miss %s", list(missed))
 
-        success = True
+        # --- Was parsing successful? ---
 
-        if comment_lines < 10:
-            log.warning("Not enough comments discovered, "
-                        "file not uploaded yet?")
-            success = False
+        if len(data.meta) < 10:
+            log.warning("Not enough info found, file not uploaded yet?")
+            return False
 
-        elif missed and is_last_retry:
+        if missed and to_log:
             if len(missed) == len(wanted):
                 log.warning("No metadata parsed!")
             else:
@@ -406,13 +379,75 @@ class FDMMetaData(MetaData):
             if len(missed) <= TOLERATED_COUNT:
                 log.warning("Missing meta tolerated, missing count < %s",
                             TOLERATED_COUNT)
-            else:
-                success = False
 
-        self.last_file_and_result = file_and_result
-        log.disabled = False
+        if len(missed) > TOLERATED_COUNT:
+            return False
 
-        return success
+        return True
+
+    def parse_comment_block(self, data: ParsedData, file_descriptor):
+        """Parses consecutive lines until one doesn't start with a semicolon
+        returns how many bytes it parsed
+        """
+        bytes_parsed = 0
+        for line in file_descriptor:
+            if not line.strip():
+                bytes_parsed += 1
+                continue
+            if not line.startswith(b";"):
+                break
+            bytes_parsed += len(line) + 1
+            self.from_line(data, line.decode("UTF-8"))
+        return bytes_parsed
+
+    def find_block_start(self, file_descriptor):
+        """Given a file descriptor at a position in a gcode file,
+        gets the position of the first comment line in its block"""
+        reverse_generator = self.reverse_readline(file_descriptor)
+        position = file_descriptor.tell()
+        try:
+            block_start = position - len(next(reverse_generator))
+        except StopIteration:
+            block_start = position
+        for line in reverse_generator:
+            if not line.strip():
+                block_start -= 1
+                continue
+            if not line.startswith(b";"):
+                break
+            # +1 for the newline which is not included
+            block_start -= len(line) + 1
+        reverse_generator.close()
+        return block_start
+
+    def quick_parse(self, data: ParsedData, file_descriptor):
+        """
+        Parse metadata by looking at larger comment blocks throughout the file
+        """
+        # pylint: disable=too-many-branches
+        block_start = 0
+        position = self.parse_comment_block(data, file_descriptor)
+        size = file_descriptor.seek(0, os.SEEK_END)
+        file_descriptor.seek(position)
+        while position != size:
+            offset = min(SEARCH_SEEK_AMOUNT, size - position)
+            position = file_descriptor.seek(position + offset)
+            chunk = file_descriptor.read(SEARCH_READ_AMOUNT)
+            if b";" in chunk:
+                relative_semicolon_index = chunk.index(b";")
+                semicolon_position = position + relative_semicolon_index
+                file_descriptor.seek(semicolon_position)
+                block_start = self.find_block_start(file_descriptor)
+                file_descriptor.seek(block_start)
+                parsed_bytes = self.parse_comment_block(data, file_descriptor)
+                position = block_start + parsed_bytes
+
+        # Assume there's comments at the end of the file, try parsing them
+        end_block_start = self.find_block_start(file_descriptor)
+        # If we haven't found the end block
+        if end_block_start != block_start:
+            file_descriptor.seek(end_block_start)
+            self.parse_comment_block(data, file_descriptor)
 
 
 class SLMetaData(MetaData):
