@@ -155,6 +155,45 @@ class Event(LoopObject):
                 f" [{self.source}], {data}")
 
 
+class Snapshot(LoopObject):
+    """Snapshot from the camera"""
+
+    endpoint = "/c/snapshot"
+    method = "PUT"
+    needs_token = True
+
+    # pylint: disable=too-many-arguments
+    def __init__(self, data: bytes, camera_fingerprint: str, camera_token: str,
+                 timestamp: float):
+        super().__init__(timestamp=timestamp)
+        self.data = data
+        self.camera_fingerprint = camera_fingerprint
+        self.camera_token = camera_token
+
+    def send_data(self, conn: Session, server):
+        """A snapshot send function"""
+        name = self.__class__.__name__
+        log.debug("Sending %s: %s", name, self)
+
+        headers = {
+            "Timestamp": str(self.timestamp),
+            "Fingerprint": self.camera_fingerprint,
+            "Token": self.camera_token
+        }
+        res = conn.request(method=self.method,
+                           url=server + self.endpoint,
+                           headers=headers,
+                           data=self.data,
+                           timeout=const.CONNECTION_TIMEOUT)
+
+        log.debug("%s response: %s", name, res.text)
+        return res
+
+    def fail_cb(self):
+        """Callback for failed authorization of snapshot"""
+        log.error("Failed to authorize request")
+
+
 class Telemetry(LoopObject):
     """Telemetry object must contain at least Printer state"""
 
