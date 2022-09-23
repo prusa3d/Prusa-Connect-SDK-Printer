@@ -13,7 +13,7 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Command, \
     Register, errors
-from prusa.connect.printer.models import Telemetry, Event
+from prusa.connect.printer.models import Telemetry, Event, Snapshot
 from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
 
 # pylint: disable=missing-function-docstring
@@ -140,6 +140,28 @@ class TestPrinter:
 
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'BUSY'}
+
+    def test_snapshot(self, printer):
+        data = b'1010'
+        printer.snapshot(data, "test_fingerprint", "test_token", time.time())
+        item = printer.snapshot_queue.get_nowait()
+        assert isinstance(item, Snapshot)
+        assert item.camera_fingerprint == "test_fingerprint"
+        assert item.camera_token == "test_token"
+        assert item.data == data
+
+    def test_snapshot_loop(self, requests_mock, printer):
+        requests_mock.put(SERVER + "/c/snapshot", status_code=204)
+        fingerprint = "test_fingerprint"
+        token = "test_token"
+        data = b'1010'
+        printer.snapshot(data, fingerprint, token, time.time())
+        run_loop(printer.snapshot_loop)
+        req = requests_mock.request_history[0]
+        assert(str(req) == f"PUT {SERVER}/c/snapshot")
+        assert req.headers["Fingerprint"] == fingerprint
+        assert req.headers["Token"] == token
+        assert req.headers["Content-Length"] == str(len(data))
 
     def test_telemetry_no_fingerprint(self, printer_no_fp):
         printer_no_fp.telemetry(temp_bed=1, temp_nozzle=2)
