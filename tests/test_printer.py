@@ -62,6 +62,12 @@ token = {TOKEN}
     return tmpf.name
 
 
+@pytest.fixture
+def camera_mgr(printer):
+    printer.camera_mgr.server = SERVER
+    yield printer.camera_mgr
+
+
 def remove_m_time(file_data):
     """Remove 'm_timestamp' and 'children'
     keys from file structure."""
@@ -141,24 +147,27 @@ class TestPrinter:
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'BUSY'}
 
-    def test_snapshot(self, printer):
+    def test_snapshot(self, camera_mgr):
         data = b'1010'
-        printer.snapshot(data, "test_fingerprint", "test_token", time.time())
-        item = printer.snapshot_queue.get_nowait()
+
+        camera_mgr.snapshot(data, "test_fingerprint", "test_token",
+                            time.time())
+        item = camera_mgr.snapshot_queue.get_nowait()
         assert isinstance(item, Snapshot)
         assert item.camera_fingerprint == "test_fingerprint"
         assert item.camera_token == "test_token"
         assert item.data == data
 
-    def test_snapshot_loop(self, requests_mock, printer):
+    def test_snapshot_loop(self, requests_mock, camera_mgr):
         requests_mock.put(SERVER + "/c/snapshot", status_code=204)
         fingerprint = "test_fingerprint"
         token = "test_token"
         data = b'1010'
-        printer.snapshot(data, fingerprint, token, time.time())
-        run_loop(printer.snapshot_loop)
+
+        camera_mgr.snapshot(data, fingerprint, token, time.time())
+        run_loop(camera_mgr.snapshot_loop)
         req = requests_mock.request_history[0]
-        assert(str(req) == f"PUT {SERVER}/c/snapshot")
+        assert (str(req) == f"PUT {SERVER}/c/snapshot")
         assert req.headers["Fingerprint"] == fingerprint
         assert req.headers["Token"] == token
         assert req.headers["Content-Length"] == str(len(data))

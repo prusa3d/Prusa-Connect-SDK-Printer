@@ -34,10 +34,11 @@ from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .const import PRIORITY_COMMANDS
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
-from .models import Event, Telemetry, Sheet, Register, LoopObject, Snapshot
+from .models import Event, Telemetry, Sheet, Register, LoopObject
 from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession, get_timestamp
+from .camera import CameraMgr
 
 __version__ = "0.7.0.rc1"
 __date__ = "13 Sep 2022"  # version date
@@ -82,7 +83,6 @@ class Printer:
     # pylint: disable=too-many-public-methods
 
     queue: "Queue[LoopObject]"
-    snapshot_queue: "Queue[Snapshot]"
     server: Optional[str] = None
     token: Optional[str] = None
     conn: Session
@@ -126,7 +126,6 @@ class Printer:
             self.conn = Session()
 
         self.queue = Queue()
-        self.snapshot_queue = Queue()
 
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
@@ -169,8 +168,8 @@ class Printer:
                                         self.get_connection_details,
                                         self.event_cb, self.__printed_file_cb,
                                         self.download_finished_cb)
+        self.camera_mgr = CameraMgr(self.conn, self.server)
         self.__running_loop = False
-        self.__running_snapshot_loop = False
 
     @staticmethod
     def connect_url(host: str, tls: bool, port: int = 0):
@@ -314,13 +313,6 @@ class Printer:
         if not self.is_initialised():
             log.warning("Printer fingerprint and/or SN is not set")
         self.queue.put(event_)
-
-    def snapshot(self, data: bytes, camera_fingerprint: str, camera_token: str,
-                 timestamp: float):
-        """Create snapshot and push it to the queue"""
-        snapshot = Snapshot(data, camera_fingerprint, camera_token, timestamp)
-
-        self.snapshot_queue.put(snapshot)
 
     def telemetry(self,
                   state: const.State = None,
@@ -691,29 +683,6 @@ class Printer:
             # pylint: disable=broad-except
             except Exception:
                 log.exception("Unexpected exception caught in SDK loop!")
-
-    def snapshot_loop(self):
-        """Gets an item Snapshot from queue and sends it"""
-        self.__running_snapshot_loop = True
-        while self.__running_snapshot_loop:
-            try:
-                # Get the item to send
-                item = self.snapshot_queue.get(
-                    timeout=const.TIMESTAMP_PRECISION)
-
-                # Send it
-                res = item.send_data(self.conn, self.server)
-                if res.status_code in (401, 403):
-                    item.fail_cb()
-                if res.status_code > 400:
-                    log.warning(res.text)
-                elif res.status_code == 400:
-                    log.debug(res.text)
-            except Empty:
-                continue
-            except Exception: # pylint: disable=broad-except
-                log.exception(
-                    "Unexpected exception caught in SDK snapshot loop!")
 
     def loop_step(self):
         """
