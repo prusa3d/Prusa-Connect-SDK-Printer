@@ -265,10 +265,7 @@ class Storage:
             free_space = path_.f_bavail * path_.f_bsize
             total_space = path_.f_blocks * path_.f_bsize
 
-            space_info = {
-                "free_space":free_space,
-                "total_space":total_space
-            }
+            space_info = {"free_space": free_space, "total_space": total_space}
             return space_info
         return {}
 
@@ -318,10 +315,10 @@ class Filesystem:
         self.event_cb = event_cb
 
     def attach(self,
-              name: str,
-              tree: File,
-              storage_path: str = "",
-              use_inotify=True):
+               name: str,
+               tree: File,
+               storage_path: str = "",
+               use_inotify=True):
         """Attach the tree under a storage.
 
         :param name: The storage
@@ -334,22 +331,20 @@ class Filesystem:
             `self.sep` only.
         """
         if not name:
-            raise InvalidStorageError\
-                ("Storage cannot be empty")
+            raise InvalidStorageError("Storage cannot be empty")
 
         if name == '/':
             name = ROOT
 
         if self.sep in name:
             msg = f"Storage cannot contain {self.sep}"
-            raise InvalidStorageError\
-                (msg)
+            raise InvalidStorageError(msg)
 
         if name in self.storage_dict:
-            raise InvalidStorageError\
-                (f"`{name}` is already used")
+            raise InvalidStorageError(f"`{name}` is already used")
 
-        self.storage_dict[name] = Storage(tree, name, storage_path, use_inotify)
+        self.storage_dict[name] = Storage(tree, name, storage_path,
+                                          use_inotify)
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
@@ -368,8 +363,7 @@ class Filesystem:
         """
         if name not in self.storage_dict:
             msg = f"`{name}` is not used as a storage"
-            raise InvalidStorageError\
-                (msg)
+            raise InvalidStorageError(msg)
 
         del self.storage_dict[name]
 
@@ -517,7 +511,7 @@ class InotifyHandler:
                 self.__init_wd(storage.path_storage, init=True)
 
     def create_cache(self, new_path):
-        """When a file is created, the cache file is created"""
+        """Creates the cache file"""
         path_ = os.path.join(self.get_abs_os_path(new_path))
         if os.path.exists(path_):
             try:
@@ -596,7 +590,7 @@ class InotifyHandler:
             Filesystem.update(dir_paths, abs_storage, node)
 
             for file_path in file_paths:
-                if not file_path in self.fs.checked_files:
+                if file_path not in self.fs.checked_files:
                     self.process_create(file_path, is_dir=False)
                     self.fs.checked_files.append(file_path)
 
@@ -733,10 +727,10 @@ class InotifyHandler:
             self.__init_wd(abs_path, node, init=False)  # add inotify watch
         else:
             self.create_cache(node.abs_path(base_storage.storage))
-        self.send_file_changed(file=node,
-                               new_path=node.abs_path(base_storage.storage),
-                               free_space=
-                               base_storage.get_space_info().get("free_space"))
+        self.send_file_changed(
+            file=node,
+            new_path=node.abs_path(base_storage.storage),
+            free_space=base_storage.get_space_info().get("free_space"))
 
     def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
@@ -752,21 +746,22 @@ class InotifyHandler:
             node.attrs = {}
             path_ = node.abs_path(base_storage.storage)
             self.delete_cache(path_)
-            self.create_cache(path_)
-            self.send_file_changed(old_path=path_,
-                                   new_path=path_,
-                                   file=node,
-                                   free_space=
-                                   base_storage.get_space_info().get("free_space"))
+            # TODO: Why is this there?
+            # self.create_cache(path_)
+            self.send_file_changed(
+                old_path=path_,
+                new_path=path_,
+                file=node,
+                free_space=base_storage.get_space_info().get("free_space"))
         else:
             # some watched folder other than top level was deleted
             node = base_storage.tree.get(parts)
             node.delete()
             path_ = node.abs_path(base_storage.storage)
             self.delete_cache(path_)
-            self.send_file_changed(old_path=path_,
-                                   free_space=
-                                   base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(
+                old_path=path_,
+                free_space=base_storage.get_space_info().get("free_space"))
 
     def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
@@ -778,11 +773,11 @@ class InotifyHandler:
         node = base_storage.tree.get(parts)
         node.set_attrs(abs_path)
         path_ = node.abs_path(base_storage.storage)
-        self.send_file_changed(old_path=path_,
-                               new_path=path_,
-                               file=node,
-                               free_space=
-                               base_storage.get_space_info().get("free_space"))
+        self.send_file_changed(
+            old_path=path_,
+            new_path=path_,
+            file=node,
+            free_space=base_storage.get_space_info().get("free_space"))
 
     def send_file_changed(self,
                           old_path: str = None,

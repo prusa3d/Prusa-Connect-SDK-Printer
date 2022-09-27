@@ -157,3 +157,7 @@ class RegistrationStatus(Enum):
 
 # Drop everything and execute these when they come
 PRIORITY_COMMANDS = {Command.RESET_PRINTER}
+
+METADATA_MAX_OFFSET = 2000  # bytes from the start and end of a file
+METADATA_CHUNK_SIZE = 200
+COMMENT_BLOCK_MAX_SIZE = 1000000  # Max 1MB of comments

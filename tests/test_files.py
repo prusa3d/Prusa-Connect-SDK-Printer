@@ -301,8 +301,10 @@ class TestFilesystem:
             fs.attach("storage", nodes)
 
     def test_get_space_info(self, fs):
-        assert fs.storage_dict["storage"].get_space_info().get("free_space") > 0
-        assert fs.storage_dict["storage"].get_space_info().get("total_space") > 0
+        assert fs.storage_dict["storage"].get_space_info().get(
+            "free_space") > 0
+        assert fs.storage_dict["storage"].get_space_info().get(
+            "total_space") > 0
 
     def test_dettach(self, fs):
         fs.dettach("storage")
@@ -399,8 +401,10 @@ class TestFilesystem:
                         }]
                     }],
                 }],
-                'free_space': 0,
-                'total_space': 42
+                'free_space':
+                0,
+                'total_space':
+                42
             }],
         }
 

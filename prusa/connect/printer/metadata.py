@@ -10,7 +10,8 @@ import os
 import zipfile
 from typing import Dict, Any
 from logging import getLogger
-from .const import GCODE_EXTENSIONS
+from .const import GCODE_EXTENSIONS, METADATA_MAX_OFFSET, \
+    METADATA_CHUNK_SIZE, COMMENT_BLOCK_MAX_SIZE
 
 log = getLogger("connect-printer")
 
@@ -19,15 +20,6 @@ RE_ESTIMATED = re.compile(r"((?P<days>[0-9]+)d\s*)?"
                           r"((?P<hours>[0-9]+)h\s*)?"
                           r"((?P<minutes>[0-9]+)m\s*)?"
                           r"((?P<seconds>[0-9]+)s)?")
-
-# These numbers are used for searching for the semicolon
-# The PrusaSlicer comment blocks are around 10000B
-# 85% of the lines there have less than 50 chars
-# This gets us around two shots at discovering a semicolon there
-# Some lines there are 200+ chars, so we definitely need two.
-# For better luck ;)
-SEARCH_SEEK_AMOUNT = 4500
-SEARCH_READ_AMOUNT = 50
 
 
 class UnknownGcodeFileType(ValueError):
@@ -337,15 +329,6 @@ class FDMMetaData(MetaData):
                 retries -= 1
                 sleep(0.2)
 
-        if not retries:
-            with open(path, "r", encoding='utf-8') as file_descriptor:
-                data = ParsedData()
-                file_descriptor.seek(0, 0)
-                for line in file_descriptor:
-                    if ";" not in line:
-                        continue  # 3-4x speed up :D
-                    self.from_line(data, line)
-
         self.last_filename = file_descriptor.name
 
         self.set_data(data.meta)
@@ -396,6 +379,9 @@ class FDMMetaData(MetaData):
                 continue
             if not line.startswith(b";"):
                 break
+            # Do not read more than a xK of comments
+            if bytes_parsed > COMMENT_BLOCK_MAX_SIZE:
+                break
             bytes_parsed += len(line) + 1
             self.from_line(data, line.decode("UTF-8"))
         return bytes_parsed
@@ -405,15 +391,15 @@ class FDMMetaData(MetaData):
         gets the position of the first comment line in its block"""
         reverse_generator = self.reverse_readline(file_descriptor)
         position = file_descriptor.tell()
-        try:
-            block_start = position - len(next(reverse_generator))
-        except StopIteration:
-            block_start = position
+        block_start = position
         for line in reverse_generator:
             if not line.strip():
                 block_start -= 1
                 continue
             if not line.startswith(b";"):
+                break
+            # Stop if there are too many comments
+            if position - block_start > COMMENT_BLOCK_MAX_SIZE:
                 break
             # +1 for the newline which is not included
             block_start -= len(line) + 1
@@ -421,33 +407,28 @@ class FDMMetaData(MetaData):
         return block_start
 
     def quick_parse(self, data: ParsedData, file_descriptor):
-        """
-        Parse metadata by looking at larger comment blocks throughout the file
-        """
+        """Parse metadata on the start and end of the file"""
         # pylint: disable=too-many-branches
-        block_start = 0
         position = self.parse_comment_block(data, file_descriptor)
         size = file_descriptor.seek(0, os.SEEK_END)
         file_descriptor.seek(position)
         while position != size:
-            offset = min(SEARCH_SEEK_AMOUNT, size - position)
-            position = file_descriptor.seek(position + offset)
-            chunk = file_descriptor.read(SEARCH_READ_AMOUNT)
-            if b";" in chunk:
-                relative_semicolon_index = chunk.index(b";")
+            if METADATA_MAX_OFFSET < position < size - METADATA_MAX_OFFSET:
+                # Skip the middle part of the file
+                position = size - METADATA_MAX_OFFSET
+            file_descriptor.seek(position)
+            chunk = file_descriptor.read(METADATA_CHUNK_SIZE)
+            if b"\n;" in chunk:
+                relative_semicolon_index = chunk.index(b"\n;")
                 semicolon_position = position + relative_semicolon_index
                 file_descriptor.seek(semicolon_position)
                 block_start = self.find_block_start(file_descriptor)
                 file_descriptor.seek(block_start)
                 parsed_bytes = self.parse_comment_block(data, file_descriptor)
                 position = block_start + parsed_bytes
-
-        # Assume there's comments at the end of the file, try parsing them
-        end_block_start = self.find_block_start(file_descriptor)
-        # If we haven't found the end block
-        if end_block_start != block_start:
-            file_descriptor.seek(end_block_start)
-            self.parse_comment_block(data, file_descriptor)
+            else:
+                offset = min(METADATA_CHUNK_SIZE, size - position)
+                position = file_descriptor.seek(position + offset)
 
 
 class SLMetaData(MetaData):
