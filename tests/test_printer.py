@@ -13,7 +13,8 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Command, \
     Register, errors
-from prusa.connect.printer.models import Telemetry, Event, Snapshot
+from prusa.connect.printer.models import Telemetry, Event, Snapshot, \
+    CameraRegister
 from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
 
 # pylint: disable=missing-function-docstring
@@ -171,6 +172,76 @@ class TestPrinter:
         assert req.headers["Fingerprint"] == fingerprint
         assert req.headers["Token"] == token
         assert req.headers["Content-Length"] == str(len(data))
+
+    def test_camera_register(self, printer, camera_mgr):
+        fingerprint = "supermegafingerprint"
+        camera_id = "1A2B3C"
+
+        data = {"data":{
+            "config": {
+                "camera_id": camera_id,
+                "path": "/dev/video0",
+                "name": "Olomouc",
+                "driver": "V4L2",
+                "trigger_scheme": "MANUAL",
+                "resolution": {
+                    "width": 640,
+                    "height": 480
+                }
+            },
+            "setting_options": {
+                "available_resolutions": [
+                    {
+                        "width": 640,
+                        "height": 480
+                    }
+                ]
+            },
+            "supported_capabilities": ["trigger_scheme"],
+            "fingerprint": fingerprint
+        }}
+
+        camera_mgr.register(data)
+        item = printer.queue.get_nowait()
+        assert isinstance(item, CameraRegister)
+        data = item.data["data"]
+        assert data["fingerprint"] == fingerprint
+        assert data["config"]["camera_id"] == camera_id
+
+    def test_camera_register_loop(self, requests_mock, printer, camera_mgr):
+        requests_mock.post(SERVER + "/p/camera", status_code=200)
+        fingerprint = "supermegafingerprint"
+        camera_id = "1A2B3C"
+
+        data = {"data": {
+            "config": {
+                "camera_id": camera_id,
+                "path": "/dev/video0",
+                "name": "Olomouc",
+                "driver": "V4L2",
+                "trigger_scheme": "MANUAL",
+                "resolution": {
+                    "width": 640,
+                    "height": 480
+                }
+            },
+            "setting_options": {
+                "available_resolutions": [
+                    {
+                        "width": 640,
+                        "height": 480
+                    }
+                ]
+            },
+            "supported_capabilities": ["trigger_scheme"],
+            "fingerprint": fingerprint
+        }}
+
+        camera_mgr.register(data)
+        run_loop(fct=printer.loop)
+
+        req = requests_mock.request_history[0]
+        assert (str(req) == f"POST {SERVER}/p/camera")
 
     def test_telemetry_no_fingerprint(self, printer_no_fp):
         printer_no_fp.telemetry(temp_bed=1, temp_nozzle=2)

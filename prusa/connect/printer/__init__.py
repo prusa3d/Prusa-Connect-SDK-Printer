@@ -34,7 +34,8 @@ from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .const import PRIORITY_COMMANDS
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
-from .models import Event, Telemetry, Sheet, Register, LoopObject
+from .models import Event, Telemetry, Sheet, Register, LoopObject, \
+    CameraRegister
 from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession, get_timestamp
@@ -168,7 +169,7 @@ class Printer:
                                         self.get_connection_details,
                                         self.event_cb, self.__printed_file_cb,
                                         self.download_finished_cb)
-        self.camera_mgr = CameraMgr(self.conn, self.server)
+        self.camera_mgr = CameraMgr(self.conn, self.queue)
         self.__running_loop = False
 
     @staticmethod
@@ -351,6 +352,7 @@ class Printer:
         tls = config['service::connect'].getboolean('tls')
         port = config['service::connect'].getint('port', fallback=0)
         self.server = Printer.connect_url(host, tls, port)
+        self.camera_mgr.server = self.server
         self.token = config['service::connect']['token']
         errors.TOKEN.ok = True
         TOKEN.state = CondState.OK
@@ -699,6 +701,7 @@ class Printer:
         credentials for further communication.
         """
         # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         try:
             # Get the item to send
             item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
@@ -749,6 +752,8 @@ class Printer:
                 elif res.status_code == 202 and item.timeout > time():
                     self.queue.put(item)
                     sleep(1)
+            elif isinstance(item, CameraRegister):
+                self.camera_mgr.registration_cb(res, item.data)
 
             self.deduce_state_from_code(res.status_code)
             if res.status_code > 400:

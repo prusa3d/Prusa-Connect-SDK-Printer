@@ -2,7 +2,7 @@
 from logging import getLogger
 from queue import Queue, Empty
 
-from .models import Snapshot
+from .models import Snapshot, CameraRegister
 from .const import TIMESTAMP_PRECISION
 
 log = getLogger("connect-camera")
@@ -12,15 +12,28 @@ class CameraMgr:
     """Camera Manager representation object."""
     snapshot_queue: "Queue[Snapshot]"
 
-    def __init__(self, conn, server):
+    def __init__(self, conn, queue):
         """
         :conn: Current RetryingSession connection
         :server Connect server URL
         """
         self.conn = conn
-        self.server = server
+        self.server = None
+        self.queue = queue
         self.snapshot_queue = Queue()
         self.__running_snapshot_loop = False
+
+    def register(self, data):
+        """Register the camera with Connect"""
+        self.queue.put(CameraRegister(data))
+
+    def registration_cb(self, res, data):
+        """Registration callback"""
+        # pylint: disable=unused-argument
+        if res.status_code == 200:
+            pass  # make some magic with camera token
+        else:
+            log.warning(res.text)
 
     def snapshot(self, data: bytes, camera_fingerprint: str, camera_token: str,
                  timestamp: float):
