@@ -516,6 +516,9 @@ class Printer:
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command_name} requires kwargs")
 
+        if self.fs.get(caller.kwargs["path"]).to_dict()["ro"]:
+            raise ValueError("File is read only")
+
         if self.printed_file_cb() == caller.kwargs["path"]:
             raise ValueError("This file is currently printed")
 
@@ -529,6 +532,9 @@ class Printer:
         """Handler for delete a folder."""
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command_name} requires kwargs")
+
+        if self.fs.get(caller.kwargs["path"]).to_dict()["ro"]:
+            raise ValueError("Folder is read only")
 
         if self.printed_file_cb():
             if caller.kwargs["path"] in self.printed_file_cb():
