@@ -97,6 +97,20 @@ class Register(LoopObject):
         return super().send(conn, server, headers)
 
 
+class CameraRegister(LoopObject):
+    """A request to Connect to register the camera"""
+    endpoint = "/p/camera"
+    method = "POST"
+
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+
+    def to_payload(self):
+        """Returns telemetry payload data"""
+        return self.data
+
+
 # pylint: disable=too-many-instance-attributes
 class Event(LoopObject):
     """Event object must contain at least Event type and source.
