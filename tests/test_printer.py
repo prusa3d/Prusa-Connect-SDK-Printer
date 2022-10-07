@@ -13,9 +13,9 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Command, \
     Register, errors
-from prusa.connect.printer.models import Telemetry, Event, Snapshot, \
-    CameraRegister
+from prusa.connect.printer.models import Telemetry, Event, CameraRegister
 from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
+from prusa.connect.printer.camera import Snapshot
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name

@@ -1,11 +1,50 @@
 """Camera functionality"""
 from logging import getLogger
 from queue import Queue, Empty
+from requests import Session
 
-from .models import Snapshot, CameraRegister
-from .const import TIMESTAMP_PRECISION
+from .models import CameraRegister
+from .const import TIMESTAMP_PRECISION, CONNECTION_TIMEOUT
+from .util import get_timestamp
 
 log = getLogger("connect-camera")
+
+
+class Snapshot:
+    """Snapshot from the camera"""
+    endpoint = "/c/snapshot"
+    method = "PUT"
+
+    # pylint: disable=too-many-arguments
+    def __init__(self, data: bytes, camera_fingerprint: str, camera_token: str,
+                 timestamp: float):
+        self.data = data
+        self.camera_fingerprint = camera_fingerprint
+        self.camera_token = camera_token
+        self.timestamp = get_timestamp(timestamp)
+
+    def send(self, conn: Session, server):
+        """A snapshot send function"""
+        name = self.__class__.__name__
+        log.debug("Sending %s: %s", name, self)
+
+        headers = {
+            "Timestamp": str(self.timestamp),
+            "Fingerprint": self.camera_fingerprint,
+            "Token": self.camera_token
+        }
+        res = conn.request(method=self.method,
+                           url=server + self.endpoint,
+                           headers=headers,
+                           data=self.data,
+                           timeout=CONNECTION_TIMEOUT)
+
+        log.debug("%s response: %s", name, res.text)
+        return res
+
+    def fail_cb(self):
+        """Callback for failed authorization of snapshot"""
+        log.error("Failed to authorize request")
 
 
 class CameraMgr:
@@ -39,7 +78,6 @@ class CameraMgr:
                  timestamp: float):
         """Create snapshot and push it to the queue"""
         snapshot = Snapshot(data, camera_fingerprint, camera_token, timestamp)
-
         self.snapshot_queue.put(snapshot)
 
     def snapshot_loop(self):
@@ -52,7 +90,7 @@ class CameraMgr:
                     timeout=TIMESTAMP_PRECISION)
 
                 # Send it
-                res = item.send_data(self.conn, self.server)
+                res = item.send(self.conn, self.server)
                 if res.status_code in (401, 403):
                     item.fail_cb()
                 if res.status_code > 400:
