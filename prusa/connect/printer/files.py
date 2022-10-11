@@ -205,7 +205,7 @@ class File:
                 result[attr] = self.attrs[attr]
         result['size'] = self.size
         children = [child.to_dict() for child in self.children.values()]
-        if children:
+        if self.is_dir:
             result['children'] = children
         return result
 
