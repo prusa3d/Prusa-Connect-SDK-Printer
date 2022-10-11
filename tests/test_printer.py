@@ -177,29 +177,29 @@ class TestPrinter:
         fingerprint = "supermegafingerprint"
         camera_id = "1A2B3C"
 
-        data = {"data":{
-            "config": {
-                "camera_id": camera_id,
-                "path": "/dev/video0",
-                "name": "Olomouc",
-                "driver": "V4L2",
-                "trigger_scheme": "MANUAL",
-                "resolution": {
-                    "width": 640,
-                    "height": 480
-                }
-            },
-            "setting_options": {
-                "available_resolutions": [
-                    {
+        data = {
+            "data": {
+                "config": {
+                    "camera_id": camera_id,
+                    "path": "/dev/video0",
+                    "name": "Olomouc",
+                    "driver": "V4L2",
+                    "trigger_scheme": "MANUAL",
+                    "resolution": {
                         "width": 640,
                         "height": 480
                     }
-                ]
-            },
-            "supported_capabilities": ["trigger_scheme"],
-            "fingerprint": fingerprint
-        }}
+                },
+                "setting_options": {
+                    "available_resolutions": [{
+                        "width": 640,
+                        "height": 480
+                    }]
+                },
+                "supported_capabilities": ["trigger_scheme"],
+                "fingerprint": fingerprint
+            }
+        }
 
         camera_mgr.register(data)
         item = printer.queue.get_nowait()
@@ -213,29 +213,29 @@ class TestPrinter:
         fingerprint = "supermegafingerprint"
         camera_id = "1A2B3C"
 
-        data = {"data": {
-            "config": {
-                "camera_id": camera_id,
-                "path": "/dev/video0",
-                "name": "Olomouc",
-                "driver": "V4L2",
-                "trigger_scheme": "MANUAL",
-                "resolution": {
-                    "width": 640,
-                    "height": 480
-                }
-            },
-            "setting_options": {
-                "available_resolutions": [
-                    {
+        data = {
+            "data": {
+                "config": {
+                    "camera_id": camera_id,
+                    "path": "/dev/video0",
+                    "name": "Olomouc",
+                    "driver": "V4L2",
+                    "trigger_scheme": "MANUAL",
+                    "resolution": {
                         "width": 640,
                         "height": 480
                     }
-                ]
-            },
-            "supported_capabilities": ["trigger_scheme"],
-            "fingerprint": fingerprint
-        }}
+                },
+                "setting_options": {
+                    "available_resolutions": [{
+                        "width": 640,
+                        "height": 480
+                    }]
+                },
+                "supported_capabilities": ["trigger_scheme"],
+                "fingerprint": fingerprint
+            }
+        }
 
         camera_mgr.register(data)
         run_loop(fct=printer.loop)
@@ -403,7 +403,8 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'ro': False,
-            'size': 0
+            'size': 0,
+            'children': []
         }
 
         # MEDIUM_INSERTED event resulting from ataching
@@ -453,7 +454,8 @@ class TestPrinter:
                 'name': 'test_dir',
                 'ro': False,
                 'size': 0,
-                'type': 'DIR'
+                'type': 'DIR',
+                'children': []
             }]
         }
 
@@ -469,7 +471,8 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'ro': False,
-            'size': 0
+            'size': 0,
+            'children': []
         }
         # directory is removed
         assert os.path.exists(path) is False
@@ -495,7 +498,8 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'ro': False,
-            'size': 0
+            'size': 0,
+            'children': []
         }
 
         # MEDIUM_INSERTED event resulting from attaching
@@ -559,7 +563,8 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'ro': False,
-            'size': 0
+            'size': 0,
+            'children': []
         }
         assert os.path.exists(file_path) is False
 
@@ -582,7 +587,8 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'size': 0,
-            'ro': False
+            'ro': False,
+            'children': []
         }
 
         cmd = {
@@ -620,7 +626,8 @@ class TestPrinter:
             'type': 'DIR',
             'name': 'test',
             'size': 0,
-            'ro': False
+            'ro': False,
+            'children': []
         }
 
         printer.command()  # exec CREATE_FOLDER
@@ -645,6 +652,7 @@ class TestPrinter:
                 'ro': False,
                 'type': 'DIR',
                 'size': 0,
+                'children': []
             }]
         }
         assert os.path.exists(path) is True

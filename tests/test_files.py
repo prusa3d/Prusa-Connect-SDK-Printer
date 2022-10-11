@@ -223,7 +223,8 @@ class TestFile:
                 'name': 'b',
                 'ro': True,
                 'm_timestamp': 1596120005,
-                'size': 0
+                'size': 0,
+                'children': []
             }, {
                 'type':
                 'DIR',
@@ -382,7 +383,8 @@ class TestFilesystem:
                     }, {
                         'type': 'DIR',
                         'name': 'b',
-                        'size': 0
+                        'size': 0,
+                        'children': []
                     }, {
                         'type':
                         'DIR',
