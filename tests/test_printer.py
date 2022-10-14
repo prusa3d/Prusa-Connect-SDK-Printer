@@ -12,24 +12,22 @@ import requests
 from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import Printer, const, Command, \
-    Register, errors, get_timestamp
-from prusa.connect.printer.models import Telemetry, Event, CameraRegister
+    Register, errors
+from prusa.connect.printer.models import Telemetry, Event
 from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
-from prusa.connect.printer.camera import Snapshot
+from tests.util import run_loop, CONNECT_HOST, CONNECT_PORT, TOKEN, SERVER, \
+    FINGERPRINT, SN, printer
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name
 # pylint: disable=too-many-lines
 
-FINGERPRINT = "__fingerprint__"
-SN = "SN001002XP003"
+# Shut up flake8, I'm importing a fixture!
+assert printer
+
 MAC = "00:01:02:03:04:05"
 FIRMWARE = "3.9.0rc2"
 IP = "192.168.1.101"
-TOKEN = "a44b552a12d96d3155cb"
-CONNECT_HOST = "server"
-CONNECT_PORT = 8000
-SERVER = f"http://{CONNECT_HOST}:{CONNECT_PORT}"
 TYPE = const.TransferType.FROM_WEB
 
 
@@ -63,12 +61,6 @@ token = {TOKEN}
     return tmpf.name
 
 
-@pytest.fixture
-def camera_mgr(printer):
-    printer.camera_mgr.server = SERVER
-    yield printer.camera_mgr
-
-
 def remove_m_time(file_data):
     """Remove 'm_timestamp' and 'children'
     keys from file structure."""
@@ -79,15 +71,6 @@ def remove_m_time(file_data):
         if key == 'children':
             for i in file_data['children']:
                 remove_m_time(i)
-
-
-@pytest.fixture()
-def printer():
-    """Printer object as fixture."""
-    printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
-    printer.server = SERVER
-    printer.token = TOKEN
-    return printer
 
 
 @pytest.fixture()
@@ -109,13 +92,6 @@ def printer_sdcard():
     printer.attach(tmp_dir.name, "sdcard")
     printer.queue.get_nowait()  # consume MEDIUM_INSERTED event
     yield printer
-
-
-def run_loop(fct, timeout=0.1):
-    try:
-        func_timeout(timeout, fct)
-    except FunctionTimedOut:
-        pass
 
 
 class TestPrinter:
@@ -147,101 +123,6 @@ class TestPrinter:
 
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'BUSY'}
-
-    def test_snapshot(self, camera_mgr):
-        data = b'1010'
-
-        camera_mgr.snapshot(data, "test_fingerprint", "test_token",
-                            get_timestamp())
-        item = camera_mgr.snapshot_queue.get_nowait()
-        assert isinstance(item, Snapshot)
-        assert item.camera_fingerprint == "test_fingerprint"
-        assert item.camera_token == "test_token"
-        assert item.data == data
-
-    def test_snapshot_loop(self, requests_mock, camera_mgr):
-        requests_mock.put(SERVER + "/c/snapshot", status_code=204)
-        fingerprint = "test_fingerprint"
-        token = "test_token"
-        data = b'1010'
-
-        camera_mgr.snapshot(data, fingerprint, token, get_timestamp())
-        run_loop(camera_mgr.snapshot_loop)
-        req = requests_mock.request_history[0]
-        assert (str(req) == f"PUT {SERVER}/c/snapshot")
-        assert req.headers["Fingerprint"] == fingerprint
-        assert req.headers["Token"] == token
-        assert req.headers["Content-Length"] == str(len(data))
-
-    def test_camera_register(self, printer, camera_mgr):
-        fingerprint = "supermegafingerprint"
-        camera_id = "1A2B3C"
-
-        data = {
-            "data": {
-                "config": {
-                    "camera_id": camera_id,
-                    "path": "/dev/video0",
-                    "name": "Olomouc",
-                    "driver": "V4L2",
-                    "trigger_scheme": "MANUAL",
-                    "resolution": {
-                        "width": 640,
-                        "height": 480
-                    }
-                },
-                "setting_options": {
-                    "available_resolutions": [{
-                        "width": 640,
-                        "height": 480
-                    }]
-                },
-                "supported_capabilities": ["trigger_scheme"],
-                "fingerprint": fingerprint
-            }
-        }
-
-        camera_mgr.register(data)
-        item = printer.queue.get_nowait()
-        assert isinstance(item, CameraRegister)
-        data = item.data["data"]
-        assert data["fingerprint"] == fingerprint
-        assert data["config"]["camera_id"] == camera_id
-
-    def test_camera_register_loop(self, requests_mock, printer, camera_mgr):
-        requests_mock.post(SERVER + "/p/camera", status_code=200)
-        fingerprint = "supermegafingerprint"
-        camera_id = "1A2B3C"
-
-        data = {
-            "data": {
-                "config": {
-                    "camera_id": camera_id,
-                    "path": "/dev/video0",
-                    "name": "Olomouc",
-                    "driver": "V4L2",
-                    "trigger_scheme": "MANUAL",
-                    "resolution": {
-                        "width": 640,
-                        "height": 480
-                    }
-                },
-                "setting_options": {
-                    "available_resolutions": [{
-                        "width": 640,
-                        "height": 480
-                    }]
-                },
-                "supported_capabilities": ["trigger_scheme"],
-                "fingerprint": fingerprint
-            }
-        }
-
-        camera_mgr.register(data)
-        run_loop(fct=printer.loop)
-
-        req = requests_mock.request_history[0]
-        assert (str(req) == f"POST {SERVER}/p/camera")
 
     def test_telemetry_no_fingerprint(self, printer_no_fp):
         printer_no_fp.telemetry(temp_bed=1, temp_nozzle=2)
@@ -779,7 +660,7 @@ class TestPrinter:
 
     def test_load_lan_settings(self, lan_settings_ini):
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
-        printer.set_connection(lan_settings_ini)
+        printer.connection_from_config(lan_settings_ini)
 
         assert printer.token == TOKEN
         assert printer.server == f"http://{CONNECT_HOST}:{CONNECT_PORT}"
@@ -788,7 +669,7 @@ class TestPrinter:
         printer = Printer(const.PrinterType.I3MK3, SN, FINGERPRINT)
 
         with pytest.raises(FileNotFoundError):
-            printer.set_connection("some_non-existing_file")
+            printer.connection_from_config("some_non-existing_file")
 
     def test_inotify(self, printer):
         # create two dirs. This will test if recreating the InotifyHandler

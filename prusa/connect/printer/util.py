@@ -1,6 +1,7 @@
 """Various utilities for the Printer SDK project"""
 
 import logging
+from hashlib import sha256
 from time import time
 
 import requests
@@ -12,7 +13,13 @@ log = logging.getLogger("connect-printer")
 def get_timestamp(timestamp: float = None):
     """If given None, gets the current timestamp, otherwise leaves the
     value alone"""
-    return timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
+    result = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION
+    return result
+
+
+def make_fingerprint(identifier: str):
+    """Uses sha256 to hash the supplied identifier for use as a fingerprint"""
+    return sha256(identifier.encode()).hexdigest()
 
 
 class RetryingSession(requests.Session):
