@@ -39,7 +39,6 @@ from .models import Event, Telemetry, Sheet, Register, LoopObject, \
 from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession, get_timestamp
-from .camera import CameraMgr
 
 __version__ = "0.7.0.rc1"
 __date__ = "13 Sep 2022"  # version date
@@ -169,15 +168,9 @@ class Printer:
                                         self.get_connection_details,
                                         self.event_cb, self.__printed_file_cb,
                                         self.download_finished_cb)
-        self.camera_mgr = CameraMgr(self.conn, self.queue)
+        self.camera_controller = CameraController(self.conn, self.server,
+                                                  self.send_cb)
         self.__running_loop = False
-
-        self.camera_controller = CameraController(self.event_cb)
-
-    def init_cameras(self, controller):
-        """Pass a camera controller for automatic triggering and photo
-        sending by the SDK"""
-        self.camera_controller = controller
 
     @staticmethod
     def connect_url(host: str, tls: bool, port: int = 0):
@@ -348,8 +341,13 @@ class Printer:
             log.warning("Printer fingerprint and/or SN is not set")
         self.queue.put(telemetry)
 
-    def set_connection(self, path: str):
-        """Set connection from ini config."""
+    def send_cb(self, loop_object: LoopObject):
+        """Enqueues any supported loop object for sending,
+        without modifying it"""
+        self.queue.put(loop_object)
+
+    def connection_from_config(self, path: str):
+        """Loads connection details from config."""
         if not os.path.exists(path):
             raise FileNotFoundError(f"ini file: `{path}` doesn't exist")
         config = configparser.ConfigParser()
@@ -358,9 +356,16 @@ class Printer:
         host = config['service::connect']['hostname']
         tls = config['service::connect'].getboolean('tls')
         port = config['service::connect'].getint('port', fallback=0)
-        self.server = Printer.connect_url(host, tls, port)
-        self.camera_mgr.server = self.server
-        self.token = config['service::connect']['token']
+
+        server = Printer.connect_url(host, tls, port)
+        token = config['service::connect']['token']
+        self.set_connection(server, token)
+
+    def set_connection(self, server, token):
+        """Sets the connection details"""
+        self.server = server
+        self.token = token
+        self.camera_controller.server = server
         errors.TOKEN.ok = True
         TOKEN.state = CondState.OK
 
@@ -767,7 +772,13 @@ class Printer:
                     self.queue.put(item)
                     sleep(1)
             elif isinstance(item, CameraRegister):
-                self.camera_mgr.registration_cb(res, item.data)
+                camera = item.camera
+                # pylint: disable=unused-argument
+                if res.status_code == 200:
+                    camera_token = res.headers["Token"]
+                    camera.set_token(camera_token)
+                else:
+                    log.warning(res.text)
 
             self.deduce_state_from_code(res.status_code)
             if res.status_code > 400:

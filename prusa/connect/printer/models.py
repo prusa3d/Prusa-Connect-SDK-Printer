@@ -102,13 +102,28 @@ class CameraRegister(LoopObject):
     endpoint = "/p/camera"
     method = "POST"
 
-    def __init__(self, data):
+    def __init__(self, camera):
         super().__init__()
-        self.data = data
+        self.camera = camera
 
     def to_payload(self):
-        """Returns telemetry payload data"""
-        return self.data
+        """Converts the camera to data for registration"""
+        obj_config = self.camera.get_settings()
+        config = self.camera.json_from_settings(obj_config)
+        config["camera_id"] = self.camera.camera_id
+        available_resolutions = [
+            dict(res) for res in self.camera.available_resolutions
+        ]
+        setting_options = dict(available_resolutions=available_resolutions)
+        supported_capabilities = [
+            cap.value for cap in self.camera.supported_capabilities
+        ]
+
+        data = dict(config=config,
+                    setting_options=setting_options,
+                    supported_capabilities=supported_capabilities,
+                    fingerprint=self.camera.fingerprint)
+        return data
 
 
 # pylint: disable=too-many-instance-attributes

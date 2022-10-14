@@ -235,9 +235,11 @@ class CameraConfigurator:
     # TODO: changing, and saving settings
 
     def __init__(self, camera_controller, config: ConfigParser,
-                 drivers: List[Type[CameraDriver]]):
+                 config_file_path: str, drivers: List[Type[CameraDriver]]):
+        camera_controller.save_cb = self.save
         self.camera_controller = camera_controller
         self.config = config
+        self.config_file_path = config_file_path
         self.registered_drivers: Dict[str, Type[CameraDriver]] = {}
 
         for driver in drivers:
@@ -261,7 +263,9 @@ class CameraConfigurator:
         self.refresh()
 
     def add_camera_to_order(self, cam_id):
-        """Adds a new camera at the end of ordered cameras"""
+        """Adds a new camera at the end of ordered cameras
+        Does not save, as that would overwrite the config
+         we're loading from"""
         if cam_id in self.order_known:
             log.warning("The order of this camera is already known")
             return
@@ -276,6 +280,7 @@ class CameraConfigurator:
         # This is inefficient but i'm not expecting that many cameras
         self.camera_order.remove(cam_id)
         self.camera_controller.set_camera_order(self.camera_order)
+        self.save_order()
 
     def set_order(self, camera_ids: List["str"]):
         """Moves the specified ids to the front, does not add any"""
@@ -292,6 +297,7 @@ class CameraConfigurator:
                 new_order.append(camera_id)
         self.camera_order = new_order
         self.camera_controller.set_camera_order(self.camera_order)
+        self.save_order()
 
     def reload_config(self):
         """
@@ -302,7 +308,8 @@ class CameraConfigurator:
         self.camera_order.clear()
         if not self.config.has_section("camera_order"):
             self.config.add_section("camera_order")
-        for index in sorted(self.config.options("camera_order")):
+        ordered_cameras = list(sorted(self.config.options("camera_order")))
+        for index in ordered_cameras:
             camera_id = self.config.get(section="camera_order", option=index)
             self.add_camera_to_order(camera_id)
 
@@ -322,8 +329,7 @@ class CameraConfigurator:
 
     def add_camera_config(self, camera_id, camera_config):
         """Adds camera config to the instance - not into the
-        ConfigParser one tho - call save for that
-        Modifies the config if it exists"""
+        ConfigParser one tho"""
         if "driver" not in camera_config:
             raise ConfigError("Config does not contain which driver to use")
         driver = camera_config["driver"]
@@ -429,6 +435,7 @@ class CameraConfigurator:
         self.loaded_drivers[camera_id] = loaded_driver
         if loaded_driver.is_connected:
             self.camera_controller.add_camera(Camera(loaded_driver))
+            self.save(camera_id)
 
     def disconnected_handler(self, loaded_driver: CameraDriver):
         """This camera is defunct, remove it from active cameras"""
@@ -462,22 +469,24 @@ class CameraConfigurator:
 
         settings = camera.get_settings()
         config.update(camera.string_from_settings(settings))
-        self.config.read_dict({section_name: loaded_driver.config})
-        # TODO: who and where writes the config? SDK probably...
+        self.config.read_dict({section_name: config})
+        self.write_config()
 
     def save_order(self):
         """Saves the current camera order into the config"""
+        self.config.remove_section("camera_order")
+        self.config.add_section("camera_order")
         for i, camera_id in enumerate(self.camera_order, start=1):
             self.config.set(section="camera_order",
                             option=str(i),
                             value=camera_id)
-        # TODO: Save that config
+
+        self.write_config()
 
     def add_camera(self, camera_id, camera_config=None):
         """Adds a camera into the configurator instance and if it works
-        it'll get added to the SDK CameraController too. Then it's safe to
-        save
-        Modifies the loaded config if it exists, does not touch ConfigParser
+        it'll get added to the SDK CameraController too. Then it gets saved
+        Modifies the loaded config if it exists
         raises ConfigError when a bad config is supplied
         """
         if camera_config is None:
@@ -491,11 +500,13 @@ class CameraConfigurator:
             raise CameraAlreadyExists(f"A camera with id {camera_id} "
                                       f"already exists")
         self.add_camera_config(camera_id, camera_config)
+        # Save the camera order here as this is not used during config parsing
+        self.save_order()
         driver = self.get_driver_for_id(camera_id)
         self.load_driver(driver, camera_id, camera_config)
 
     def remove_camera(self, camera_id):
-        """Removes the camera from everywhere"""
+        """Removes the camera from everywhere, even the config"""
         if camera_id in self.camera_controller:
             camera = self.camera_controller.get_camera(camera_id)
             camera.disconnect()
@@ -513,6 +524,8 @@ class CameraConfigurator:
         section_name = f"camera::{camera_id}"
         if self.config.has_section(section_name):
             self.config.remove_section(section_name)
+        self.save_order()
+        self.write_config()
 
     def get_new_cameras(self):
         """Gets auto-detected but not configured camera config dictionaries
@@ -524,3 +537,8 @@ class CameraConfigurator:
             map(lambda item: (item, self.detected_cameras[item]), new_ids))
 
         return new_configs
+
+    def write_config(self):
+        """Writes the current ConfigParser config instance to the file"""
+        with open(self.config_file_path, 'w', encoding='utf-8') as config_file:
+            self.config.write(config_file)

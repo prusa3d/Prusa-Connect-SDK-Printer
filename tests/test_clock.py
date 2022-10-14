@@ -2,7 +2,7 @@ from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
 
 from prusa.connect.printer import const
 from prusa.connect.printer.clock import ClockWatcher
-from .test_printer import printer
+from .util import printer
 
 assert printer
 

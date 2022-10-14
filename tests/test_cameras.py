@@ -5,10 +5,16 @@ from unittest.mock import Mock, call
 
 from _pytest.python_api import raises
 
+from prusa.connect.printer import CameraRegister
 from prusa.connect.printer.camera_config import CameraDriver, \
     CameraConfigurator
 from prusa.connect.printer.cameras import CapabilityType, Resolution, \
-    Camera, TriggerScheme, NotSupported, DriverError, CameraController
+    Camera, TriggerScheme, NotSupported, DriverError, CameraController, \
+    Snapshot
+from tests.util import run_loop, SERVER, printer
+
+# Shut up flake8, I'm importing a fixture!
+assert printer
 
 
 class DummyDriver(CameraDriver):
@@ -65,6 +71,11 @@ class DummyDriver(CameraDriver):
     def fall_over(self):
         """Make Humpty stumble and fall over, at least he calls the handler"""
         super().disconnect()
+
+    @property
+    def is_registered(self):
+        """Override the default for easier testing"""
+        return True
 
 
 class GoodDriver(CameraDriver):
@@ -229,8 +240,9 @@ def test_configurator_from_config():
             "driver": "Non existent"
         },
     })
-    configurator = CameraConfigurator(CameraController(Mock()),
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       config,
+                                      "/dev/null",
                                       drivers=[DummyDriver])
     assert id1 in configurator.order_known
     assert id1 in configurator.camera_configs
@@ -266,8 +278,9 @@ def test_configurator_from_config():
 
 
 def test_configurator_add():
-    configurator = CameraConfigurator(CameraController(Mock()),
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
+                                      "/dev/null",
                                       drivers=[DummyDriver])
     id1 = CameraDriver.hash_id("id1")
     configurator.add_camera(id1)
@@ -294,8 +307,9 @@ def test_configurator_add():
 
 
 def test_configurator_remove():
-    configurator = CameraConfigurator(CameraController(Mock()),
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
+                                      "/dev/null",
                                       drivers=[DummyDriver])
     configurator.add_camera(
         "def", {
@@ -324,8 +338,9 @@ def test_configurator_remove():
 
 
 def test_configurator_new():
-    configurator = CameraConfigurator(CameraController(Mock()),
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
+                                      "/dev/null",
                                       drivers=[DummyDriver])
 
     id1 = CameraDriver.hash_id("id1")
@@ -339,9 +354,10 @@ RES_BOTH = 3
 
 
 def test_camera_controller():
-    controller = CameraController(Mock())
+    controller = CameraController(Mock(), "", Mock())
     configurator = CameraConfigurator(controller,
                                       ConfigParser(),
+                                      "/dev/null",
                                       drivers=[DummyDriver])
 
     id1 = CameraDriver.hash_id("id1")
@@ -394,8 +410,9 @@ def test_camera_controller():
 
 def test_setting_conversions():
 
-    configurator = CameraConfigurator(CameraController(Mock()),
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
+                                      "/dev/null",
                                       drivers=[GoodDriver])
     enormous = CameraDriver.hash_id("EnormousCamera")
     configurator.add_camera(enormous)
@@ -406,9 +423,82 @@ def test_setting_conversions():
     exported_settings = camera.get_settings()
     assert {"resolution", "name", "exposure", "rotation",
             "driver"}.issubset(exported_settings)
-    json_settings = camera.json_from_settings(exported_settings)
-    back_from_json = camera.settings_from_json(json_settings)
+    json_settings = Camera.json_from_settings(exported_settings)
+    back_from_json = Camera.settings_from_json(json_settings)
     assert exported_settings == back_from_json
-    string_settings = camera.string_from_settings(exported_settings)
-    back_from_string = camera.settings_from_string(string_settings)
+    string_settings = Camera.string_from_settings(exported_settings)
+    back_from_string = Camera.settings_from_string(string_settings)
     assert exported_settings == back_from_string
+
+
+class MockCamera:
+    def __init__(self):
+        self.is_registered = True
+        self.name = "Mock camera"
+        self.fingerprint = "test_fingerprint"
+        self.token = "test_token"
+
+
+def test_snapshot(printer):
+    camera_controller = printer.camera_controller
+
+    data = b'1010'
+
+    camera_controller.photo_handler(MockCamera(), data)
+    item = camera_controller.snapshot_queue.get_nowait()
+    assert isinstance(item, Snapshot)
+    assert item.camera.fingerprint == "test_fingerprint"
+    assert item.camera.token == "test_token"
+    assert item.data == data
+
+
+def test_snapshot_loop(requests_mock, printer):
+    camera_controller = printer.camera_controller
+
+    requests_mock.put(SERVER + "/c/snapshot", status_code=204)
+    data = b'1010'
+    camera = MockCamera()
+
+    camera_controller.photo_handler(camera, data)
+    run_loop(camera_controller.snapshot_loop)
+    req = requests_mock.request_history[0]
+    assert (str(req) == f"PUT {SERVER}/c/snapshot")
+    assert req.headers["Fingerprint"] == camera.fingerprint
+    assert req.headers["Token"] == camera.token
+    assert req.headers["Content-Length"] == str(len(data))
+
+
+def test_camera_register(printer):
+    camera_controller = printer.camera_controller
+    configurator = CameraConfigurator(camera_controller,
+                                      ConfigParser(),
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    id1 = CameraDriver.hash_id("id1")
+    configurator.add_camera(id1)
+    camera_controller.register_camera(camera_id=id1)
+    camera = camera_controller.get_camera(id1)
+
+    item = printer.queue.get_nowait()
+    assert isinstance(item, CameraRegister)
+    data = item.to_payload()
+    assert data["fingerprint"] == camera.fingerprint
+    assert data["config"]["camera_id"] == camera.camera_id
+
+
+def test_camera_register_loop(requests_mock, printer):
+    requests_mock.post(SERVER + "/p/camera", status_code=200)
+
+    camera_controller = printer.camera_controller
+    configurator = CameraConfigurator(camera_controller,
+                                      ConfigParser(),
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    id1 = CameraDriver.hash_id("id1")
+    configurator.add_camera(id1)
+    camera_controller.register_camera(camera_id=id1)
+
+    run_loop(fct=printer.loop)
+
+    req = requests_mock.request_history[0]
+    assert (str(req) == f"POST {SERVER}/p/camera")

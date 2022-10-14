@@ -6,20 +6,56 @@ Camera configurator and manager
 """
 import logging
 from copy import deepcopy
+from queue import Queue, Empty
 from time import time
 from threading import Event
-from typing import Any, Set, Dict, List
+from typing import Any, Set, Dict, List, Optional
 
+from requests import Session
+
+from .util import get_timestamp, make_fingerprint
 from .const import PHOTO_TIMEOUT, CapabilityType, NotSupported, CameraBusy, \
-    DriverError, TriggerScheme, DEFAULT_CAMERA_SETTINGS
-from .models import EventCallback, Resolution
+    DriverError, TriggerScheme, DEFAULT_CAMERA_SETTINGS, TIMESTAMP_PRECISION, \
+    CONNECTION_TIMEOUT
+from .models import Resolution, CameraRegister
 
 log = logging.getLogger("cameras")
 
 # pylint: disable=fixme
 # TODO: Add Z change trigger thingy
-
 # --- SDK ---
+
+
+class Snapshot:
+    """Snapshot from the camera"""
+    endpoint = "/c/snapshot"
+    method = "PUT"
+
+    # pylint: disable=too-many-arguments
+    def __init__(self, data: bytes, camera: "Camera"):
+        self.data = data
+        self.camera = camera
+        self.timestamp = get_timestamp()
+
+    def send(self, conn: Session, server):
+        """A snapshot send function"""
+        name = self.__class__.__name__
+        log.debug("Sending %s: %s", name, self)
+
+        headers = {
+            "Timestamp": str(self.timestamp),
+            "Fingerprint": self.camera.fingerprint,
+            "Token": self.camera.token,
+            'Content-Type': "image/jpg"
+        }
+        res = conn.request(method=self.method,
+                           url=server + self.endpoint,
+                           headers=headers,
+                           data=self.data,
+                           timeout=CONNECTION_TIMEOUT)
+
+        log.debug("%s response: %s", name, res.text)
+        return res
 
 
 def value_setter(capability_type):
@@ -81,6 +117,7 @@ class Camera:
         self._available_resolutions = {}
         self._rotation = 0
         self._exposure = 0.0
+        self._token = None
 
         self._ready_event = Event()
         self._ready_event.set()
@@ -90,6 +127,8 @@ class Camera:
         self.scheme_cb = lambda camera, old, new: None
         # A photo has been taken - give it to the manager
         self.photo_cb = lambda camera, photo: None
+        # A callback for saving the current camera config
+        self.save_cb = lambda camera_id: None
 
         self._driver = driver
         self._driver.photo_cb = self._photo_handler
@@ -242,6 +281,26 @@ class Camera:
         """Returns this camera's ID"""
         return self._driver.camera_id
 
+    @property
+    def fingerprint(self):
+        """Returns the camera ID as a fingerprint for connect"""
+        return make_fingerprint(self.camera_id)
+
+    @property
+    def is_registered(self):
+        """Is the camera registered to connect?"""
+        return self._token is not None
+
+    @property
+    def token(self):
+        """Return the camera token"""
+        return self._token
+
+    def set_token(self, token: Optional[str]):
+        """Saves the camera token"""
+        self._token = token
+        self.save()
+
     def take_a_photo(self):
         """
         Triggers a photo, waits for it to arrive and returns it
@@ -304,8 +363,11 @@ class Camera:
                 self.set_value(capability_type, new_value)
         if "name" in new_settings:
             self.name = new_settings["name"]
+        if "token" in new_settings:
+            self._token = new_settings["token"]
 
-    def settings_from_string(self, src_settings: Dict[str, str]):
+    @staticmethod
+    def settings_from_string(src_settings: Dict[str, str]):
         """Converts settings from one format into a dictionary with
         Capability compatible values"""
         settings = {}
@@ -322,7 +384,8 @@ class Camera:
             settings[setting] = value
         return settings
 
-    def settings_from_json(self, src_settings: Dict[str, Any]):
+    @staticmethod
+    def settings_from_json(src_settings: Dict[str, Any]):
         """Converts settings from one format into a dictionary with
         Capability compatible values"""
         settings = {}
@@ -335,7 +398,8 @@ class Camera:
             settings[setting] = value
         return settings
 
-    def string_from_settings(self, src_settings: Dict[str, Any]):
+    @staticmethod
+    def string_from_settings(src_settings: Dict[str, Any]):
         """Converts settings from one format into a dictionary with
         Capability compatible values"""
         settings = {}
@@ -346,7 +410,8 @@ class Camera:
             settings[setting] = value
         return settings
 
-    def json_from_settings(self, src_settings: Dict[str, Any]):
+    @staticmethod
+    def json_from_settings(src_settings: Dict[str, Any]):
         """Converts settings from one format into a dictionary with
         Capability compatible values"""
         settings = {}
@@ -368,7 +433,13 @@ class Camera:
             config[capability_type.value] = value
         config["name"] = self.name
         config["driver"] = self._driver.name
+        if self.is_registered:
+            config["token"] = self.token
         return config
+
+    def save(self):
+        """Tells the controller that this camera wishes to be saved"""
+        self.save_cb(self.camera_id)
 
     def disconnect(self):
         """Asks the camera to disconnect"""
@@ -390,12 +461,20 @@ class CameraController:
     """This component harbors functioning cameras, triggers them, sends out
     images to connect and should contain functionality needed for operating
     with functional cameras"""
-    def __init__(self, event_cb: EventCallback):
+    def __init__(self, session: Session, server, send_cb):
         """
-        :session: Current RetryingSession connection
-        :server Connect server URL
+        :session: Current Session connection
+        :server: Connect server URL
+        :send_cb: a callback for sending LoobObjects
         """
-        self.event_cb = event_cb
+        # A callback for sending LoopObjects to Connect
+        self.send_cb = send_cb
+        # A callback for saving cameras
+        self.save_cb = lambda camera: None
+        self.session = session
+        self.server = server
+        # pylint: disable=unsubscriptable-object
+        self.snapshot_queue: Queue[Snapshot] = Queue()
 
         self._cameras: Dict[str, Camera] = {}
         self._camera_order: List[str] = []
@@ -412,6 +491,7 @@ class CameraController:
             TriggerScheme.TEN_MIN: self._was_10_min,
             TriggerScheme.EACH_LAYER: self._was_layer_change
         }
+        self._running = False
 
     def add_camera(self, camera: Camera):
         """Adds a camera. This camera has to be functional"""
@@ -420,6 +500,12 @@ class CameraController:
         self._trigger_piles[camera.trigger_scheme].add(camera)
         camera.scheme_cb = self.scheme_handler
         camera.photo_cb = self.photo_handler
+        camera.save_cb = self.save_cb
+
+        # Register if the camera does not have a token
+        # TODO: Do something more intelligent
+        if not camera.is_registered:
+            self.register_camera(camera_id)
 
     def remove_camera(self, camera_id):
         """Removes the camera, either on request, or because it became
@@ -450,6 +536,15 @@ class CameraController:
         the SDK cameras"""
         self._camera_order = camera_order
 
+    def register_camera(self, camera_id):
+        """Passes the camera to SDK for registration"""
+        if camera_id not in self._cameras:
+            log.warning(
+                "Tried registering a camera id: %s that's not "
+                "tracked by this controller", camera_id)
+            return
+        self.send_cb(CameraRegister(self.get_camera(camera_id)))
+
     def _was_10_min(self):
         """Was it ten minutes since we triggered the cameras?"""
         if time() - self._last_trigger < 10:
@@ -475,7 +570,6 @@ class CameraController:
         """Triggers a pile of cameras (cameras are piled by their trigger
         scheme)"""
         for camera in self._trigger_piles[scheme]:
-            camera: Camera
             if camera.is_busy:
                 log.warning("Skipping camera %s because it's busy",
                             camera.name)
@@ -491,5 +585,39 @@ class CameraController:
         """Here a callback call to the SDK starts the image upload
         Note to self: Don't block, get your own thread
         """
-        log.debug("A camera %s has taken a photo. Yaaaaay! (%s bytes)",
-                  camera.name, len(photo_data))
+        if not camera.is_registered:
+            self.register_camera(camera.camera_id)
+            return
+        log.debug("A camera %s has taken a photo. (%s bytes)", camera.name,
+                  len(photo_data))
+        snapshot = Snapshot(photo_data, camera)
+        self.snapshot_queue.put(snapshot)
+
+    def snapshot_loop(self):
+        """Gets an item Snapshot from queue and sends it"""
+        self._running = True
+        while self._running:
+            try:
+                # Get the item to send
+                item = self.snapshot_queue.get(timeout=TIMESTAMP_PRECISION)
+
+                # Send it
+                res = item.send(self.session, self.server)
+                if res.status_code in (401, 403):
+                    # Failed to authorize, reset-token
+                    log.error("Failed to authorize request, "
+                              "resetting camera token")
+                    item.camera.set_token(None)
+                if res.status_code > 400:
+                    log.warning(res.text)
+                elif res.status_code == 400:
+                    log.debug(res.text)
+            except Empty:
+                continue
+            except Exception:  # pylint: disable=broad-except
+                log.exception(
+                    "Unexpected exception caught in SDK snapshot loop!")
+
+    def stop(self):
+        """Signals to the loop to stop"""
+        self._running = False

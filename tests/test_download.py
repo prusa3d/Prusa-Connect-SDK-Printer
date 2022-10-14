@@ -11,7 +11,7 @@ import responses
 
 from prusa.connect.printer import const
 from prusa.connect.printer import Telemetry
-from .test_printer import printer
+from .util import printer
 
 assert printer
 
