@@ -6,6 +6,7 @@ from mypy_extensions import Arg, DefaultArg, KwArg
 from requests import Session
 
 from . import const
+from .camera import Camera
 from .util import get_timestamp
 
 # NOTE: Temporary for pylint with python3.9
@@ -97,35 +98,6 @@ class Register(LoopObject):
         return super().send(conn, server, headers)
 
 
-class CameraRegister(LoopObject):
-    """A request to Connect to register the camera"""
-    endpoint = "/p/camera"
-    method = "POST"
-
-    def __init__(self, camera):
-        super().__init__()
-        self.camera = camera
-
-    def to_payload(self):
-        """Converts the camera to data for registration"""
-        obj_config = self.camera.get_settings()
-        config = self.camera.json_from_settings(obj_config)
-        config["camera_id"] = self.camera.camera_id
-        available_resolutions = [
-            dict(res) for res in self.camera.available_resolutions
-        ]
-        setting_options = dict(available_resolutions=available_resolutions)
-        supported_capabilities = [
-            cap.value for cap in self.camera.supported_capabilities
-        ]
-
-        data = dict(config=config,
-                    setting_options=setting_options,
-                    supported_capabilities=supported_capabilities,
-                    fingerprint=self.camera.fingerprint)
-        return data
-
-
 # pylint: disable=too-many-instance-attributes
 class Event(LoopObject):
     """Event object must contain at least Event type and source.
@@ -208,56 +180,36 @@ class Telemetry(LoopObject):
         return f"<Telemetry:: at {id(self)}> {self.__data}"
 
 
+class CameraRegister(LoopObject):
+    """A request to Connect to register the camera"""
+    endpoint = "/p/camera"
+    method = "POST"
+
+    def __init__(self, camera: Camera):
+        super().__init__()
+        self.camera = camera
+
+    def to_payload(self):
+        """Converts the camera to data for registration"""
+        obj_config = self.camera.get_settings()
+        config = self.camera.json_from_settings(obj_config)
+        config["camera_id"] = self.camera.camera_id
+        available_resolutions = [
+            dict(res) for res in self.camera.available_resolutions
+        ]
+        setting_options = dict(available_resolutions=available_resolutions)
+        supported_capabilities = [
+            cap.value for cap in self.camera.supported_capabilities
+        ]
+
+        data = dict(config=config,
+                    setting_options=setting_options,
+                    supported_capabilities=supported_capabilities,
+                    fingerprint=self.camera.fingerprint)
+        return data
+
+
 class Sheet(TypedDict):
     """A model for type hinting the sheet settings list"""
     name: str
     z_offset: float
-
-
-class Resolution:
-    """A class to represent a camera resolution"""
-    def __init__(self, width, height):
-        self.width: int = width
-        self.height: int = height
-
-    def __reversed__(self):
-        """Reverses the width and height - rotates to portrait or landscape"""
-        return Resolution(width=self.height, height=self.width)
-
-    def __eq__(self, other):
-        """Compares two resolutions"""
-        if not isinstance(other, Resolution):
-            return False
-        return self.width == other.width and self.height == other.height
-
-    def __hash__(self):
-        """Makes a hash out of a given resolution"""
-        return f"{self.width}{self.height}".__hash__()
-
-    def __gt__(self, other):
-        """Compares the amount of pixels in each resolution to determine,
-        if this one is greater than the other one"""
-        return self.width * self.height > other.width * other.height
-
-    def __ge__(self, other):
-        """Compares the amount of pixels in each resolution to determine,
-        if this one is greater or equal than the other one"""
-        return self.width * self.height >= other.width * other.height
-
-    def __lt__(self, other):
-        """Compares the amount of pixels in each resolution to determine,
-        if this one has less than the other one"""
-        return self.width * self.height < other.width * other.height
-
-    def __le__(self, other):
-        """Compares the amount of pixels in each resolution to determine,
-        if this one has less or equal than the other one"""
-        return self.width * self.height <= other.width * other.height
-
-    def __str__(self):
-        """A simple <width>x<height> string representation"""
-        return f"{self.width}x{self.height}"
-
-    def __iter__(self):
-        yield "width", self.width
-        yield "height", self.height

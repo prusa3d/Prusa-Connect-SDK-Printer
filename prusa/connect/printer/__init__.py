@@ -29,7 +29,7 @@ from requests import Session, RequestException
 from requests.exceptions import ConnectionError
 
 from . import const, errors
-from .cameras import CameraController
+from .camera_controller import CameraController
 from .command import Command, CommandFailed
 from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .files import Filesystem, InotifyHandler, delete
