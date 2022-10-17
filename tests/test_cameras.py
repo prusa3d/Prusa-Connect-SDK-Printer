@@ -5,12 +5,13 @@ from unittest.mock import Mock, call
 
 from _pytest.python_api import raises
 
-from prusa.connect.printer import CameraRegister
-from prusa.connect.printer.camera_config import CameraDriver, \
-    CameraConfigurator
-from prusa.connect.printer.cameras import CapabilityType, Resolution, \
-    Camera, TriggerScheme, NotSupported, DriverError, CameraController, \
-    Snapshot
+from prusa.connect.printer.camera_driver import CameraDriver
+from prusa.connect.printer.camera import Camera, Resolution, Snapshot
+from prusa.connect.printer.camera_controller import CameraController
+from prusa.connect.printer.camera_configurator import CameraConfigurator
+from prusa.connect.printer.models import CameraRegister
+from prusa.connect.printer.const import CapabilityType, TriggerScheme, \
+    NotSupported, DriverError
 from tests.util import run_loop, SERVER, printer
 
 # Shut up flake8, I'm importing a fixture!
