@@ -1,6 +1,7 @@
 """Contains the implementation of CameraConfigurator"""
 import logging
 from configparser import ConfigParser
+from threading import RLock
 from typing import Set, Dict, List, Type
 
 from .camera import Camera
@@ -25,6 +26,7 @@ class CameraConfigurator:
         self.config = config
         self.config_file_path = config_file_path
         self.registered_drivers: Dict[str, Type[CameraDriver]] = {}
+        self.lock = RLock()
 
         for driver in drivers:
             if driver.name in self.registered_drivers:
@@ -46,44 +48,187 @@ class CameraConfigurator:
 
         self.refresh()
 
+    # --- Public - no side effects ---
+
+    def detect_cameras(self):
+        """Asks all registered drivers to autodetect cameras.
+        Compiles them into a list"""
+        scanned: Dict[str, Dict[str, str]] = {}
+        for driver in self.registered_drivers.values():
+            scanned.update(driver.scan())
+
+        self.detected_cameras = scanned
+
+    def get_new_cameras(self):
+        """Gets auto-detected but not configured camera config dictionaries
+        With keys as camera IDs and values dictionaries with config
+        name value pairs"""
+        self.detect_cameras()
+        new_ids = set(self.detected_cameras) - set(self.loaded_drivers)
+        new_configs = dict(
+            map(lambda item: (item, self.detected_cameras[item]), new_ids))
+
+        return new_configs
+
+    def is_loaded(self, camera_id):
+        """Is the camera already loaded and working?"""
+        return (camera_id in self.loaded_drivers
+                and camera_id not in self.disconnected_cameras)
+
+    # --- Public - with side effects ---
+
+    def add_camera(self, camera_id, camera_config=None):
+        """Adds a camera into the configurator instance and if it works
+        it'll get added to the SDK CameraController too. Then it gets saved
+        Modifies the loaded config if it exists
+        raises ConfigError when a bad config is supplied
+        """
+        with self.lock:
+            if camera_config is None:
+                if camera_id in self.detected_cameras:
+                    camera_config = self.detected_cameras[camera_id]
+                else:
+                    raise CameraNotDetected(
+                        f"The supplied camera id: {camera_id} has not been "
+                        f"found in the list of auto-detected cameras.")
+            if self.is_loaded(camera_id):
+                raise CameraAlreadyExists(f"A camera with id {camera_id} "
+                                          f"already exists")
+            self._add_camera_config(camera_id, camera_config)
+            # Save the camera order here, this isn't used during config parsing
+            self.save_order()
+            driver = self._get_driver_for_id(camera_id)
+            self._load_driver(driver, camera_id, camera_config)
+
+    def remove_camera(self, camera_id):
+        """Removes the camera from everywhere, even the config"""
+        with self.lock:
+            if camera_id in self.camera_controller:
+                camera = self.camera_controller.get_camera(camera_id)
+                camera.disconnect()
+            if camera_id in self.camera_controller:
+                log.warning("The camera disconnect did not call its "
+                            "disconected handler)")
+                self.camera_controller.remove_camera(camera_id)
+            self.remove_camera_from_order(camera_id)
+            if camera_id in self.disconnected_cameras:
+                self.disconnected_cameras.remove(camera_id)
+            if camera_id in self.loaded_drivers:
+                del self.loaded_drivers[camera_id]
+            if camera_id in self.camera_configs:
+                del self.camera_configs[camera_id]
+            section_name = f"camera::{camera_id}"
+            if self.config.has_section(section_name):
+                self.config.remove_section(section_name)
+            self.save_order()
+            self._write_config()
+
     def add_camera_to_order(self, cam_id):
         """Adds a new camera at the end of ordered cameras
         Does not save, as that would overwrite the config
          we're loading from"""
-        if cam_id in self.order_known:
-            log.warning("The order of this camera is already known")
-            return
-        self.camera_order.append(cam_id)
-        self.order_known.add(cam_id)
-        self.camera_controller.set_camera_order(self.camera_order)
+        with self.lock:
+            if cam_id in self.order_known:
+                log.warning("The order of this camera is already known")
+                return
+            self.camera_order.append(cam_id)
+            self.order_known.add(cam_id)
+            self.camera_controller.set_camera_order(self.camera_order)
 
     def remove_camera_from_order(self, cam_id):
         """Removes the camera from the camera order"""
-        if cam_id in self.order_known:
-            self.order_known.remove(cam_id)
-        # This is inefficient but i'm not expecting that many cameras
-        self.camera_order.remove(cam_id)
-        self.camera_controller.set_camera_order(self.camera_order)
-        self.save_order()
+        with self.lock:
+            if cam_id in self.order_known:
+                self.order_known.remove(cam_id)
+            # This is inefficient but i'm not expecting that many cameras
+            self.camera_order.remove(cam_id)
+            self.camera_controller.set_camera_order(self.camera_order)
+            self.save_order()
 
     def set_order(self, camera_ids: List["str"]):
         """Moves the specified ids to the front, does not add any"""
-        new_order = []
-        # Put new ones that are configured at the start
-        for camera_id in camera_ids:
-            if camera_id in self.loaded_drivers:
-                new_order.append(camera_id)
-        filtered_order_set = set(new_order)
+        with self.lock:
+            new_order = []
+            # Put new ones that are configured at the start
+            for camera_id in camera_ids:
+                if camera_id in self.loaded_drivers:
+                    new_order.append(camera_id)
+            filtered_order_set = set(new_order)
 
-        # Copy over the rest of the list
-        for camera_id in self.camera_order:
-            if camera_id not in filtered_order_set:
-                new_order.append(camera_id)
-        self.camera_order = new_order
-        self.camera_controller.set_camera_order(self.camera_order)
-        self.save_order()
+            # Copy over the rest of the list
+            for camera_id in self.camera_order:
+                if camera_id not in filtered_order_set:
+                    new_order.append(camera_id)
+            self.camera_order = new_order
+            self.camera_controller.set_camera_order(self.camera_order)
+            self.save_order()
 
-    def reload_config(self):
+    def refresh(self):
+        """Reloads the cameras from config, does not touch functional cameras
+        """
+        with self.lock:
+            self._reload_config()
+
+            # Remove all disconnected cameras, their configs might have gotten
+            # fixed and we're re-trying to instance them
+            for camera_id in self.disconnected_cameras:
+                del self.loaded_drivers[camera_id]
+            self.disconnected_cameras.clear()
+
+            self.detect_cameras()
+            self._instance_drivers()
+
+    def save(self, camera_id):
+        """Saves the camera if the config exists"""
+        with self.lock:
+            if camera_id not in self.loaded_drivers:
+                raise KeyError("Such a camera is not loaded")
+            loaded_driver = self.loaded_drivers[camera_id]
+            camera = self.camera_controller.get_camera(camera_id)
+            section_name = f"camera::{loaded_driver.camera_id}"
+            if not self.config.has_section(section_name):
+                self.config.add_section(section_name)
+            config = loaded_driver.config
+
+            settings = camera.get_settings()
+            config.update(camera.string_from_settings(settings))
+            self.config.read_dict({section_name: config})
+            self._write_config()
+
+    def save_order(self):
+        """Saves the current camera order into the config"""
+        with self.lock:
+            self.config.remove_section("camera_order")
+            self.config.add_section("camera_order")
+            for i, camera_id in enumerate(self.camera_order, start=1):
+                self.config.set(section="camera_order",
+                                option=str(i),
+                                value=camera_id)
+
+            self._write_config()
+
+    # --- Private ---
+
+    def _disconnected_handler(self, loaded_driver: CameraDriver):
+        """This camera is defunct, remove it from active cameras"""
+        self.camera_controller.remove_camera(loaded_driver.camera_id)
+        self.disconnected_cameras.add(loaded_driver.camera_id)
+
+    def _add_camera_config(self, camera_id, camera_config):
+        """Adds camera config to the instance - not into the
+        ConfigParser one tho"""
+        if "driver" not in camera_config:
+            raise ConfigError("Config does not contain which driver to use")
+        driver = camera_config["driver"]
+        if driver not in self.registered_drivers:
+            raise ConfigError(f"Config specified an unknown driver "
+                              f"{driver}")
+
+        if camera_id not in self.order_known:
+            self.add_camera_to_order(camera_id)
+        self.camera_configs[camera_id] = camera_config
+
+    def _reload_config(self):
         """
         Loads the info from a supplied config
         """
@@ -105,48 +250,20 @@ class CameraConfigurator:
 
             camera_config = dict(self.config.items(name))
             try:
-                self.add_camera_config(camera_id, camera_config)
+                self._add_camera_config(camera_id, camera_config)
             except ConfigError as error:
-                log.warning("Skipping loading config for camera ID: %s. %s",
-                            camera_id, str(error))
+                log.warning("Skipping loading config for camera ID: "
+                            "%s. %s", camera_id, str(error))
                 continue
 
-    def add_camera_config(self, camera_id, camera_config):
-        """Adds camera config to the instance - not into the
-        ConfigParser one tho"""
-        if "driver" not in camera_config:
-            raise ConfigError("Config does not contain which driver to use")
-        driver = camera_config["driver"]
-        if driver not in self.registered_drivers:
-            raise ConfigError(f"Config specified an unknown driver "
-                              f"{driver}")
-
-        if camera_id not in self.order_known:
-            self.add_camera_to_order(camera_id)
-        self.camera_configs[camera_id] = camera_config
-
-    def detect_cameras(self):
-        """Asks all registered drivers to autodetect cameras.
-        Compiles them into a list"""
-        scanned: Dict[str, Dict[str, str]] = {}
-        for driver in self.registered_drivers.values():
-            scanned.update(driver.scan())
-
-        self.detected_cameras = scanned
-
-    def is_loaded(self, camera_id):
-        """Is the camera already loaded and working?"""
-        return (camera_id in self.loaded_drivers
-                and camera_id not in self.disconnected_cameras)
-
-    def get_driver_for_id(self, camera_id) -> Type[CameraDriver]:
+    def _get_driver_for_id(self, camera_id) -> Type[CameraDriver]:
         """If a camera config is already loaded, and the driver registered,
         gets the appropriate driver type for the camera"""
         camera_config = self.camera_configs[camera_id]
         driver_name = camera_config["driver"]
         return self.registered_drivers[driver_name]
 
-    def instance_drivers(self):
+    def _instance_drivers(self):
         """
         Instances all configured cameras, whether available or not
         But does not re-instance already loaded cameras.
@@ -172,7 +289,7 @@ class CameraConfigurator:
 
             camera_config = self.camera_configs[camera_id]
 
-            driver = self.get_driver_for_id(camera_id)
+            driver = self._get_driver_for_id(camera_id)
 
             if camera_id in self.detected_cameras:
                 detected_settings = self.detected_cameras[camera_id]
@@ -192,7 +309,7 @@ class CameraConfigurator:
                             update_with[setting_name] = setting
                     camera_config.update(update_with)
             try:
-                self.load_driver(driver, camera_id, camera_config)
+                self._load_driver(driver, camera_id, camera_config)
             except ConfigError:
                 log.warning("Camera %s didn't load because of a config error",
                             camera_id)
@@ -202,13 +319,13 @@ class CameraConfigurator:
                               driver.name)
                 continue
 
-    def load_driver(self, driver, camera_id, camera_config):
+    def _load_driver(self, driver, camera_id, camera_config):
         """Loads the camera's driver, if all goes well, passes the camera
         to the CameraManager as working
         loading a driver can cause a ConfigException
         """
         loaded_driver = driver(camera_id, camera_config,
-                               self.disconnected_handler)
+                               self._disconnected_handler)
 
         if not loaded_driver.is_connected and \
                 camera_id not in self.disconnected_cameras:
@@ -221,108 +338,7 @@ class CameraConfigurator:
             self.camera_controller.add_camera(Camera(loaded_driver))
             self.save(camera_id)
 
-    def disconnected_handler(self, loaded_driver: CameraDriver):
-        """This camera is defunct, remove it from active cameras"""
-        self.camera_controller.remove_camera(loaded_driver.camera_id)
-        self.disconnected_cameras.add(loaded_driver.camera_id)
-
-    def refresh(self):
-        """Reloads the cameras from config, does not touch functional cameras
-        """
-        self.reload_config()
-
-        # Remove all disconnected cameras, their configs might have gotten
-        # fixed and we're re-trying to instance them
-        for camera_id in self.disconnected_cameras:
-            del self.loaded_drivers[camera_id]
-        self.disconnected_cameras.clear()
-
-        self.detect_cameras()
-        self.instance_drivers()
-
-    def save(self, camera_id):
-        """Saves the camera if the config exists"""
-        if camera_id not in self.loaded_drivers:
-            raise KeyError("Such a camera is not loaded")
-        loaded_driver = self.loaded_drivers[camera_id]
-        camera = self.camera_controller.get_camera(camera_id)
-        section_name = f"camera::{loaded_driver.camera_id}"
-        if not self.config.has_section(section_name):
-            self.config.add_section(section_name)
-        config = loaded_driver.config
-
-        settings = camera.get_settings()
-        config.update(camera.string_from_settings(settings))
-        self.config.read_dict({section_name: config})
-        self.write_config()
-
-    def save_order(self):
-        """Saves the current camera order into the config"""
-        self.config.remove_section("camera_order")
-        self.config.add_section("camera_order")
-        for i, camera_id in enumerate(self.camera_order, start=1):
-            self.config.set(section="camera_order",
-                            option=str(i),
-                            value=camera_id)
-
-        self.write_config()
-
-    def add_camera(self, camera_id, camera_config=None):
-        """Adds a camera into the configurator instance and if it works
-        it'll get added to the SDK CameraController too. Then it gets saved
-        Modifies the loaded config if it exists
-        raises ConfigError when a bad config is supplied
-        """
-        if camera_config is None:
-            if camera_id in self.detected_cameras:
-                camera_config = self.detected_cameras[camera_id]
-            else:
-                raise CameraNotDetected(
-                    f"The supplied camera id: {camera_id} has not been found "
-                    f"in the list of auto-detected cameras.")
-        if self.is_loaded(camera_id):
-            raise CameraAlreadyExists(f"A camera with id {camera_id} "
-                                      f"already exists")
-        self.add_camera_config(camera_id, camera_config)
-        # Save the camera order here as this is not used during config parsing
-        self.save_order()
-        driver = self.get_driver_for_id(camera_id)
-        self.load_driver(driver, camera_id, camera_config)
-
-    def remove_camera(self, camera_id):
-        """Removes the camera from everywhere, even the config"""
-        if camera_id in self.camera_controller:
-            camera = self.camera_controller.get_camera(camera_id)
-            camera.disconnect()
-        if camera_id in self.camera_controller:
-            log.warning("The camera disconnect did not call its disconected "
-                        "handler)")
-            self.camera_controller.remove_camera(camera_id)
-        self.remove_camera_from_order(camera_id)
-        if camera_id in self.disconnected_cameras:
-            self.disconnected_cameras.remove(camera_id)
-        if camera_id in self.loaded_drivers:
-            del self.loaded_drivers[camera_id]
-        if camera_id in self.camera_configs:
-            del self.camera_configs[camera_id]
-        section_name = f"camera::{camera_id}"
-        if self.config.has_section(section_name):
-            self.config.remove_section(section_name)
-        self.save_order()
-        self.write_config()
-
-    def get_new_cameras(self):
-        """Gets auto-detected but not configured camera config dictionaries
-        With keys as camera IDs and values dictionaries with config
-        name value pairs"""
-        self.detect_cameras()
-        new_ids = set(self.detected_cameras) - set(self.loaded_drivers)
-        new_configs = dict(
-            map(lambda item: (item, self.detected_cameras[item]), new_ids))
-
-        return new_configs
-
-    def write_config(self):
+    def _write_config(self):
         """Writes the current ConfigParser config instance to the file"""
         with open(self.config_file_path, 'w', encoding='utf-8') as config_file:
             self.config.write(config_file)
