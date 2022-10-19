@@ -184,14 +184,16 @@ class CameraConfigurator:
             if camera_id not in self.loaded_drivers:
                 raise KeyError("Such a camera is not loaded")
             loaded_driver = self.loaded_drivers[camera_id]
-            camera = self.camera_controller.get_camera(camera_id)
             section_name = f"camera::{loaded_driver.camera_id}"
             if not self.config.has_section(section_name):
                 self.config.add_section(section_name)
             config = loaded_driver.config
 
-            settings = camera.get_settings()
-            config.update(camera.string_from_settings(settings))
+            if camera_id in self.camera_controller:
+                camera = self.camera_controller.get_camera(camera_id)
+                settings = camera.get_settings()
+                config.update(camera.string_from_settings(settings))
+
             self.config.read_dict({section_name: config})
             self._write_config()
 
