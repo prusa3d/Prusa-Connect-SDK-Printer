@@ -123,9 +123,9 @@ class CameraController:
         the right time"""
         for scheme, trigger in self._triggers.items():
             if trigger():
-                self.trigger_pile(scheme)
+                self.trigger_pile(scheme, "tick")
 
-    def trigger_pile(self, scheme: TriggerScheme):
+    def trigger_pile(self, scheme: TriggerScheme, trigger_info: str):
         """Triggers a pile of cameras (cameras are piled by their trigger
         scheme)"""
         for camera in self._trigger_piles[scheme]:
@@ -133,6 +133,8 @@ class CameraController:
                 log.warning("Skipping camera %s because it's busy",
                             camera.name)
             else:
+                # FIXME: trigger_info is a temporary debugging thing
+                self.trigger_info = trigger_info
                 camera.trigger_a_photo()
 
     def scheme_handler(self, camera: Camera, old: TriggerScheme,
@@ -145,13 +147,16 @@ class CameraController:
         """Here a callback call to the SDK starts the image upload
         Note to self: Don't block, get your own thread
         """
-        if not camera.is_registered:
-            self.register_camera(camera.camera_id)
-            return
-        log.debug("A camera %s has taken a photo. (%s bytes)", camera.name,
-                  len(photo_data))
-        snapshot = Snapshot(photo_data, camera)
-        self.snapshot_queue.put(snapshot)
+        with open(f"snapshots/{self.trigger_info}.jpg", "wb") as file:
+            file.write(photo_data)
+
+        # if not camera.is_registered:
+        #     self.register_camera(camera.camera_id)
+        #     return
+        # log.debug("A camera %s has taken a photo. (%s bytes)", camera.name,
+        #           len(photo_data))
+        # snapshot = Snapshot(photo_data, camera)
+        # self.snapshot_queue.put(snapshot)
 
     def snapshot_loop(self):
         """Gets an item Snapshot from queue and sends it"""
