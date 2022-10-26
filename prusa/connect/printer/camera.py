@@ -112,6 +112,8 @@ def value_setter(capability_type):
             try:
                 func(camera, value)
             except Exception as exception:  # pylint: disable=broad-except
+                log.exception("Exception while setting %s",
+                              capability_type.name)
                 try:
                     func(camera, old_value, call_back=False)
                 except (AttributeError, ValueError, KeyError, TypeError):
