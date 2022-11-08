@@ -24,21 +24,24 @@ class DummyDriver(CameraDriver):
     name = "Humpty Dumpty"
     REQUIRES_SETTINGS = {"parameter": "A placeholder parameter for testing"}
 
+    # Allows changes for tests with newly detected cameras
+    scanned_cameras = {
+        "id1": {
+            "name": "Bad Camera 1",
+            "parameter": "very parametric"
+        },
+        "id2": {
+            "name": "Bad Camera 2",
+            # "parameter" missing
+        },
+        "id3": {
+            # everything missing
+        }
+    }
+
     @classmethod
     def _scan(cls):
-        return {
-            "id1": {
-                "name": "Bad Camera 1",
-                "parameter": "very parametric"
-            },
-            "id2": {
-                "name": "Bad Camera 2",
-                # "parameter" missing
-            },
-            "id3": {
-                # everything missing
-            }
-        }
+        return cls.scanned_cameras
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -54,7 +57,7 @@ class DummyDriver(CameraDriver):
         elif self.config["parameter"] == "screw up":
             raise RuntimeError("I just don't know what went wrong.")
         else:
-            self._connected = True
+            self._set_connected()
 
     def take_a_photo(self):
         if self.config["parameter"] == "Camera shy":
@@ -77,6 +80,21 @@ class DummyDriver(CameraDriver):
     def is_registered(self):
         """Override the default for easier testing"""
         return True
+
+
+class AdditionalCamera:
+    def __enter__(self):
+        """Adds a camera to a scan"""
+        DummyDriver.scanned_cameras["extra"] = {
+            "name": "Another one",
+            "driver": "Humpty Dumpty",
+            "parameter": "filled",
+        }
+
+    def __exit__(self, *_):
+        """Tidies up removing the camera"""
+        if "extra" in DummyDriver.scanned_cameras:
+            del DummyDriver.scanned_cameras["extra"]
 
 
 class GoodDriver(CameraDriver):
@@ -217,6 +235,10 @@ def test_configurator_from_config():
     id1 = CameraDriver.hash_id("id1")
     config = ConfigParser()
     config.read_dict({
+        "camera_order": {
+            "1": "derp",
+            "3": str(id1),
+        },
         f"camera::{id1}": {
             "name": "The best camera I own",
             "driver": "Humpty Dumpty",
@@ -245,50 +267,40 @@ def test_configurator_from_config():
                                       config,
                                       "/dev/null",
                                       drivers=[DummyDriver])
-    assert id1 in configurator.order_known
-    assert id1 in configurator.camera_configs
-    assert id1 in configurator.loaded_drivers
-    assert id1 not in configurator.disconnected_cameras
-    assert "bar" in configurator.order_known
-    assert "bar" in configurator.camera_configs
-    assert "bar" in configurator.loaded_drivers
-    assert "bar" in configurator.disconnected_cameras
-    assert "foo" in configurator.order_known
-    assert "foo" in configurator.camera_configs
-    assert "foo" not in configurator.loaded_drivers
-    assert "foo" not in configurator.disconnected_cameras
-    assert "asdf" not in configurator.order_known
-    assert "asdf" not in configurator.camera_configs
-    assert "asdf" not in configurator.loaded_drivers
-    assert "asdf" not in configurator.disconnected_cameras
+    assert id1 in configurator.stored
+    assert id1 in configurator.loaded
+    assert configurator.loaded[id1].config["parameter"] == "very parametric"
+    assert configurator.is_connected(id1)
+    assert "bar" in configurator.stored
+    assert "bar" in configurator.loaded
+    assert not configurator.is_connected("bar")
+    assert "foo" not in configurator.stored
+    assert "foo" not in configurator.loaded
+    assert not configurator.is_connected("foo")
+    assert "asdf" not in configurator.stored
+    assert "asdf" not in configurator.loaded
+    assert not configurator.is_connected("asdf")
 
-    driver_id1 = configurator.loaded_drivers[id1]
+    driver_id1 = configurator.loaded[id1]
     assert driver_id1.is_connected
 
-    driver_bar = configurator.loaded_drivers["bar"]
+    driver_bar = configurator.loaded["bar"]
     assert not driver_bar.is_connected
 
-    config.set(section="camera::bar",
-               option="parameter",
-               value="don't fall over")
-    configurator.refresh()
-    assert "bar" in configurator.order_known
-    assert "bar" in configurator.camera_configs
-    assert "bar" in configurator.loaded_drivers
-    assert "bar" not in configurator.disconnected_cameras
+    assert configurator.order == ["derp", str(id1), "bar"]
 
 
-def test_configurator_add():
+def test_configurator_auto_add():
     configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[DummyDriver])
     id1 = CameraDriver.hash_id("id1")
-    configurator.add_camera(id1)
-    assert id1 in configurator.camera_configs
-    assert id1 in configurator.camera_order
-    assert id1 in configurator.order_known
-    assert id1 in configurator.loaded_drivers
+    assert id1 in configurator.order
+    # Detected camera - not stored
+    assert id1 not in configurator.stored
+    assert id1 in configurator.loaded
+    assert id1 in configurator.detected
 
     configurator.add_camera(
         "abc", {
@@ -296,15 +308,14 @@ def test_configurator_add():
             "driver": "Humpty Dumpty",
             "parameter": "Camera shy"
         })
-    assert "abc" in configurator.camera_configs
-    assert "abc" in configurator.camera_order
-    assert "abc" in configurator.order_known
-    assert "abc" in configurator.loaded_drivers
+    assert "abc" in configurator.order
+    assert "abc" in configurator.stored
+    assert "abc" in configurator.loaded
     # Do not use trigger, that creates a thread and we do not want to deal
     # with synchronization in the tests
-    configurator.loaded_drivers["abc"]._photo_taker()
+    configurator.loaded["abc"]._photo_taker()
     assert "abc" not in configurator.camera_controller
-    assert "abc" in configurator.disconnected_cameras
+    assert not configurator.is_connected("abc")
 
 
 def test_configurator_remove():
@@ -318,37 +329,84 @@ def test_configurator_remove():
             "driver": "Humpty Dumpty",
             "parameter": "Nothing special"
         })
-    assert "def" in configurator.loaded_drivers
+    assert "def" in configurator.loaded
     assert "def" in configurator.camera_controller
     configurator.remove_camera("def")
-    assert "def" not in configurator.loaded_drivers
-    assert "def" not in configurator.order_known
-    assert "def" not in configurator.camera_order
-    assert "def" not in configurator.camera_configs
+    assert "def" not in configurator.loaded
+    assert "def" not in configurator.order
+    assert "def" not in configurator.stored
     assert "def" not in configurator.camera_controller
 
-    configurator.add_camera(
-        "ghi", {
-            "name": "Another camera",
-            "driver": "Humpty Dumpty",
-            "parameter": "Bass cannon"
-        })
-    configurator.loaded_drivers["ghi"].disconnect()
-    configurator.remove_camera("ghi")
-    assert "ghi" not in configurator.disconnected_cameras
 
-
-def test_configurator_new():
+def test_configurator_remove_detected():
+    """Verifies that detected camera removal is impossible"""
     configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[DummyDriver])
-
     id1 = CameraDriver.hash_id("id1")
-    assert id1 in configurator.get_new_cameras()
-    configurator.add_camera(id1)
-    assert id1 in configurator.loaded_drivers
-    assert id1 not in configurator.get_new_cameras()
+    assert id1 in configurator.loaded
+    with raises(RuntimeError):
+        configurator.remove_camera(id1)
+
+
+def test_reset_settings():
+    """Tests that reset of the settings removes all but essential ones"""
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
+                                      ConfigParser(),
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    configurator.add_camera(
+        "def", {
+            "name": "Not a camera",
+            "driver": "Humpty Dumpty",
+            "parameter": "Bass canon",
+            "extra_garbage": "begone",
+        })
+    assert "def" in configurator.loaded
+    assert "extra_garbage" in configurator.loaded["def"].config
+    configurator.reset_to_defaults("def")
+    assert "def" in configurator.loaded
+    assert "extra_garbage" not in configurator.loaded["def"].config
+
+
+def test_add_more():
+    """Tests that if a new camera becomes available, calling load_cameras()
+    works"""
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
+                                      ConfigParser(),
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    extra = CameraDriver.hash_id("extra")
+    with AdditionalCamera():
+        assert extra not in configurator.loaded
+        configurator._load_cameras()
+        assert extra in configurator.loaded
+        assert extra not in configurator.stored
+        assert extra in configurator.order
+        assert extra in configurator.detected
+        assert configurator.is_connected(extra)
+
+
+def test_update_disconnected():
+    """Tests that configured disconnected cameras re-connect automatically"""
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
+                                      ConfigParser(),
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    extra = CameraDriver.hash_id("extra")
+    configurator.add_camera(
+        extra, {
+            "name": "Re-connecting Camera",
+            "driver": "Humpty Dumpty",
+            "parameter": "fall over"
+        })
+    assert extra in configurator.loaded
+    assert not configurator.is_connected(extra)
+    with AdditionalCamera():
+        configurator._load_cameras()
+        assert extra in configurator.loaded
+        assert configurator.is_connected(extra)
 
 
 RES_BOTH = 3
@@ -362,7 +420,6 @@ def test_camera_controller():
                                       drivers=[DummyDriver])
 
     id1 = CameraDriver.hash_id("id1")
-    configurator.add_camera(id1)
     configurator.add_camera(
         "abc", {
             "name": "Second camera",
@@ -416,8 +473,8 @@ def test_setting_conversions():
                                       "/dev/null",
                                       drivers=[GoodDriver])
     enormous = CameraDriver.hash_id("EnormousCamera")
-    configurator.add_camera(enormous)
-    driver = configurator.loaded_drivers[enormous]
+    assert enormous in configurator.loaded
+    driver = configurator.loaded[enormous]
     assert {"resolution", "name", "exposure", "rotation",
             "driver"}.issubset(driver.config)
     camera = configurator.camera_controller.get_camera(enormous)
@@ -471,12 +528,12 @@ def test_snapshot_loop(requests_mock, printer):
 
 def test_camera_register(printer):
     camera_controller = printer.camera_controller
-    configurator = CameraConfigurator(camera_controller,
-                                      ConfigParser(),
-                                      "/dev/null",
-                                      drivers=[DummyDriver])
+    # Want to hold a reference but flake8 said NO
+    CameraConfigurator(camera_controller,
+                       ConfigParser(),
+                       "/dev/null",
+                       drivers=[DummyDriver])
     id1 = CameraDriver.hash_id("id1")
-    configurator.add_camera(id1)
     camera_controller.register_camera(camera_id=id1)
     camera = camera_controller.get_camera(id1)
 
@@ -491,12 +548,12 @@ def test_camera_register_loop(requests_mock, printer):
     requests_mock.post(SERVER + "/p/camera", status_code=200)
 
     camera_controller = printer.camera_controller
-    configurator = CameraConfigurator(camera_controller,
-                                      ConfigParser(),
-                                      "/dev/null",
-                                      drivers=[DummyDriver])
+    # Want to hold a reference but flake8 said NO
+    CameraConfigurator(camera_controller,
+                       ConfigParser(),
+                       "/dev/null",
+                       drivers=[DummyDriver])
     id1 = CameraDriver.hash_id("id1")
-    configurator.add_camera(id1)
     camera_controller.register_camera(camera_id=id1)
 
     run_loop(fct=printer.loop)
