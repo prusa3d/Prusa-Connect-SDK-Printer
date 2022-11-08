@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 
-import pytest
+import pytest  # type: ignore
 
 from prusa.connect.printer.conditions import CondState, Condition, \
     ConditionTracker
@@ -146,9 +146,11 @@ def test_set_parent():
         child.set_parent(fake_rooot)
 
 
-
 def test_bool():
-    cond = Condition("Condition", "Lorem ipsum", )
+    cond = Condition(
+        "Condition",
+        "Lorem ipsum",
+    )
     assert not bool(cond)
     cond.state = CondState.OK
     assert bool(cond)
@@ -206,4 +208,3 @@ def test_getting_all():
     tracker.add_tracked_condition(foo)
     root.state = CondState.NOK
     assert tracker.nok_conditions == {root, child}
-

@@ -4,7 +4,7 @@ from prusa.connect.printer import const
 from prusa.connect.printer.clock import ClockWatcher
 from .util import printer
 
-assert printer
+assert printer  # type: ignore
 
 
 def adjust_clock(clock_watcher):

@@ -16,6 +16,7 @@ from prusa.connect.printer.files import File, Filesystem, \
     InvalidStorageError, InotifyHandler
 from prusa.connect.printer.models import Event
 from prusa.connect.printer.metadata import MetaData
+from typing import Optional
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
@@ -100,8 +101,8 @@ def inotify(queue, nodes):
 
     def event_cb(event: const.Event,
                  source: const.Source,
-                 timestamp: float = None,
-                 command_id: int = None,
+                 timestamp: Optional[float] = None,
+                 command_id: Optional[int] = None,
                  **kwargs) -> None:
         event_ = Event(event, source, timestamp, command_id, **kwargs)
         queue.put(event_)

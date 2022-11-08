@@ -49,7 +49,7 @@ class Snapshot:
 
 class Resolution:
     """A class to represent a camera resolution"""
-    def __init__(self, width, height):
+    def __init__(self, width: int, height: int) -> None:
         self.width: int = width
         self.height: int = height
 

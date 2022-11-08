@@ -13,7 +13,7 @@ from prusa.connect.printer import const
 from prusa.connect.printer import Telemetry
 from .util import printer
 
-assert printer
+assert printer  # type: ignore
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name

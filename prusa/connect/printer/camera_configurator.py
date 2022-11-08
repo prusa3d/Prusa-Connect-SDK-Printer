@@ -50,7 +50,7 @@ class CameraConfigurator:
 
     # --- Public - no side effects ---
 
-    def detect_cameras(self):
+    def detect_cameras(self) -> None:
         """Asks all registered drivers to autodetect cameras.
         Compiles them into a list"""
         scanned: Dict[str, Dict[str, str]] = {}

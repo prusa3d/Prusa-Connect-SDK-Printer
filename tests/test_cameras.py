@@ -15,7 +15,7 @@ from prusa.connect.printer.const import CapabilityType, TriggerScheme, \
 from tests.util import run_loop, SERVER, printer
 
 # Shut up flake8, I'm importing a fixture!
-assert printer
+assert printer  # type: ignore
 
 
 class DummyDriver(CameraDriver):
