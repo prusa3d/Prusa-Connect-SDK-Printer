@@ -182,7 +182,7 @@ class ConfigError(RuntimeError):
     """Exception for when the config makes no sense"""
 
 
-class CameraAlreadyExists(RuntimeError):
+class CameraAlreadyConnected(RuntimeError):
     """Exception for an already existing camera"""
 
 

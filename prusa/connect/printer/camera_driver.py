@@ -37,9 +37,12 @@ class CameraDriver:
     REQUIRES_SETTINGS: Dict[str, str] = {}
 
     def __init__(self, camera_id: str, config: Dict[str, str],
-                 disconnected_cb: Callable[["CameraDriver"], None]):
+                 disconnected_cb: Callable[["CameraDriver"], None]) -> None:
         """Instances the driver setting default values to everything,
-        children should call this first, or as soon as possible"""
+        children should call this first, or as soon as possible
+
+        A cameraDriver is not supposed to raise on init, just don't set
+        connected to True"""
         # Do not call these, call the methods that call them
         self.photo_cb: Callable[[Any], None] = lambda photo: None
         self.disconnected_cb = disconnected_cb
@@ -102,6 +105,15 @@ class CameraDriver:
         return {}
 
     @classmethod
+    def get_required_settings(cls) -> Set[str]:
+        """Returns the sum of always required and driver specific
+        config options"""
+        required: Set[str] = set()
+        required.update(ALWAYS_REQURIED)
+        required.update(cls.REQUIRES_SETTINGS)
+        return required
+
+    @classmethod
     def is_config_valid(cls, config: Dict[str, str]) -> bool:
         """
         Validates the supplied config, returns True if passed
@@ -109,9 +121,7 @@ class CameraDriver:
         Log failures, don't throw if possible,
         rather just call _disconnected()
         """
-        required: Set[str] = set()
-        required.update(ALWAYS_REQURIED)
-        required.update(cls.REQUIRES_SETTINGS)
+        required: Set[str] = cls.get_required_settings()
         missing_settings = required - set(config)
         if missing_settings:
             log.warning("The camera driver %s is missing these settings %s",
