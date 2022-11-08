@@ -1,13 +1,13 @@
 """Test Command interface"""
 import threading
 from queue import Queue
-from time import sleep
 
 import pytest
 
 from prusa.connect.printer import const
 from prusa.connect.printer.command import Command
 from prusa.connect.printer.models import Event
+from typing import Optional
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name
@@ -22,8 +22,8 @@ def queue():
 def command(queue):
     def create_event(event: const.Event,
                      source: const.Source,
-                     timestamp: float = None,
-                     command_id: int = None,
+                     timestamp: Optional[float] = None,
+                     command_id: Optional[int] = None,
                      **kwargs) -> None:
         event_ = Event(event, source, timestamp, command_id, **kwargs)
         queue.put(event_)
@@ -176,5 +176,3 @@ def test_priority_command(command, queue):
     assert command.check_state(25, const.Command.RESET_PRINTER.value)
     event.wait()
     check_event(queue, const.Event.FAILED, command_id=24, timeout=0.1)
-
-

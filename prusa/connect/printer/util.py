@@ -3,6 +3,7 @@
 import logging
 from hashlib import sha256
 from time import time
+from typing import Optional
 
 import requests
 from . import const
@@ -10,7 +11,7 @@ from . import const
 log = logging.getLogger("connect-printer")
 
 
-def get_timestamp(timestamp: float = None):
+def get_timestamp(timestamp: Optional[float] = None):
     """If given None, gets the current timestamp, otherwise leaves the
     value alone"""
     result = timestamp or int(time() * 10) * const.TIMESTAMP_PRECISION

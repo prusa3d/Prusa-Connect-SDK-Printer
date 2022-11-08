@@ -7,7 +7,7 @@ from logging import getLogger
 from time import time, sleep
 from os import path, access, W_OK, stat, walk
 from collections import Counter
-
+from typing import Optional
 from inotify_simple import INotify, flags  # type: ignore
 
 from . import const
@@ -59,7 +59,7 @@ class File:
     def __init__(self,
                  name: str,
                  is_dir: bool = False,
-                 parent: "File" = None,
+                 parent: Optional["File"] = None,
                  **attrs):
         """Create a File object
 
@@ -237,7 +237,7 @@ class Storage:
     def __init__(self,
                  tree: File,
                  storage: str,
-                 abs_path_storage: str = None,
+                 abs_path_storage: Optional[str] = None,
                  use_inotify=True):
         """
         Initialize a Storage.
@@ -301,7 +301,9 @@ class Filesystem:
     A filesystem translates from physical representation on the storage to
     virtual. This virtual one is then sent to Connect.
     """
-    def __init__(self, sep: str = "/", event_cb: EventCallback = None):
+    def __init__(self,
+                 sep: str = "/",
+                 event_cb: Optional[EventCallback] = None):
         """Create a Filesystem (FS).
 
         :sep: Separator on the FS
@@ -394,7 +396,7 @@ class Filesystem:
         return self.storage_dict[storage].tree.get(parts)
 
     @staticmethod
-    def update(abs_paths: list, abs_storage: str, node: File = None):
+    def update(abs_paths: list, abs_storage: str, node: Optional[File] = None):
         """Update storage.tree structure.
 
         Add the nearest part of real file system to tree.
@@ -559,7 +561,10 @@ class InotifyHandler:
 
         return relative_paths
 
-    def __init_wd(self, abs_storage: str, node: File = None, init=True):
+    def __init_wd(self,
+                  abs_storage: str,
+                  node: Optional[File] = None,
+                  init=True):
         """Update all dirs from root to bottom.
 
         Add all dirs to inotify to watcher.
@@ -780,9 +785,9 @@ class InotifyHandler:
             free_space=base_storage.get_space_info().get("free_space"))
 
     def send_file_changed(self,
-                          old_path: str = None,
-                          new_path: str = None,
-                          file: File = None,
+                          old_path: Optional[str] = None,
+                          new_path: Optional[str] = None,
+                          file: Optional[File] = None,
                           free_space=None):
         """If self.fs.events is set, put FIlE_CHANGED event to event queue.
 

@@ -29,9 +29,11 @@ class CondState(Enum):
 # pylint: disable=too-many-arguments
 class Condition:
     """A more detailed condition for state tracking"""
-    def __init__(self, name: str, long_msg: str,
-                 parent: Condition = None,
-                 short_msg: str = None,
+    def __init__(self,
+                 name: str,
+                 long_msg: str,
+                 parent: Optional[Condition] = None,
+                 short_msg: Optional[str] = None,
                  priority: int = 0):
         self.name: str = name
         self.long_msg: str = long_msg
@@ -169,8 +171,7 @@ class ConditionTracker:
     The time complexity is O(n), but the number of
     items is expected to be low
     """
-
-    def __init__(self):
+    def __init__(self) -> None:
         self._nok_conditions: Set[Condition] = set()
         self._tracked_conditions: Set[Condition] = set()
         self._cached_worst = None
@@ -257,17 +258,21 @@ class ConditionTracker:
 # of the connection to Connect
 INTERNET = Condition("Internet", "DNS does not work, or there are other "
                      "problems in communication to other hosts "
-                     "in the Internet.", priority=130)
+                     "in the Internet.",
+                     priority=130)
 HTTP = Condition("HTTP", "HTTP communication to Connect fails, "
                  "we're getting 5XX statuses",
-                 parent=INTERNET, priority=120)
+                 parent=INTERNET,
+                 priority=120)
 # Signal if we have a token or not
 TOKEN = Condition("Token", "Printer has no valid token, "
                   "it needs to be registered with Connect.",
-                  parent=HTTP, priority=110)
+                  parent=HTTP,
+                  priority=110)
 API = Condition("API", "Encountered 4XX problems while "
                 "communicating to Connect",
-                parent=TOKEN, priority=100)
+                parent=TOKEN,
+                priority=100)
 
 COND_TRACKER = ConditionTracker()
 COND_TRACKER.add_tracked_condition_tree(INTERNET)

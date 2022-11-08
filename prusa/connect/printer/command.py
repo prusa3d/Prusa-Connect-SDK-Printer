@@ -55,8 +55,9 @@ class Command:
             if command_enum in PRIORITY_COMMANDS:
                 self.stop_cb()
                 if not self.cmd_end_evt.wait(ONE_SECOND_TIMEOUT):
-                    log.warning("Previous command didn't stop in time, "
-                                "ignoring %s", command_name)
+                    log.warning(
+                        "Previous command didn't stop in time, "
+                        "ignoring %s", command_name)
                 return True
         except Exception:  # pylint: disable=broad-except
             pass
@@ -115,21 +116,23 @@ class Command:
     def failed(self,
                source: const.Source,
                reason,
-               command_id: int = None,
+               command_id: Optional[int] = None,
                **kwargs):
         """Notify Connect that a command has failed"""
         self.last_state = const.Event.FAILED
         if command_id is None:
             command_id = self.command_id
-        self.event_cb(const.Event.FAILED, source,
+        self.event_cb(const.Event.FAILED,
+                      source,
                       reason=reason,
-                      command_id=command_id, **kwargs)
+                      command_id=command_id,
+                      **kwargs)
         self.teardown()
 
     def finish(self,
                source: const.Source,
-               event: const.Event = None,
-               command_id: int = None,
+               event: Optional[const.Event] = None,
+               command_id: Optional[int] = None,
                **kwargs):
         """Finish command with optional other event and data."""
         event = event or const.Event.FINISHED

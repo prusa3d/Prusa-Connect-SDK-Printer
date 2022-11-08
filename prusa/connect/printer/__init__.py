@@ -24,7 +24,7 @@ from queue import Queue, Empty
 from time import time, sleep
 from typing import Optional, List, Any, Callable, Dict
 
-from requests import Session, RequestException
+from requests import Session, RequestException, Response
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError
 
@@ -90,9 +90,9 @@ class Printer:
     NOT_INITIALISED_MSG = "Printer has not been initialized properly"
 
     def __init__(self,
-                 type_: const.PrinterType = None,
-                 sn: str = None,
-                 fingerprint: str = None,
+                 type_: Optional[const.PrinterType] = None,
+                 sn: Optional[str] = None,
+                 fingerprint: Optional[str] = None,
                  max_retries: int = 1):
         self.__type = type_
         self.__sn = sn
@@ -259,7 +259,7 @@ class Printer:
             API.state = CondState.NOK
         return initialised
 
-    def make_headers(self, timestamp: float = None) -> dict:
+    def make_headers(self, timestamp: Optional[float] = None) -> dict:
         """Returns request headers from connection variables."""
         timestamp = get_timestamp(timestamp)
 
@@ -280,7 +280,7 @@ class Printer:
     def set_state(self,
                   state: const.State,
                   source: const.Source,
-                  ready: bool = None,
+                  ready: Optional[bool] = None,
                   **kwargs):
         """Set printer state and push event about that to queue.
 
@@ -298,8 +298,8 @@ class Printer:
     def event_cb(self,
                  event: const.Event,
                  source: const.Source,
-                 timestamp: float = None,
-                 command_id: int = None,
+                 timestamp: Optional[float] = None,
+                 command_id: Optional[int] = None,
                  **kwargs) -> None:
         """Create event and push it to queue."""
         if not self.token:
@@ -316,8 +316,8 @@ class Printer:
         self.queue.put(event_)
 
     def telemetry(self,
-                  state: const.State = None,
-                  timestamp: float = None,
+                  state: Optional[const.State] = None,
+                  timestamp: Optional[float] = None,
                   **kwargs) -> None:
         """Create telemetry end push it to queue."""
         if state:
@@ -600,7 +600,7 @@ class Printer:
 
         return wrapper
 
-    def parse_command(self, res):
+    def parse_command(self, res: Response):
         """Parse telemetry response.
 
         When response from connect is command (HTTP Status: 200 OK), it
@@ -609,10 +609,11 @@ class Printer:
         if res.status_code == 200:
             command_id: Optional[int] = None
             try:
-                command_id = int(res.headers.get("Command-Id"))
+                command_id_string = res.headers.get("Command-Id", default="")
+                command_id = int(command_id_string)
             except (TypeError, ValueError):
-                log.error("Invalid Command-Id header: %s",
-                          res.headers.get("Command-Id"))
+                log.error("Invalid Command-Id header. Headers: %s",
+                          res.headers)
                 self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
                               reason="Invalid Command-Id header")
@@ -623,7 +624,7 @@ class Printer:
                               command_id=command_id,
                               reason=self.NOT_INITIALISED_MSG)
                 return res
-            content_type = res.headers.get("content-type")
+            content_type = res.headers.get("content-type", default="")
             log.debug("parse_command res: %s", res.text)
             try:
                 if content_type.startswith("application/json"):

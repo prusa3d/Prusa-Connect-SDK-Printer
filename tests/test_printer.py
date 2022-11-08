@@ -23,7 +23,7 @@ from tests.util import run_loop, CONNECT_HOST, CONNECT_PORT, TOKEN, SERVER, \
 # pylint: disable=too-many-lines
 
 # Shut up flake8, I'm importing a fixture!
-assert printer
+assert printer  # type: ignore
 
 MAC = "00:01:02:03:04:05"
 FIRMWARE = "3.9.0rc2"

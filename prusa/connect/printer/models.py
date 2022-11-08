@@ -58,7 +58,7 @@ class LoopObject:
 
     timestamp: float
 
-    def __init__(self, timestamp: float = None):
+    def __init__(self, timestamp: Optional[float] = None):
         self.timestamp = get_timestamp(timestamp)
 
     def send(self, conn: Session, server, headers):
@@ -119,11 +119,11 @@ class Event(LoopObject):
     def __init__(self,
                  event: const.Event,
                  source: const.Source,
-                 timestamp: float = None,
-                 command_id: int = None,
-                 job_id: int = None,
-                 reason: str = None,
-                 state: const.State = None,
+                 timestamp: Optional[float] = None,
+                 command_id: Optional[int] = None,
+                 job_id: Optional[int] = None,
+                 reason: Optional[str] = None,
+                 state: Optional[const.State] = None,
                  **kwargs):
         super().__init__(timestamp=timestamp)
         self.event = event
@@ -163,7 +163,10 @@ class Telemetry(LoopObject):
     method = "POST"
     needs_token = True
 
-    def __init__(self, state: const.State, timestamp: float = None, **kwargs):
+    def __init__(self,
+                 state: const.State,
+                 timestamp: Optional[float] = None,
+                 **kwargs):
         """
         timestamp : float
             If not set int(time.time()*10)/10 is used.
