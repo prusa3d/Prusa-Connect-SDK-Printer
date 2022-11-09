@@ -1,5 +1,6 @@
 """Constants and enums for Printer."""
 from enum import Enum
+from typing import Dict
 
 TIMESTAMP_PRECISION = 0.1  # 100ms
 CONNECTION_TIMEOUT = 30  # 30s
@@ -186,17 +187,13 @@ class CameraAlreadyConnected(RuntimeError):
     """Exception for an already existing camera"""
 
 
+class CameraNotFound(RuntimeError):
+    """Exception raised when we cannot find the camera""" ""
+
+
 class CameraNotDetected(RuntimeError):
     """Raised when trying to ad a camera only by its ID and it is not
     in the detected cameras"""
-
-
-class CameraStatus(Enum):
-    """Lists the different states the camera can find itself in"""
-    DETECTED = "Detected"
-    CONNECTED = "Connected"
-    ERROR = "Error"
-    DISCONNECTED = "Disconnected"
 
 
 # These settings are always required to instance a camera
@@ -229,3 +226,5 @@ DEFAULT_CAMERA_SETTINGS = {
     CapabilityType.EXPOSURE.value: 0,
     CapabilityType.ROTATION.value: 0
 }
+
+CameraConfigs = Dict[str, Dict[str, str]]

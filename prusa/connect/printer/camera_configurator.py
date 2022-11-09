@@ -8,11 +8,10 @@ from typing import Dict, Type, List, Set, Tuple
 from . import CameraController
 from .camera import Camera
 from .camera_driver import CameraDriver
-from .const import ConfigError, CameraAlreadyConnected
+from .const import ConfigError, CameraAlreadyConnected, CameraConfigs, \
+    CameraNotFound
 
 log = logging.getLogger("camera_configurator")
-
-CameraConfigs = Dict[str, Dict[str, str]]
 
 
 class CameraConfigurator:
@@ -80,7 +79,7 @@ class CameraConfigurator:
         removes its non-essential config values"""
         with self.lock:
             if camera_id not in self.loaded:
-                raise RuntimeError("Cannot factory reset non-loaded cameras")
+                raise CameraNotFound("Cannot factory reset non-loaded cameras")
 
             loaded_driver = self.loaded[camera_id]
             config = loaded_driver.config
@@ -101,7 +100,7 @@ class CameraConfigurator:
         """If the camera is not detected, removes it from everywhere"""
         with self.lock:
             if camera_id in self.detected:
-                raise RuntimeError("Cannot remove an auto added camera."
+                raise RuntimeError("Cannot remove an auto added camera. "
                                    "It would just re-add itself anyway.")
             self._remove_camera(camera_id)
 
@@ -139,6 +138,8 @@ class CameraConfigurator:
 
     def store(self, camera_id: str) -> None:
         """Adds the loaded camera to the config"""
+        if camera_id not in self.loaded:
+            raise CameraNotFound("Cannot sttore an unknown camera")
         with self.lock:
             loaded_driver = self.loaded[camera_id]
             config = loaded_driver.config
