@@ -2,15 +2,15 @@
 import logging
 from queue import Queue, Empty
 from time import time
-from typing import Set, Dict, List
+from typing import Set, Dict, List, Callable, Iterator, Optional
 
 from requests import Session
 
 from .camera import Snapshot, Camera
 from .const import TriggerScheme, TIMESTAMP_PRECISION
-from .models import CameraRegister
+from .models import CameraRegister, LoopObject
 
-log = logging.getLogger("camera_configurators")
+log = logging.getLogger("camera_controller")
 
 # pylint: disable=fixme
 # TODO: Add Z change trigger thingy
@@ -20,11 +20,12 @@ class CameraController:
     """This component harbors functioning cameras, triggers them, sends out
     images to connect and should contain functionality needed for operating
     with functional cameras"""
-    def __init__(self, session: Session, server, send_cb):
+    def __init__(self, session: Session, server: Optional[str],
+                 send_cb: Callable[[LoopObject], None]) -> None:
         """
         :session: Current Session connection
         :server: Connect server URL
-        :send_cb: a callback for sending LoobObjects
+        :send_cb: a callback for sending LoopObjects
         """
         # A callback for sending LoopObjects to Connect
         self.send_cb = send_cb
@@ -52,7 +53,7 @@ class CameraController:
         }
         self._running = False
 
-    def add_camera(self, camera: Camera):
+    def add_camera(self, camera: Camera) -> None:
         """Adds a camera. This camera has to be functional"""
         camera_id = camera.camera_id
         self._cameras[camera_id] = camera
@@ -66,7 +67,7 @@ class CameraController:
         if not camera.is_registered:
             self.register_camera(camera_id)
 
-    def remove_camera(self, camera_id):
+    def remove_camera(self, camera_id: str) -> None:
         """Removes the camera, either on request, or because it became
         disconnected, removes """
         if camera_id not in self._cameras:
@@ -75,27 +76,27 @@ class CameraController:
         self._trigger_piles[camera.trigger_scheme].remove(camera)
         del self._cameras[camera_id]
 
-    def get_camera(self, camera_id):
+    def get_camera(self, camera_id: str) -> Camera:
         """Gets the camera by its ID"""
         return self._cameras[camera_id]
 
-    def __contains__(self, camera_id):
+    def __contains__(self, camera_id: str) -> bool:
         """Does the camera manager know about a camera with given ID?"""
         return camera_id in self._cameras
 
     @property
-    def cameras_in_order(self):
+    def cameras_in_order(self) -> Iterator[Camera]:
         """Iterates over functional cameras in the configured order"""
         for camera_id in self._camera_order:
             if camera_id in self._cameras:
                 yield self._cameras[camera_id]
 
-    def set_camera_order(self, camera_order):
+    def set_camera_order(self, camera_order: List[str]) -> None:
         """Usually called by the CameraConfigurator to order
         the SDK cameras"""
         self._camera_order = camera_order
 
-    def register_camera(self, camera_id):
+    def register_camera(self, camera_id: str) -> None:
         """Passes the camera to SDK for registration"""
         if camera_id not in self._cameras:
             log.warning(
@@ -104,28 +105,28 @@ class CameraController:
             return
         self.send_cb(CameraRegister(self.get_camera(camera_id)))
 
-    def _was_10_min(self):
+    def _was_10_min(self) -> bool:
         """Was it ten minutes since we triggered the cameras?"""
         if time() - self._last_trigger < 10:
             return False
         self._last_trigger = time()
         return True
 
-    def _was_layer_change(self):
+    def _was_layer_change(self) -> bool:
         """Did a layer change occur since last triggering the cameras?"""
         if not self.layer_changed:
             return False
         self.layer_changed = False
         return True
 
-    def tick(self):
+    def tick(self) -> None:
         """Called periodically by the SDK to let us trigger cameras when it's
         the right time"""
         for scheme, trigger in self._triggers.items():
             if trigger():
                 self.trigger_pile(scheme)
 
-    def trigger_pile(self, scheme: TriggerScheme):
+    def trigger_pile(self, scheme: TriggerScheme) -> None:
         """Triggers a pile of cameras (cameras are piled by their trigger
         scheme)"""
         for camera in self._trigger_piles[scheme]:
@@ -136,12 +137,12 @@ class CameraController:
                 camera.trigger_a_photo()
 
     def scheme_handler(self, camera: Camera, old: TriggerScheme,
-                       new: TriggerScheme):
+                       new: TriggerScheme) -> None:
         """Transfers cameras between the triggering scheme piles"""
         self._trigger_piles[old].remove(camera)
         self._trigger_piles[new].add(camera)
 
-    def photo_handler(self, camera: Camera, photo_data):
+    def photo_handler(self, camera: Camera, photo_data: bytes) -> None:
         """Here a callback call to the SDK starts the image upload
         Note to self: Don't block, get your own thread
         """
@@ -153,7 +154,7 @@ class CameraController:
         snapshot = Snapshot(photo_data, camera)
         self.snapshot_queue.put(snapshot)
 
-    def snapshot_loop(self):
+    def snapshot_loop(self) -> None:
         """Gets an item Snapshot from queue and sends it"""
         self._running = True
         while self._running:
@@ -177,6 +178,6 @@ class CameraController:
                 log.exception(
                     "Unexpected exception caught in SDK snapshot loop!")
 
-    def stop(self):
+    def stop(self) -> None:
         """Signals to the loop to stop"""
         self._running = False
