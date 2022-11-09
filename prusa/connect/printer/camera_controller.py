@@ -62,11 +62,6 @@ class CameraController:
         camera.photo_cb = self.photo_handler
         camera.save_cb = self.save_cb
 
-        # Register if the camera does not have a token
-        # TODO: Do something more intelligent
-        if not camera.is_registered:
-            self.register_camera(camera_id)
-
     def remove_camera(self, camera_id: str) -> None:
         """Removes the camera, either on request, or because it became
         disconnected, removes """
@@ -144,10 +139,8 @@ class CameraController:
 
     def photo_handler(self, camera: Camera, photo_data: bytes) -> None:
         """Here a callback call to the SDK starts the image upload
-        Note to self: Don't block, get your own thread
         """
         if not camera.is_registered:
-            self.register_camera(camera.camera_id)
             return
         log.debug("A camera %s has taken a photo. (%s bytes)", camera.name,
                   len(photo_data))
