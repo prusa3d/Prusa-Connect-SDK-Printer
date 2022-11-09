@@ -337,7 +337,7 @@ class Camera:
         return self._token
 
     def set_token(self, token: Optional[str]):
-        """Saves the camera token"""
+        """Sets or re-sets the camera token"""
         self._token = token
         self.save()
 
