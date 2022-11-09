@@ -7,6 +7,7 @@ from copy import deepcopy
 from threading import Thread
 from typing import Set, Optional, Callable, Iterable, Dict
 
+from . import get_timestamp
 from .camera import Resolution
 from .const import CapabilityType, ALWAYS_REQURIED, ConfigError, CameraConfigs
 
@@ -65,6 +66,7 @@ class CameraDriver:
         self._available_resolutions: Set[Resolution] = set()
         # For web to show a preview even if the camera does not work right now
         self._last_photo: Optional[bytes] = None
+        self._last_photo_timestamp: Optional[float] = None
 
     @staticmethod
     def hash_id(plaintext_id: str) -> str:
@@ -183,6 +185,7 @@ class CameraDriver:
             self.disconnect()
         else:
             self._last_photo = photo
+            self._last_photo_timestamp = get_timestamp()
             self.photo_cb(photo)
 
     def take_a_photo(self) -> bytes:
@@ -205,6 +208,13 @@ class CameraDriver:
         Returns the last photo the camera has taken - None by default
         """
         return self._last_photo
+
+    @property
+    def last_photo_timestamp(self) -> Optional[float]:
+        """
+        Returns the last photo the camera has taken - None by default
+        """
+        return self._last_photo_timestamp
 
     @property
     def camera_id(self) -> str:
