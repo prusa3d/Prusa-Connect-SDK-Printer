@@ -29,8 +29,7 @@ class State(Enum):
     STOPPED = "STOPPED"
     ERROR = "ERROR"
     ATTENTION = "ATTENTION"
-    # Compatibility, PREPARED will be changed to READY
-    READY = "PREPARED"
+    READY = "READY"
 
 
 class JobState(Enum):
@@ -129,10 +128,6 @@ class Command(Enum):
 
     SET_PRINTER_READY = "SET_PRINTER_READY"
     CANCEL_PRINTER_READY = "CANCEL_PRINTER_READY"
-
-    # Compatibility, PREPARED is deprecated
-    SET_PRINTER_PREPARED = "SET_PRINTER_PREPARED"
-    CANCEL_PRINTER_PREPARED = "CANCEL_PRINTER_PREPARED"
 
     LOAD_FILAMENT = "LOAD_FILAMENT"
     UNLOAD_FILAMENT = "UNLOAD_FILAMENT"
