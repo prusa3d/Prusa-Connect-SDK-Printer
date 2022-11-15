@@ -1223,7 +1223,7 @@ class TestPrinter:
             printer.queue.get_nowait()
 
     def test_set_printer_ready(self, printer, requests_mock):
-        cmd = '{"command":"SET_PRINTER_PREPARED"}'
+        cmd = '{"command":"SET_PRINTER_READY"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -1244,13 +1244,13 @@ class TestPrinter:
                f"POST {SERVER}/p/events"
         event = requests_mock.request_history[2].json()
         assert event["event"] == "STATE_CHANGED"
-        assert event["state"] == "PREPARED"
+        assert event["state"] == "READY"
 
         event = requests_mock.request_history[3].json()
         assert event["event"] == "FINISHED"
 
     def test_cancel_printer_ready(self, printer, requests_mock):
-        cmd = '{"command":"SET_PRINTER_PREPARED"}'
+        cmd = '{"command":"SET_PRINTER_READY"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd,
                            headers={
@@ -1271,9 +1271,9 @@ class TestPrinter:
                f"POST {SERVER}/p/events"
         event = requests_mock.request_history[2].json()
         assert event["event"] == "STATE_CHANGED"
-        assert event["state"] == "PREPARED"
+        assert event["state"] == "READY"
 
-        cmd_cancel = '{"command":"CANCEL_PRINTER_PREPARED"}'
+        cmd_cancel = '{"command":"CANCEL_PRINTER_READY"}'
         requests_mock.post(SERVER + "/p/telemetry",
                            text=cmd_cancel,
                            headers={

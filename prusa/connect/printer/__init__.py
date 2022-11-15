@@ -145,11 +145,6 @@ class Printer:
                          self.set_printer_ready)
         self.set_handler(const.Command.CANCEL_PRINTER_READY,
                          self.cancel_printer_ready)
-        # Compatibility, PREPARED is deprecated
-        self.set_handler(const.Command.SET_PRINTER_PREPARED,
-                         self.set_printer_ready)
-        self.set_handler(const.Command.CANCEL_PRINTER_PREPARED,
-                         self.cancel_printer_ready)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -479,7 +474,7 @@ class Printer:
         return {'source': const.Source.CONNECT}
 
     def cancel_printer_ready(self, caller: Command) -> Dict[str, Any]:
-        """Cancel PREPARED state and switch printer back to READY"""
+        """Cancel READY state and switch printer back to IDLE"""
         # pylint: disable=unused-argument
         if self.ready:
             self.set_state(const.State.IDLE, const.Source.CONNECT, ready=False)
