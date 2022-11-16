@@ -46,7 +46,7 @@ class DummyDriver(CameraDriver):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_resolution = None
-        self._supported_capabilities = ({
+        self._capabilities = ({
             CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
             CapabilityType.IMAGING
         })
@@ -116,7 +116,7 @@ class GoodDriver(CameraDriver):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_resolution = None
-        self._supported_capabilities = ({
+        self._capabilities = ({
             CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
             CapabilityType.IMAGING, CapabilityType.ROTATION,
             CapabilityType.EXPOSURE
@@ -172,7 +172,7 @@ def test_humpty_function():
         CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
         CapabilityType.IMAGING
     }
-    differences = camera.supported_capabilities.symmetric_difference(expected)
+    differences = camera.capabilities.symmetric_difference(expected)
     assert differences == set()
     assert camera.resolution == Resolution(3, 3)
     assert camera.trigger_scheme == TriggerScheme.TEN_MIN
@@ -205,7 +205,7 @@ def test_humpty_function():
     driver.disconnected_cb.assert_called_with(driver)
 
     driver = DummyDriver(id1, available[id1], Mock())
-    driver._supported_capabilities.add(CapabilityType.EXPOSURE)
+    driver._capabilities.add(CapabilityType.EXPOSURE)
     with raises(DriverError):
         camera = Camera(driver)
         camera.exposure = 1

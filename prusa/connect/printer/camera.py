@@ -173,9 +173,9 @@ class Camera:
         self._driver = driver
         self._driver.photo_cb = self._photo_handler
 
-        self._supported_capabilities = frozenset(
-            self._driver.supported_capabilities)
-        if CapabilityType.TRIGGER_SCHEME not in self._supported_capabilities:
+        self._capabilities = frozenset(
+            self._driver.capabilities)
+        if CapabilityType.TRIGGER_SCHEME not in self._capabilities:
             raise AttributeError(
                 "Be sure to fill out driver supported capabilities. "
                 "TRIGGER_SCHEME is the bare minimum")
@@ -295,14 +295,14 @@ class Camera:
         self._driver.set_name(name)
 
     @property
-    def supported_capabilities(self):
+    def capabilities(self):
         """Gets the supported capabilities of this camera"""
-        return self._supported_capabilities
+        return self._capabilities
 
     @property
     def configurable_capabilities(self):
         """Returns capabilities with a configurable attribute"""
-        return self._supported_capabilities - {CapabilityType.IMAGING}
+        return self._capabilities - {CapabilityType.IMAGING}
 
     @property
     def is_busy(self):
@@ -363,7 +363,7 @@ class Camera:
         if self.is_busy:
             raise CameraBusy("The camera is far too busy "
                              "to take more photos")
-        if CapabilityType.IMAGING in self._supported_capabilities:
+        if CapabilityType.IMAGING in self._capabilities:
             self._ready_event.clear()
         self._driver.trigger()
 
@@ -388,7 +388,7 @@ class Camera:
 
     def supports(self, cap_type):
         """Returns whether the camera supports the given capability or not"""
-        return cap_type in self.supported_capabilities
+        return cap_type in self.capabilities
 
     def set_settings(self, new_settings: Dict[str, Any]):
         """Sets the camera settings according to the given dict

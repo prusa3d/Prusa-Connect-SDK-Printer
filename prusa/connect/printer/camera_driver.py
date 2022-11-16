@@ -62,7 +62,7 @@ class CameraDriver:
 
         self._connected = False
 
-        self._supported_capabilities: Set[CapabilityType] = set()
+        self._capabilities: Set[CapabilityType] = set()
         self._available_resolutions: Set[Resolution] = set()
         # For web to show a preview even if the camera does not work right now
         self._last_photo: Optional[bytes] = None
@@ -222,12 +222,12 @@ class CameraDriver:
         return self._camera_id
 
     @property
-    def supported_capabilities(self) -> Iterable[CapabilityType]:
+    def capabilities(self) -> Iterable[CapabilityType]:
         """
         The capabilities supported by the device
         The minimum is supporting TRIGGER_SCHEME (ability to trigger a camera)
         """
-        return deepcopy(self._supported_capabilities)
+        return deepcopy(self._capabilities)
 
     @property
     def available_resolutions(self) -> Iterable[Resolution]:

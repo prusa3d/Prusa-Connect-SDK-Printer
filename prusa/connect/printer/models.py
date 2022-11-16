@@ -200,14 +200,14 @@ class CameraRegister(LoopObject):
         available_resolutions = [
             dict(res) for res in self.camera.available_resolutions
         ]
-        setting_options = dict(available_resolutions=available_resolutions)
-        supported_capabilities = [
-            cap.value for cap in self.camera.supported_capabilities
+        options = dict(available_resolutions=available_resolutions)
+        capabilities = [
+            cap.value for cap in self.camera.capabilities
         ]
 
         data = dict(config=config,
-                    setting_options=setting_options,
-                    supported_capabilities=supported_capabilities,
+                    options=options,
+                    capabilities=capabilities,
                     fingerprint=self.camera.fingerprint)
         return data
 
