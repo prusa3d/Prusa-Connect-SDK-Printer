@@ -152,7 +152,7 @@ class Camera:
     _last_photo: Any
 
     def __init__(self, driver):
-        self._trigger_scheme = TriggerScheme.TEN_MIN
+        self._trigger_scheme = None
         self._resolution = None
         self._available_resolutions = {}
         self._rotation = 0
@@ -173,8 +173,7 @@ class Camera:
         self._driver = driver
         self._driver.photo_cb = self._photo_handler
 
-        self._capabilities = frozenset(
-            self._driver.capabilities)
+        self._capabilities = frozenset(self._driver.capabilities)
         if CapabilityType.TRIGGER_SCHEME not in self._capabilities:
             raise AttributeError(
                 "Be sure to fill out driver supported capabilities. "

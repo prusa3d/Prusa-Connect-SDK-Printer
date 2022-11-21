@@ -175,7 +175,7 @@ def test_humpty_function():
     differences = camera.capabilities.symmetric_difference(expected)
     assert differences == set()
     assert camera.resolution == Resolution(3, 3)
-    assert camera.trigger_scheme == TriggerScheme.TEN_MIN
+    assert camera.trigger_scheme == TriggerScheme.THIRTY_SEC
     camera.resolution = sorted(camera.available_resolutions)[1]
     assert camera.resolution == Resolution(5, 5)
     assert driver.current_resolution == Resolution(5, 5)
@@ -194,7 +194,7 @@ def test_humpty_function():
     camera.scheme_cb.event.wait(0.1)
     camera.scheme_cb.assert_called_once()
     assert camera.scheme_cb.call_args.args[0] == camera
-    assert camera.scheme_cb.call_args.args[1] == TriggerScheme.TEN_MIN
+    assert camera.scheme_cb.call_args.args[1] == TriggerScheme.THIRTY_SEC
     assert camera.scheme_cb.call_args.args[2] == TriggerScheme.EACH_LAYER
 
     with raises(NotSupported):
@@ -433,13 +433,13 @@ def test_camera_controller():
 
     assert camera_abc in controller._trigger_piles[TriggerScheme.MANUAL]
 
-    camera_id1.trigger_scheme = TriggerScheme.TEN_MIN
+    camera_id1.trigger_scheme = TriggerScheme.TEN_SEC
     camera_id1.resolution = Resolution(RES_BOTH, RES_BOTH)
-    camera_abc.trigger_scheme = TriggerScheme.TEN_MIN
+    camera_abc.trigger_scheme = TriggerScheme.TEN_SEC
     camera_abc.resolution = Resolution(RES_BOTH, RES_BOTH)
 
-    assert camera_id1 in controller._trigger_piles[TriggerScheme.TEN_MIN]
-    assert camera_abc in controller._trigger_piles[TriggerScheme.TEN_MIN]
+    assert camera_id1 in controller._trigger_piles[TriggerScheme.TEN_SEC]
+    assert camera_abc in controller._trigger_piles[TriggerScheme.TEN_SEC]
 
     barrier = Barrier(3)
     barrier_mock = Mock()
@@ -453,7 +453,7 @@ def test_camera_controller():
     camera_id1.photo_cb = barrier_handler
     camera_abc.photo_cb = barrier_handler
     barrier_mock.assert_not_called()
-    controller.trigger_pile(TriggerScheme.TEN_MIN)
+    controller.trigger_pile(TriggerScheme.TEN_SEC)
     # a broken barrier is a fail - the callback was not called
     barrier.wait(0.1)
     barrier_mock.assert_has_calls(calls=[

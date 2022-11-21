@@ -209,15 +209,24 @@ class CapabilityType(Enum):
 
 class TriggerScheme(Enum):
     """On which event to trigger a photo - Enum"""
-    TEN_MIN = "Every 10 minutes"
+    TEN_SEC = "Every 10 seconds"
+    THIRTY_SEC = "Every 30 seconds"  # Default
+    SIXTY_SEC = "Every 60 seconds"
     EACH_LAYER = "On layer change"
+    FIFTH_LAYER = "On every fifth layer change"
     MANUAL = "Manual"
 
+
+TRIGGER_SCHEME_TO_SECONDS = {
+    TriggerScheme.TEN_SEC: 10,
+    TriggerScheme.THIRTY_SEC: 30,
+    TriggerScheme.SIXTY_SEC: 60,
+}
 
 # The default values for camera settings if the camera does not supply its
 # own ones
 DEFAULT_CAMERA_SETTINGS = {
-    CapabilityType.TRIGGER_SCHEME.value: TriggerScheme.TEN_MIN,
+    CapabilityType.TRIGGER_SCHEME.value: TriggerScheme.THIRTY_SEC,
     CapabilityType.EXPOSURE.value: 0,
     CapabilityType.ROTATION.value: 0
 }
