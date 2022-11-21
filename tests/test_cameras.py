@@ -475,12 +475,12 @@ def test_setting_conversions():
     enormous = CameraDriver.hash_id("EnormousCamera")
     assert enormous in configurator.loaded
     driver = configurator.loaded[enormous]
-    assert {"resolution", "name", "exposure", "rotation",
-            "driver"}.issubset(driver.config)
+    assert {"resolution", "name", "exposure",
+            "rotation"}.issubset(driver.config)
     camera = configurator.camera_controller.get_camera(enormous)
     exported_settings = camera.get_settings()
-    assert {"resolution", "name", "exposure", "rotation",
-            "driver"}.issubset(exported_settings)
+    assert {"resolution", "name", "exposure",
+            "rotation"}.issubset(exported_settings)
     json_settings = Camera.json_from_settings(exported_settings)
     back_from_json = Camera.settings_from_json(json_settings)
     assert exported_settings == back_from_json

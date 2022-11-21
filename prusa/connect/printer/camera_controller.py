@@ -31,8 +31,6 @@ class CameraController:
         """
         # A callback for sending LoopObjects to Connect
         self.send_cb = send_cb
-        # A callback for saving cameras
-        self.save_cb = lambda camera: None
         self.session = session
         self.server = server
         # pylint: disable=unsubscriptable-object
@@ -61,7 +59,6 @@ class CameraController:
         self._trigger_piles[camera.trigger_scheme].add(camera)
         camera.scheme_cb = self.scheme_handler
         camera.photo_cb = self.photo_handler
-        camera.save_cb = self.save_cb
 
     def remove_camera(self, camera_id: str) -> None:
         """Removes the camera, either on request, or because it became
