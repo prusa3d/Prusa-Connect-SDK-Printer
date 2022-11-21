@@ -1,5 +1,6 @@
 """Implementation of CameraController"""
 import logging
+from functools import partial
 from queue import Queue, Empty
 from time import time
 from typing import Set, Dict, List, Callable, Iterator, Optional
@@ -7,7 +8,8 @@ from typing import Set, Dict, List, Callable, Iterator, Optional
 from requests import Session
 
 from .camera import Snapshot, Camera
-from .const import TriggerScheme, TIMESTAMP_PRECISION
+from .const import TriggerScheme, TIMESTAMP_PRECISION, \
+    TRIGGER_SCHEME_TO_SECONDS
 from .models import CameraRegister, LoopObject
 
 log = logging.getLogger("camera_controller")
@@ -39,18 +41,17 @@ class CameraController:
         self._cameras: Dict[str, Camera] = {}
         self._camera_order: List[str] = []
         self._trigger_piles: Dict[TriggerScheme, Set[Camera]] = {
-            TriggerScheme.TEN_MIN: set(),
-            TriggerScheme.EACH_LAYER: set(),
-            TriggerScheme.MANUAL: set(),
+            scheme: set()
+            for scheme in TriggerScheme
         }
 
         # --- triggers ---
         self.layer_changed = False  # Flip this to true from outside
         self._last_trigger = time()
-        self._triggers = {
-            TriggerScheme.TEN_MIN: self._was_10_min,
-            TriggerScheme.EACH_LAYER: self._was_layer_change
-        }
+        self._triggers = {TriggerScheme.EACH_LAYER: self._was_layer_change}
+        for trigger_scheme, value in TRIGGER_SCHEME_TO_SECONDS.items():
+            self._triggers[trigger_scheme] = partial(self._interval_elapsed,
+                                                     value)
         self._running = False
 
     def add_camera(self, camera: Camera) -> None:
@@ -100,9 +101,10 @@ class CameraController:
             return
         self.send_cb(CameraRegister(self.get_camera(camera_id)))
 
-    def _was_10_min(self) -> bool:
-        """Was it ten minutes since we triggered the cameras?"""
-        if time() - self._last_trigger < 10:
+    def _interval_elapsed(self, interval) -> bool:
+        """Was it the specified amount of seconds since
+        the last time we triggered?"""
+        if time() - self._last_trigger < interval:
             return False
         self._last_trigger = time()
         return True
@@ -138,8 +140,7 @@ class CameraController:
         self._trigger_piles[new].add(camera)
 
     def photo_handler(self, camera: Camera, photo_data: bytes) -> None:
-        """Here a callback call to the SDK starts the image upload
-        """
+        """Here a callback call to the SDK starts the image upload"""
         if not camera.is_registered:
             return
         log.debug("A camera %s has taken a photo. (%s bytes)", camera.name,

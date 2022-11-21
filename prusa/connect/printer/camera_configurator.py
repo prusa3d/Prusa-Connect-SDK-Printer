@@ -139,7 +139,7 @@ class CameraConfigurator:
     def store(self, camera_id: str) -> None:
         """Adds the loaded camera to the config"""
         if camera_id not in self.loaded:
-            raise CameraNotFound("Cannot sttore an unknown camera")
+            raise CameraNotFound("Cannot store an unknown camera")
         with self.lock:
             loaded_driver = self.loaded[camera_id]
             config = loaded_driver.config
