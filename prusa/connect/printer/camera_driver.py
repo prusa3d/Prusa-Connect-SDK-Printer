@@ -47,6 +47,7 @@ class CameraDriver:
         # Do not call these, call the methods that call them
         self.photo_cb: Callable[[bytes], None] = lambda photo: None
         self.disconnected_cb = disconnected_cb
+        self.store_cb: Callable[[str], None] = lambda camera_id: None
 
         self._photo_thread: Optional[Thread] = None
         self._camera_id = camera_id
@@ -191,6 +192,15 @@ class CameraDriver:
     def take_a_photo(self) -> bytes:
         """Takes a photo and returns it. Can block"""
         raise NotImplementedError()
+
+    def store_settings(self, config):
+        """Stores only the camera settings, not its configuration"""
+        forbidden = self.get_required_settings().difference({"name"})
+        if forbidden.intersection(config):
+            raise RuntimeError("Cannot set essential config values using "
+                               "SDK setting setter!")
+        self._config.update(config)
+        self.store_cb(self.camera_id)
 
     # --- Properties ----
     # No need to override these, just fill out your internal fields

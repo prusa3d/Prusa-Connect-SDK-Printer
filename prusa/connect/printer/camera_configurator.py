@@ -27,7 +27,6 @@ class CameraConfigurator:
     def __init__(self, camera_controller: CameraController,
                  config: ConfigParser, config_file_path: str,
                  drivers: List[Type[CameraDriver]]) -> None:
-        camera_controller.save_cb = self.store
         self.camera_controller = camera_controller
         self.config = config
         self.config_file_path = config_file_path
@@ -71,8 +70,6 @@ class CameraConfigurator:
             # If valid, store the config
             self._store_config(camera_id, config)
             self._load_driver(camera_id, config)
-            # If functional, store the other setting values too
-            self.store(camera_id)
 
     def reset_to_defaults(self, camera_id: str) -> None:
         """Resets any camera to default settings -
@@ -143,11 +140,6 @@ class CameraConfigurator:
         with self.lock:
             loaded_driver = self.loaded[camera_id]
             config = loaded_driver.config
-
-            if camera_id in self.camera_controller:
-                camera = self.camera_controller.get_camera(camera_id)
-                settings = camera.get_settings()
-                config.update(camera.string_from_settings(settings))
 
             self._store_config(camera_id, config)
 
@@ -320,6 +312,7 @@ class CameraConfigurator:
         driver = self.drivers[camera_config["driver"]]
         loaded_driver = driver(camera_id, camera_config,
                                self._disconnected_handler)
+        loaded_driver.store_cb = self.store
 
         self.loaded[camera_id] = loaded_driver
         if loaded_driver.is_connected:

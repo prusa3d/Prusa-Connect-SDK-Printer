@@ -167,8 +167,6 @@ class Camera:
         self.scheme_cb = lambda camera, old, new: None
         # A photo has been taken - give it to the manager
         self.photo_cb = lambda camera, photo: None
-        # A callback for saving the current camera config
-        self.save_cb = lambda camera_id: None
 
         self._driver = driver
         self._driver.photo_cb = self._photo_handler
@@ -198,7 +196,7 @@ class Camera:
                                  f"at least these additional settings: "
                                  f"{', '.join(missing)}")
 
-        self.set_settings(initial_settings)
+        self.set_settings(initial_settings, store=False)
 
         # - End initial settings -
 
@@ -338,7 +336,7 @@ class Camera:
     def set_token(self, token: Optional[str]):
         """Sets or re-sets the camera token"""
         self._token = token
-        self.save()
+        self.store()
 
     def take_a_photo(self):
         """
@@ -389,7 +387,7 @@ class Camera:
         """Returns whether the camera supports the given capability or not"""
         return cap_type in self.capabilities
 
-    def set_settings(self, new_settings: Dict[str, Any]):
+    def set_settings(self, new_settings: Dict[str, Any], store: bool = True):
         """Sets the camera settings according to the given dict
         The dictionary has to contain compatible values, convert them ahead of
         time using the string and json conversion methods"""
@@ -404,6 +402,8 @@ class Camera:
             self.name = new_settings["name"]
         if "token" in new_settings:
             self._token = new_settings["token"]
+        if store:
+            self.store()
 
     @staticmethod
     def settings_from_string(src_settings: Dict[str, str]):
@@ -470,14 +470,14 @@ class Camera:
             value = self.get_value(capability_type)
             config[capability_type.value] = value
         config["name"] = self.name
-        config["driver"] = self._driver.name
         if self.is_registered:
             config["token"] = self.token
         return config
 
-    def save(self):
-        """Tells the controller that this camera wishes to be saved"""
-        self.save_cb(self.camera_id)
+    def store(self):
+        """Tells the driver to update its config with new settings"""
+        self._driver.store_settings(
+            self.string_from_settings(self.get_settings()))
 
     def disconnect(self):
         """Asks the camera to disconnect"""
