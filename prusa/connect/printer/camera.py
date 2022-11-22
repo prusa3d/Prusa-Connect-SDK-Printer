@@ -413,7 +413,11 @@ class Camera:
         for setting, src_value in src_settings.items():
             value: Any = src_value
             if setting == CapabilityType.TRIGGER_SCHEME.value:
-                value = TriggerScheme[src_value]
+                try:
+                    value = TriggerScheme[src_value]
+                except KeyError:
+                    value = DEFAULT_CAMERA_SETTINGS[
+                        CapabilityType.TRIGGER_SCHEME.value]
             elif setting == CapabilityType.RESOLUTION.value:
                 value = Resolution(*(int(val) for val in src_value.split("x")))
             elif setting == CapabilityType.ROTATION.value:
@@ -431,7 +435,11 @@ class Camera:
         for setting, src_value in src_settings.items():
             value = src_value
             if setting == CapabilityType.TRIGGER_SCHEME.value:
-                value = TriggerScheme[src_value]
+                try:
+                    value = TriggerScheme[src_value]
+                except KeyError:
+                    value = DEFAULT_CAMERA_SETTINGS[
+                        CapabilityType.TRIGGER_SCHEME.value]
             elif setting == CapabilityType.RESOLUTION.value:
                 value = Resolution(**src_value)
             settings[setting] = value
