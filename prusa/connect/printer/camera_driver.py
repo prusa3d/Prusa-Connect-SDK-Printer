@@ -81,22 +81,26 @@ class CameraDriver:
         """Returns available cameras as a dictionary,
         where the key is the camera's ID and the value contains a dictionary
         with config options needed to instance such a camera"""
-        available = cls._scan()
         valid = {}
-        for plaintext_id, config in available.items():
-            camera_id = CameraDriver.hash_id(plaintext_id)
+        try:
+            available = cls._scan()
+        except Exception:  # pylint: disable=broad-except
+            log.exception("Error while scanning for %s cameras", cls.name)
+        else:
+            for plaintext_id, config in available.items():
+                camera_id = CameraDriver.hash_id(plaintext_id)
 
-            # Fill in this required config option for all drivers
-            if "driver" not in config:
-                config["driver"] = cls.name
+                # Fill in this required config option for all drivers
+                if "driver" not in config:
+                    config["driver"] = cls.name
 
-            if "trigger_scheme" in config:
-                log.warning("Camera drivers are not supposed to specify "
-                            "trigger scheme")
+                if "trigger_scheme" in config:
+                    log.warning("Camera drivers are not supposed to specify "
+                                "trigger scheme")
 
-            if not cls.is_config_valid(config):
-                continue
-            valid[camera_id] = config
+                if not cls.is_config_valid(config):
+                    continue
+                valid[camera_id] = config
         return valid
 
     @staticmethod
