@@ -45,11 +45,12 @@ class CameraController:
 
         # --- triggers ---
         self._layer_trigger_counter = 0
-        self._last_trigger = time()
+        self._last_trigger = {}
         self._time_triggers = {}
-        for trigger_scheme, value in TRIGGER_SCHEME_TO_SECONDS.items():
+        for trigger_scheme in TRIGGER_SCHEME_TO_SECONDS:
             self._time_triggers[trigger_scheme] = partial(
-                self._interval_elapsed, value)
+                self._interval_elapsed, trigger_scheme)
+            self._last_trigger[trigger_scheme] = time()
         self._running = False
 
     def add_camera(self, camera: Camera) -> None:
@@ -98,12 +99,12 @@ class CameraController:
             return
         self.send_cb(CameraRegister(self.get_camera(camera_id)))
 
-    def _interval_elapsed(self, interval) -> bool:
-        """Was it the specified amount of seconds since
-        the last time we triggered?"""
-        if time() - self._last_trigger < interval:
+    def _interval_elapsed(self, trigger_scheme) -> bool:
+        """Is it time to trigger the time based trigger scheme pile?"""
+        interval = TRIGGER_SCHEME_TO_SECONDS[trigger_scheme]
+        if time() - self._last_trigger[trigger_scheme] < interval:
             return False
-        self._last_trigger = time()
+        self._last_trigger[trigger_scheme] = time()
         return True
 
     def layer_trigger(self):
