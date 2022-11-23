@@ -44,12 +44,12 @@ class CameraController:
         }
 
         # --- triggers ---
-        self.layer_changed = False  # Flip this to true from outside
+        self._layer_trigger_counter = 0
         self._last_trigger = time()
-        self._triggers = {TriggerScheme.EACH_LAYER: self._was_layer_change}
+        self._time_triggers = {}
         for trigger_scheme, value in TRIGGER_SCHEME_TO_SECONDS.items():
-            self._triggers[trigger_scheme] = partial(self._interval_elapsed,
-                                                     value)
+            self._time_triggers[trigger_scheme] = partial(
+                self._interval_elapsed, value)
         self._running = False
 
     def add_camera(self, camera: Camera) -> None:
@@ -106,17 +106,18 @@ class CameraController:
         self._last_trigger = time()
         return True
 
-    def _was_layer_change(self) -> bool:
-        """Did a layer change occur since last triggering the cameras?"""
-        if not self.layer_changed:
-            return False
-        self.layer_changed = False
-        return True
+    def layer_trigger(self):
+        """Called every layer, triggers the layer dependant trigger schemes"""
+        self._layer_trigger_counter += 1
+        self.trigger_pile(TriggerScheme.EACH_LAYER)
+        if not self._layer_trigger_counter % 5:
+            self.trigger_pile(TriggerScheme.FIFTH_LAYER)
+            self._layer_trigger_counter = 0
 
     def tick(self) -> None:
         """Called periodically by the SDK to let us trigger cameras when it's
         the right time"""
-        for scheme, trigger in self._triggers.items():
+        for scheme, trigger in self._time_triggers.items():
             if trigger():
                 self.trigger_pile(scheme)
 
