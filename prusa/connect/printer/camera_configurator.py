@@ -51,9 +51,11 @@ class CameraConfigurator:
 
     def is_connected(self, camera_id: str) -> bool:
         """Is the camera already loaded and working?"""
-        if camera_id not in self.loaded:
-            return False
-        return self.loaded[camera_id].is_connected
+        # Don't answer until any ongoing operation is done
+        with self.lock:
+            if camera_id not in self.loaded:
+                return False
+            return self.loaded[camera_id].is_connected
 
     def add_camera(self, camera_id: str, config: Dict[str, str]) -> None:
         """Adds a camera into the configurator instance and if it works
