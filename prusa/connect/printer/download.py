@@ -337,19 +337,20 @@ class DownloadMgr:
                                 Event.TRANSFER_ABORTED,
                                 Source.CONNECT,
                                 reason=msg,
+                                path=self.transfer.path,
                                 transfer_id=self.transfer.transfer_id)
 
                     self.event_cb(Event.TRANSFER_FINISHED,
                                   Source.CONNECT,
                                   start_command_id=self.transfer.start_cmd_id,
-                                  url=self.transfer.url,
-                                  destination=self.transfer.path,
+                                  path=self.transfer.path,
                                   transfer_id=self.transfer.transfer_id)
                     self.download_finished_cb(self.transfer)
 
                 except TransferStoppedError:
                     self.event_cb(Event.TRANSFER_STOPPED,
                                   Source.CONNECT,
+                                  path=self.transfer.path,
                                   transfer_id=self.transfer.transfer_id)
 
                 except Exception as err:  # pylint: disable=broad-except
@@ -357,6 +358,7 @@ class DownloadMgr:
                     self.event_cb(Event.TRANSFER_ABORTED,
                                   Source.CONNECT,
                                   reason=str(err),
+                                  path=self.transfer.path,
                                   transfer_id=self.transfer.transfer_id)
                 finally:
                     # End of transfer - reset transfer data
