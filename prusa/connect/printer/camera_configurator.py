@@ -228,7 +228,12 @@ class CameraConfigurator:
                 for setting_name, setting in config.items():
                     if setting_name in driver.REQUIRES_SETTINGS:
                         config_dict[camera_id][setting_name] = setting
-        return config_dict
+        # Return only configs, that were auto-detected or stored
+        filtered_configs: CameraConfigs = {}
+        for camera_id, config in config_dict.items():
+            if camera_id in detected_configs or camera_id in self.stored:
+                filtered_configs[camera_id] = config
+        return filtered_configs
 
     def _get_configs(self) -> Tuple[List[str], CameraConfigs]:
         """Returns order and camera settings from the supplied config"""
