@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Dict
 
 TIMESTAMP_PRECISION = 0.1  # 100ms
-CONNECTION_TIMEOUT = 30  # 30s
+CONNECTION_TIMEOUT = 10  # 10s
 PHOTO_TIMEOUT = 10  # 10s
 ONE_SECOND_TIMEOUT = 1  # 1s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
