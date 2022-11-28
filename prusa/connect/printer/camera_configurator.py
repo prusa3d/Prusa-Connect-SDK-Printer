@@ -19,10 +19,11 @@ class CameraConfigurator:
 
     Config handling explanation
     The order of all loaded cameras + all stored cameras is saved.
-    If a user changes the order of a camera, as well as any setting, its
-    config gets saved. Order of unplugged cameras that don't have a config
-    shall be forgotten. This means however that setting order shall be done
-    by sending a camera - index pair
+    If a user changes any setting on a camera its config gets saved.
+    Order of unplugged cameras that don't have a config
+    shall be forgotten. Storing this order would accumulate all cameras ever
+    connected to PrusaLink, or we would need one order for saving and another
+    for the instance.
     """
     def __init__(self, camera_controller: CameraController,
                  config: ConfigParser, config_file_path: str,
