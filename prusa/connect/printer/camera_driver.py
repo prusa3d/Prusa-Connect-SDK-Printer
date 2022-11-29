@@ -56,11 +56,6 @@ class CameraDriver:
         if not hasattr(self, "name"):
             raise ValueError("Name your driver - redefine class var 'name'")
 
-        if not self.is_config_valid(self.config):
-            raise ConfigError("Can't instance a driver because some "
-                              "essential config values are missing, "
-                              "or are incorrect")
-
         self._connected = False
 
         self._capabilities: Set[CapabilityType] = set()
@@ -68,6 +63,28 @@ class CameraDriver:
         # For web to show a preview even if the camera does not work right now
         self._last_photo: Optional[bytes] = None
         self._last_photo_timestamp: Optional[float] = None
+
+    def _connect(self):
+        """Put all your connecting code over here"""
+        raise NotImplementedError("Your driver is missing a _connect method")
+
+    def connect(self):
+        """Tells the driver to try connecting to its camera"""
+        if not self.is_config_valid(self.config):
+            raise ConfigError("Can't instance a driver because some "
+                              "essential config values are missing, "
+                              "or are incorrect")
+        try:
+            self._connect()
+        except Exception:  # pylint: disable=broad-except
+            log.exception("Initialization of camera %s has failed",
+                          self.config.get("name", "unknown"))
+            try:
+                self.disconnect()
+            except Exception:  # pylint: disable=broad-except
+                pass  # Try disconnecting, don't care whether it fails or not
+        else:
+            self._connected = True
 
     @staticmethod
     def hash_id(plaintext_id: str) -> str:
@@ -134,11 +151,6 @@ class CameraDriver:
             log.warning("The camera driver %s is missing these settings %s",
                         cls.name, ", ".join(missing_settings))
         return not missing_settings
-
-    def _set_connected(self) -> None:
-        """Call this in your constructor to tell the world your camera
-        connected successfully"""
-        self._connected = True
 
     def disconnect(self) -> None:
         """If a camera needs to handle a disconnect,
