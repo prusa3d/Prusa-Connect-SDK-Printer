@@ -43,6 +43,8 @@ class CameraConfigurator:
         # We know the order of these cameras
         self.stored: Set[str] = set()
         self.detected: Set[str] = set()
+        # Config hashes of detected cameras for comparison with stored ones
+        self.hash_to_detected: Dict[str, str] = {}
         # A list of camera IDs in descending order of importance
         self.order: List[str] = []
 
@@ -189,6 +191,8 @@ class CameraConfigurator:
 
             detected_configs = self._get_detected_cameras()
             self.detected = set(detected_configs.keys())
+            self.hash_to_detected = self._extract_hash_pairings(
+                detected_configs)
             self._update_order()
 
             updated_configs = self._get_updated_configs(
@@ -198,6 +202,14 @@ class CameraConfigurator:
 
             for camera_id, config in new_configs.items():
                 self._load_driver(camera_id, config)
+
+    def _extract_hash_pairings(self, config_dict: CameraConfigs):
+        hash_pairings = {}
+        for camera_id, config in config_dict.items():
+            driver_name = config["driver"]
+            config_hash = self.drivers[driver_name].get_config_hash(config)
+            hash_pairings[config_hash] = camera_id
+        return hash_pairings
 
     def _get_loaded_configs(self) -> CameraConfigs:
         """Returns configs of all loaded cameras"""
@@ -295,20 +307,24 @@ class CameraConfigurator:
         self.camera_controller.set_camera_order(self.order)
         self.store_order()
 
-    def _load_driver(self, camera_id: str, camera_config: Dict[str,
-                                                               str]) -> None:
-        """Loads the camera's driver, if all goes well, passes the camera
-        to the CameraManager as working
-        loading a driver can cause a ConfigException or any other
-        unexpected error
-        """
-        driver = self.drivers[camera_config["driver"]]
-        loaded_driver = driver(camera_id, camera_config,
-                               self._disconnected_handler)
+    def _load_driver(self, camera_id: str, config: Dict[str, str]) -> None:
+        """Loads the camera's driver and if the camera's config is not
+        conflicting with any detected one, tries connecting to it.
+         If all goes well, passes the it to the CameraController as working"""
+        driver = self.drivers[config["driver"]]
+        config_hash = driver.get_config_hash(config)
+
+        loaded_driver = driver(camera_id, config, self._disconnected_handler)
         loaded_driver.store_cb = self.store
+        self.loaded[camera_id] = loaded_driver
+
+        # Proceed only if there's no detected camera with the same config,
+        # unless we are that camera
+        if self.hash_to_detected.get(config_hash, camera_id) != camera_id:
+            return
+
         loaded_driver.connect()
 
-        self.loaded[camera_id] = loaded_driver
         if loaded_driver.is_connected:
             self.camera_controller.add_camera(Camera(loaded_driver))
             # Take the first photo right away

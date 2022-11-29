@@ -156,9 +156,9 @@ class EventSetMock(Mock):
 def test_humpty_function():
     # Humpty tries to return configs, only one of them has everything needed
     available = DummyDriver.scan()
-    id1 = CameraDriver.hash_id("id1")
-    id2 = CameraDriver.hash_id("id2")
-    id3 = CameraDriver.hash_id("id3")
+    id1 = CameraDriver.make_hash("id1")
+    id2 = CameraDriver.make_hash("id2")
+    id3 = CameraDriver.make_hash("id3")
     assert id1 in available
     assert id2 not in available
     assert id3 not in available
@@ -238,7 +238,7 @@ def test_humpty_function():
 
 
 def test_configurator_from_config():
-    id1 = CameraDriver.hash_id("id1")
+    id1 = CameraDriver.make_hash("id1")
     config = ConfigParser()
     config.read_dict({
         "camera_order": {
@@ -296,12 +296,38 @@ def test_configurator_from_config():
     assert configurator.order == ["derp", str(id1), "bar"]
 
 
+def test_duplicates():
+    id1 = CameraDriver.make_hash("id1")
+    config = ConfigParser()
+    config.read_dict({
+        "camera_order": {
+            "1": "derp",
+            "3": str(id1),
+        },
+        "camera::same_cfg_as_id1": {
+            "name": "Duplicate bad camera",
+            "driver": "Humpty Dumpty",
+            "parameter": "very parametric"
+        },
+    })
+    configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
+                                      config,
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    assert id1 in configurator.detected
+    assert id1 in configurator.loaded
+    assert configurator.is_connected(id1)
+    assert "same_cfg_as_id1" in configurator.stored
+    assert "same_cfg_as_id1" in configurator.loaded
+    assert not configurator.is_connected("same_cfg_as_id1")
+
+
 def test_configurator_auto_add():
     configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[DummyDriver])
-    id1 = CameraDriver.hash_id("id1")
+    id1 = CameraDriver.make_hash("id1")
     assert id1 in configurator.order
     # Detected camera - not stored
     assert id1 not in configurator.stored
@@ -350,7 +376,7 @@ def test_configurator_remove_detected():
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[DummyDriver])
-    id1 = CameraDriver.hash_id("id1")
+    id1 = CameraDriver.make_hash("id1")
     assert id1 in configurator.loaded
     with raises(RuntimeError):
         configurator.remove_camera(id1)
@@ -383,7 +409,7 @@ def test_add_more():
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[DummyDriver])
-    extra = CameraDriver.hash_id("extra")
+    extra = CameraDriver.make_hash("extra")
     with AdditionalCamera():
         assert extra not in configurator.loaded
         configurator._load_cameras()
@@ -400,7 +426,7 @@ def test_update_disconnected():
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[DummyDriver])
-    extra = CameraDriver.hash_id("extra")
+    extra = CameraDriver.make_hash("extra")
     configurator.add_camera(
         extra, {
             "name": "Re-connecting Camera",
@@ -425,7 +451,7 @@ def test_camera_controller():
                                       "/dev/null",
                                       drivers=[DummyDriver])
 
-    id1 = CameraDriver.hash_id("id1")
+    id1 = CameraDriver.make_hash("id1")
     configurator.add_camera(
         "abc", {
             "name": "Second camera",
@@ -478,7 +504,7 @@ def test_setting_conversions():
                                       ConfigParser(),
                                       "/dev/null",
                                       drivers=[GoodDriver])
-    enormous = CameraDriver.hash_id("EnormousCamera")
+    enormous = CameraDriver.make_hash("EnormousCamera")
     assert enormous in configurator.loaded
     driver = configurator.loaded[enormous]
     assert {"resolution", "name", "exposure",
@@ -539,7 +565,7 @@ def test_camera_register(printer):
                        ConfigParser(),
                        "/dev/null",
                        drivers=[DummyDriver])
-    id1 = CameraDriver.hash_id("id1")
+    id1 = CameraDriver.make_hash("id1")
     camera_controller.register_camera(camera_id=id1)
     camera = camera_controller.get_camera(id1)
 
@@ -559,7 +585,7 @@ def test_camera_register_loop(requests_mock, printer):
                        ConfigParser(),
                        "/dev/null",
                        drivers=[DummyDriver])
-    id1 = CameraDriver.hash_id("id1")
+    id1 = CameraDriver.make_hash("id1")
     camera_controller.register_camera(camera_id=id1)
 
     run_loop(fct=printer.loop)
