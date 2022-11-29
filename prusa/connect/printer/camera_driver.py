@@ -87,7 +87,7 @@ class CameraDriver:
             self._connected = True
 
     @staticmethod
-    def hash_id(plaintext_id: str) -> str:
+    def make_hash(plaintext_id: str) -> str:
         """Hashes the camera ID"""
         hashed_id = hashlib.blake2b(plaintext_id.encode("ascii"),
                                     digest_size=9).digest()
@@ -105,7 +105,7 @@ class CameraDriver:
             log.exception("Error while scanning for %s cameras", cls.name)
         else:
             for plaintext_id, config in available.items():
-                camera_id = CameraDriver.hash_id(plaintext_id)
+                camera_id = CameraDriver.make_hash(plaintext_id)
 
                 # Fill in this required config option for all drivers
                 if "driver" not in config:
@@ -136,6 +136,20 @@ class CameraDriver:
         required.update(ALWAYS_REQURIED)
         required.update(cls.REQUIRES_SETTINGS)
         return required
+
+    @classmethod
+    def get_config_hash(cls, config):
+        """Returns a hash of this driver's specific config values"""
+        config_values = [cls.name]
+        # sorted so the dict keys are in the same order every time
+        for key in sorted(cls.REQUIRES_SETTINGS):
+            if key not in config:
+                log.warning("Use get_config_hash only on valid configs!")
+                continue
+            config_values.append(key)
+            config_values.append(config[key])
+        config_string = "".join(config_values)
+        return cls.make_hash(config_string)
 
     @classmethod
     def is_config_valid(cls, config: Dict[str, str]) -> bool:
