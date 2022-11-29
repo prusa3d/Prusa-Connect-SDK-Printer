@@ -46,6 +46,8 @@ class DummyDriver(CameraDriver):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_resolution = None
+
+    def _connect(self):
         self._capabilities = ({
             CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
             CapabilityType.IMAGING
@@ -56,8 +58,6 @@ class DummyDriver(CameraDriver):
             self.fall_over()
         elif self.config["parameter"] == "screw up":
             raise RuntimeError("I just don't know what went wrong.")
-        else:
-            self._set_connected()
 
     def take_a_photo(self):
         if self.config["parameter"] == "Camera shy":
@@ -74,7 +74,7 @@ class DummyDriver(CameraDriver):
 
     def fall_over(self):
         """Make Humpty stumble and fall over, at least he calls the handler"""
-        super().disconnect()
+        raise RuntimeError("Humpty has fallen over")
 
     @property
     def is_registered(self):
@@ -116,13 +116,14 @@ class GoodDriver(CameraDriver):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.current_resolution = None
+
+    def _connect(self):
         self._capabilities = ({
             CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
             CapabilityType.IMAGING, CapabilityType.ROTATION,
             CapabilityType.EXPOSURE
         })
         self._available_resolutions = ({Resolution(12288, 6480)})
-        self._connected = True
 
     def set_resolution(self, resolution):
         self._config["resolution"] = resolution
@@ -163,10 +164,12 @@ def test_humpty_function():
     assert id3 not in available
     available = DummyDriver.scan()
     driver = DummyDriver(id1, available[id1], Mock())
+    driver.connect()
     del driver._config[CapabilityType.RESOLUTION.value]
     with raises(AttributeError):
         camera = Camera(driver)
     driver = DummyDriver(id1, available[id1], Mock())
+    driver.connect()
     camera = Camera(driver)
     expected = {
         CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
@@ -201,10 +204,11 @@ def test_humpty_function():
         camera.rotation = 90
 
     driver.disconnected_cb.assert_not_called()
-    driver.fall_over()
+    driver.disconnect()
     driver.disconnected_cb.assert_called_with(driver)
 
     driver = DummyDriver(id1, available[id1], Mock())
+    driver.connect()
     driver._capabilities.add(CapabilityType.EXPOSURE)
     with raises(DriverError):
         camera = Camera(driver)
@@ -216,6 +220,7 @@ def test_humpty_function():
             "driver": "Humpty Dumpty",
             "parameter": "Driver error"
         }, Mock())
+    driver.connect()
     assert driver.is_connected
     with raises(RuntimeError):
         driver.set_resolution(Resolution(5, 5))
@@ -226,6 +231,7 @@ def test_humpty_function():
             "driver": "Humpty Dumpty",
             "parameter": "Camera shy"
         }, Mock())
+    driver.connect()
     assert driver.is_connected
     driver._photo_taker()
     driver.disconnected_cb.assert_called_once()

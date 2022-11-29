@@ -196,7 +196,8 @@ class CameraConfigurator:
             # Filters additional detected cameras while already running
             new_configs = self._filter_new_configs(updated_configs)
 
-            self._instance_drivers(new_configs)
+            for camera_id, config in new_configs.items():
+                self._load_driver(camera_id, config)
 
     def _get_loaded_configs(self) -> CameraConfigs:
         """Returns configs of all loaded cameras"""
@@ -294,22 +295,6 @@ class CameraConfigurator:
         self.camera_controller.set_camera_order(self.order)
         self.store_order()
 
-    def _instance_drivers(self, config_dict: CameraConfigs) -> None:
-        """Instances cameras from the supplied configs"""
-        for camera_id, config in config_dict.items():
-            try:
-                self._load_driver(camera_id, config)
-            except ConfigError:
-                log.warning(
-                    "Camera %s didn't load because of a config error."
-                    "Config: %s", camera_id, config)
-                continue
-            except Exception:  # pylint: disable=broad-except
-                log.exception(
-                    "Unhandled exception when loading camera %s "
-                    "with config: %s", camera_id, config)
-                continue
-
     def _load_driver(self, camera_id: str, camera_config: Dict[str,
                                                                str]) -> None:
         """Loads the camera's driver, if all goes well, passes the camera
@@ -321,6 +306,7 @@ class CameraConfigurator:
         loaded_driver = driver(camera_id, camera_config,
                                self._disconnected_handler)
         loaded_driver.store_cb = self.store
+        loaded_driver.connect()
 
         self.loaded[camera_id] = loaded_driver
         if loaded_driver.is_connected:
