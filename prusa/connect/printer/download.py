@@ -201,7 +201,7 @@ class Transfer:
             elapsed = time.time() - self.start_ts
             if elapsed == 0 or self.transferred == 0:
                 return None  # stands for Infinity
-            return round(self.size / self.transferred * elapsed - elapsed, 0)
+            return round(self.size / self.transferred * elapsed - elapsed)
         return None
 
     def to_dict(self):
