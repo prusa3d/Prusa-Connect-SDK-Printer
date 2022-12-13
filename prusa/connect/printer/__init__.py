@@ -809,10 +809,10 @@ class Printer:
         self.fs.from_dir(folderpath, storage)
         self.inotify_handler = InotifyHandler(self.fs)
 
-    def dettach(self, storage: str):
+    def detach(self, storage: str):
         """Dettach `storage`.
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.dettach(storage)
+        self.fs.detach(storage)
         self.inotify_handler = InotifyHandler(self.fs)

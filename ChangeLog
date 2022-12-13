@@ -1,7 +1,7 @@
 ChangeLog
 =========
 
-0.7.0rc2(2022-11-30)
+0.7.0rc2 (2022-11-30)
     * Camera support
         - Autodetection
         - Resolution changing

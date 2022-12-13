@@ -308,7 +308,7 @@ class Filesystem:
 
         :sep: Separator on the FS
         :event_cb: SDK's Printer.event_cb method. If set, the FS
-            will call callback to put events to event queue on attach/dettach
+            will call callback to put events to event queue on attach/detach
             operations and the InotifyHandler on changes to the FS.
         """
         self.sep = sep
@@ -356,8 +356,8 @@ class Filesystem:
             }
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
-    def dettach(self, name: str):
-        """Dettach a storage.
+    def detach(self, name: str):
+        """Detach a storage.
 
         :param name: The storage
         :raises InvalidStorageError
@@ -776,6 +776,7 @@ class InotifyHandler:
         base_storage = self.attach_for(abs_path)
         parts = self.__rel_path_parts(abs_path, base_storage)
         node = base_storage.tree.get(parts)
+        node.set_attrs(abs_path)
         node.set_attrs(abs_path)
         path_ = node.abs_path(base_storage.storage)
         self.send_file_changed(
