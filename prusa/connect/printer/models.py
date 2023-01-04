@@ -201,9 +201,7 @@ class CameraRegister(LoopObject):
             dict(res) for res in self.camera.available_resolutions
         ]
         options = dict(available_resolutions=available_resolutions)
-        capabilities = [
-            cap.value for cap in self.camera.capabilities
-        ]
+        capabilities = [cap.value for cap in self.camera.capabilities]
 
         data = dict(config=config,
                     options=options,

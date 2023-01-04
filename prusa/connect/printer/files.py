@@ -196,15 +196,51 @@ class File:
 
     def to_dict(self):
         """:return `self` in the format for Connect Backend"""
+        if self.is_dir:
+            file_type = const.FileType.FOLDER.value
+        else:
+            if self.name.endswith(const.GCODE_EXTENSIONS):
+                file_type = const.FileType.PRINT_FILE.value
+            elif self.name.endswith(const.FIRMWARE_EXTENSION):
+                file_type = const.FileType.FIRMWARE.value
+            else:
+                file_type = const.FileType.FILE.value
+
         result = {
-            "type": "DIR" if self.is_dir else "FILE",
+            "type": file_type,
             "name": self.name,
         }
         for attr in ("ro", "m_timestamp"):
             if attr in self.attrs:
                 result[attr] = self.attrs[attr]
         result['size'] = self.size
-        children = [child.to_dict() for child in self.children.values()]
+        children = [child.name for child in self.children.values()]
+        if self.is_dir:
+            result['children'] = children
+        return result
+
+    def to_dict_legacy(self):
+        """:return `self` in the format for Connect Backend
+        This is a deprecated legacy code"""
+        if self.is_dir:
+            file_type = const.FileType.FOLDER.value
+        else:
+            if self.name.endswith(const.GCODE_EXTENSIONS):
+                file_type = const.FileType.PRINT_FILE.value
+            elif self.name.endswith(const.FIRMWARE_EXTENSION):
+                file_type = const.FileType.FIRMWARE.value
+            else:
+                file_type = const.FileType.FILE.value
+
+        result = {
+            "type": file_type,
+            "name": self.name,
+        }
+        for attr in ("ro", "m_timestamp"):
+            if attr in self.attrs:
+                result[attr] = self.attrs[attr]
+        result['size'] = self.size
+        children = [child.to_dict_legacy() for child in self.children.values()]
         if self.is_dir:
             result['children'] = children
         return result
@@ -274,6 +310,21 @@ class Storage:
         total_space to tree, if available"""
         if self.tree:
             tree = self.tree.to_dict()
+        space_info = self.get_space_info()
+        free_space = space_info.get("free_space")
+        total_space = space_info.get("total_space")
+        if free_space:
+            tree["free_space"] = free_space
+        if total_space:
+            tree["total_space"] = total_space
+        return tree
+
+    def to_dict_legacy(self):
+        """Returns tree in a format for Connect. Add attributes free_space and
+        total_space to tree, if available
+        This is a deprecated legacy code"""
+        if self.tree:
+            tree = self.tree.to_dict_legacy()
         space_info = self.get_space_info()
         free_space = space_info.get("free_space")
         total_space = space_info.get("total_space")
@@ -432,13 +483,32 @@ class Filesystem:
 
         :return: dictionary representation of the Filesystem.
         """
-        root = {"type": "DIR", "name": "/", "ro": True, "children": []}
+        root = {"type": "FOLDER", "name": "/", "ro": True, "children": []}
 
         if ROOT in self.storage_dict:
             root = self.storage_dict[ROOT].to_dict()
 
-        root["children"].extend(
-            [v.to_dict() for k, v in self.storage_dict.items() if k != ROOT])
+        root["children"].extend([
+            v.to_dict()["name"] for k, v in self.storage_dict.items()
+            if k != ROOT
+        ])
+        return root
+
+    def to_dict_legacy(self):
+        """Returns all the tree in the representation Connect requires
+        This is a deprecated legacy code
+
+        :return: dictionary representation of the Filesystem.
+        """
+        root = {"type": "FOLDER", "name": "/", "ro": True, "children": []}
+
+        if ROOT in self.storage_dict:
+            root = self.storage_dict[ROOT].to_dict()
+
+        root["children"].extend([
+            v.to_dict_legacy() for k, v in self.storage_dict.items()
+            if k != ROOT
+        ])
         return root
 
     def from_dir(self, dirpath: str, storage: str):
@@ -498,9 +568,9 @@ class InotifyHandler:
     using it makes sure that all its storage' `trees are updated on changes
     on the physical storage"""
 
-    WATCH_FLAGS = flags.CREATE | flags.DELETE | flags.MODIFY | \
-        flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM | \
-        flags.MOVE_SELF
+    WATCH_FLAGS = (flags.CREATE | flags.DELETE | flags.MODIFY
+                   | flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM
+                   | flags.MOVE_SELF)
 
     def __init__(self, fs: Filesystem):
         # pylint: disable=invalid-name

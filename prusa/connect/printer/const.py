@@ -7,6 +7,7 @@ CONNECTION_TIMEOUT = 10  # 10s
 PHOTO_TIMEOUT = 10  # 10s
 ONE_SECOND_TIMEOUT = 1  # 1s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
+FIRMWARE_EXTENSION = ".hex"
 SL_EXTENSIONS = (".sl1", )
 
 # Maximum length of filename, including .gcode suffix
@@ -143,6 +144,14 @@ class TransferType(Enum):
     FROM_CLIENT = "FROM_CLIENT"  # from computer
     TO_CONNECT = "TO_CONNECT"  # uploading to Connect
     TO_CLIENT = "TO_CLIENT"  # downloading to computer
+
+
+class FileType(Enum):
+    """File type"""
+    PRINT_FILE = 'PRINT_FILE'
+    FIRMWARE = 'FIRMWARE'
+    FILE = 'FILE'
+    FOLDER = 'FOLDER'
 
 
 class RegistrationStatus(Enum):

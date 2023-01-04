@@ -281,7 +281,7 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
+            'type': 'FOLDER',
             'name': 'test',
             'ro': False,
             'size': 0,
@@ -323,21 +323,11 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type':
-            'DIR',
-            'name':
-            'test',
-            'size':
-            0,
-            'ro':
-            False,
-            'children': [{
-                'name': 'test_dir',
-                'ro': False,
-                'size': 0,
-                'type': 'DIR',
-                'children': []
-            }]
+            'type': 'FOLDER',
+            'name': 'test',
+            'size': 0,
+            'ro': False,
+            'children': ['test_dir']
         }
 
         printer.command()  # exec DELETE_DIRECTORY
@@ -349,7 +339,7 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
+            'type': 'FOLDER',
             'name': 'test',
             'ro': False,
             'size': 0,
@@ -376,7 +366,7 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
+            'type': 'FOLDER',
             'name': 'test',
             'ro': False,
             'size': 0,
@@ -416,20 +406,11 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type':
-            'DIR',
-            'name':
-            'test',
-            'ro':
-            False,
-            'size':
-            1,
-            'children': [{
-                'name': 'test-file.hex',
-                'ro': False,
-                'size': 1,
-                'type': 'FILE'
-            }]
+            'type': 'FOLDER',
+            'name': 'test',
+            'ro': False,
+            'size': 1,
+            'children': ['test-file.hex']
         }
 
         printer.command()  # exec DELETE_FILE
@@ -441,7 +422,7 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
+            'type': 'FOLDER',
             'name': 'test',
             'ro': False,
             'size': 0,
@@ -465,7 +446,7 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
+            'type': 'FOLDER',
             'name': 'test',
             'size': 0,
             'ro': False,
@@ -504,7 +485,7 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'DIR',
+            'type': 'FOLDER',
             'name': 'test',
             'size': 0,
             'ro': False,
@@ -520,21 +501,11 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type':
-            'DIR',
-            'name':
-            'test',
-            'size':
-            0,
-            'ro':
-            False,
-            'children': [{
-                'name': 'test_dir',
-                'ro': False,
-                'type': 'DIR',
-                'size': 0,
-                'children': []
-            }]
+            'type': 'FOLDER',
+            'name': 'test',
+            'size': 0,
+            'ro': False,
+            'children': ['test_dir']
         }
         assert os.path.exists(path) is True
 
