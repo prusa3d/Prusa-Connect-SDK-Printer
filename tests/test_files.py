@@ -209,8 +209,19 @@ class TestFile:
     def test_to_dict(self, fs_from_dir):
         res = fs_from_dir.get("/a").to_dict()
         assert res == {
+            'type': 'FOLDER',
+            'name': 'a',
+            'ro': True,
+            'm_timestamp': 1596120005,
+            'size': 9132,
+            'children': ['b', 'c', '1.gcode']
+        }
+
+    def test_to_dict_legacy(self, fs_from_dir):
+        res = fs_from_dir.get("/a").to_dict_legacy()
+        assert res == {
             'type':
-            'DIR',
+            'FOLDER',
             'name':
             'a',
             'ro':
@@ -220,7 +231,7 @@ class TestFile:
             'size':
             9132,
             'children': [{
-                'type': 'DIR',
+                'type': 'FOLDER',
                 'name': 'b',
                 'ro': True,
                 'm_timestamp': 1596120005,
@@ -228,7 +239,7 @@ class TestFile:
                 'children': []
             }, {
                 'type':
-                'DIR',
+                'FOLDER',
                 'name':
                 'c',
                 'ro':
@@ -251,7 +262,7 @@ class TestFile:
                     'size': 3044
                 }]
             }, {
-                'type': 'FILE',
+                'type': 'PRINT_FILE',
                 'name': '1.gcode',
                 'ro': True,
                 'm_timestamp': 1596120005,
@@ -351,6 +362,16 @@ class TestFilesystem:
 
     def test_to_dict(self, fs):
         fs_dict = fs.to_dict()
+
+        assert fs_dict == {
+            'name': '/',
+            'ro': True,
+            'type': 'FOLDER',
+            'children': ['storage']
+        }
+
+    def test_to_dict_legacy(self, fs):
+        fs_dict = fs.to_dict_legacy()
         assert fs_dict['children'][0]['free_space'] > 0
         assert fs_dict['children'][0]['total_space'] > 0
 
@@ -362,33 +383,33 @@ class TestFilesystem:
             'ro':
             True,
             'type':
-            'DIR',
+            'FOLDER',
             'children': [{
                 'type':
-                'DIR',
+                'FOLDER',
                 'name':
                 'storage',
                 'size':
                 0,
                 'children': [{
                     'type':
-                    'DIR',
+                    'FOLDER',
                     'name':
                     'a',
                     'size':
                     0,
                     'children': [{
-                        'type': 'FILE',
+                        'type': 'PRINT_FILE',
                         'name': '1.gcode',
                         'size': 0
                     }, {
-                        'type': 'DIR',
+                        'type': 'FOLDER',
                         'name': 'b',
                         'size': 0,
                         'children': []
                     }, {
                         'type':
-                        'DIR',
+                        'FOLDER',
                         'name':
                         'c',
                         'size':
@@ -408,7 +429,7 @@ class TestFilesystem:
                 0,
                 'total_space':
                 42
-            }],
+            }]
         }
 
 
@@ -433,7 +454,7 @@ class TestINotify:
         assert len(str(event.data['file']['m_timestamp'])) == 10
         assert event.data['file']['name'] == "simple.gcode"
         assert not event.data['file']['ro']
-        assert event.data['file']['type'] == "FILE"
+        assert event.data['file']['type'] == 'PRINT_FILE'
         assert event.data['new_path'] == '/test/simple.gcode'
         assert event.data['old_path'] is None
 
@@ -456,7 +477,7 @@ class TestINotify:
         assert len(str(event.data['file']['m_timestamp'])) == 10
         assert event.data['file']['name'] == "folder"
         assert not event.data['file']['ro']
-        assert event.data['file']['type'] == "DIR"
+        assert event.data['file']['type'] == "FOLDER"
         assert event.data['new_path'] == '/test/folder'
         assert event.data['old_path'] is None
 
@@ -568,7 +589,7 @@ class TestINotify:
         assert event.event == const.Event.FILE_CHANGED
         assert event.source == const.Source.WUI
         assert event.data['old_path'] == event.data['new_path'] == "/test/"
-        assert event.data['file']['type'] == "DIR"
+        assert event.data['file']['type'] == "FOLDER"
         assert "m_timestamp" not in event.data['file']
         assert event.data['file']['name'] == "test"
 
