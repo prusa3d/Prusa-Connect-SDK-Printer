@@ -227,12 +227,12 @@ def test_printed_file_cb(download_mgr, printer):
     item = printer.queue.get_nowait()  # Download response
     assert item.event == const.Event.TRANSFER_INFO
     assert item.source == const.Source.WUI
-    assert item.data['transfer_id'] == download_mgr.transfer.transfer_id
+    assert item.transfer_id == download_mgr.transfer.transfer_id
 
     item = printer.queue.get_nowait()
     assert item.event == const.Event.TRANSFER_ABORTED
     assert item.source == const.Source.CONNECT
-    assert item.data['transfer_id'] == download_mgr.transfer.transfer_id
+    assert item.transfer_id == download_mgr.transfer.transfer_id
 
 
 def test_download_twice_in_a_row(gcode, download_mgr, printer):
@@ -314,4 +314,4 @@ def test_download_finished_cb(download_mgr, printer):
     item = printer.queue.get_nowait()
     assert item.event in (const.Event.TRANSFER_FINISHED,
                           const.Event.TRANSFER_STOPPED)
-    assert item.data['transfer_id'] == download_mgr.transfer.transfer_id
+    assert item.transfer_id == download_mgr.transfer.transfer_id

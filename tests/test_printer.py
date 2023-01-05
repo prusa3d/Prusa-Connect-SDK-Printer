@@ -947,7 +947,7 @@ class TestPrinter:
         run_loop(printer.loop)
 
         info = requests_mock.request_history[0].json()
-        transfer_id = info["data"]['transfer_id']
+        transfer_id = info['transfer_id']
         cmd = {"command": "SEND_TRANSFER_INFO", "transfer_id": transfer_id}
 
         requests_mock.post(SERVER + "/p/telemetry",
@@ -970,7 +970,7 @@ class TestPrinter:
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
-        assert info["data"]['transfer_id'] == transfer_id
+        assert info['transfer_id'] == transfer_id
 
     def test_transfer_info_failed(self, printer_sdcard, requests_mock):
         # prepare command and mocks
@@ -1169,7 +1169,7 @@ class TestPrinter:
         assert isinstance(item, Event)
         assert item.event == const.Event.TRANSFER_ABORTED
         assert item.source == const.Source.CONNECT
-        assert item.data.get('transfer_id') == printer.transfer.transfer_id
+        assert item.transfer_id == printer.transfer.transfer_id
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 
@@ -1189,7 +1189,7 @@ class TestPrinter:
         assert isinstance(item, Event)
         assert item.event == const.Event.TRANSFER_ABORTED
         assert item.source == const.Source.CONNECT
-        assert item.data.get('transfer_id') == printer.transfer.transfer_id
+        assert item.transfer_id == printer.transfer.transfer_id
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 
