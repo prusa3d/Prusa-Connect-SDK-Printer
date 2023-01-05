@@ -212,7 +212,7 @@ class Transfer:
                 time_remaining = int(time_remaining)
             return {
                 "transfer_id": self.transfer_id,
-                "start_command_id": self.start_cmd_id,
+                "start_cmd_id": self.start_cmd_id,
                 "type": self.type.value,
                 "path": self.path,
                 "url": self.url,
@@ -342,7 +342,7 @@ class DownloadMgr:
 
                     self.event_cb(Event.TRANSFER_FINISHED,
                                   Source.CONNECT,
-                                  start_command_id=self.transfer.start_cmd_id,
+                                  start_cmd_id=self.transfer.start_cmd_id,
                                   path=self.transfer.path,
                                   transfer_id=self.transfer.transfer_id)
                     self.download_finished_cb(self.transfer)

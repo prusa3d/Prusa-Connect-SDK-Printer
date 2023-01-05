@@ -870,7 +870,7 @@ class TestPrinter:
 
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
-        assert info["data"]["start_command_id"] == 42
+        assert info["data"]["start_cmd_id"] == 42
 
     def test_connect_download(self, requests_mock, printer_sdcard):
         path = "/sdcard/my.gcode"
@@ -913,7 +913,7 @@ class TestPrinter:
 
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
-        assert info["data"]["start_command_id"] == 42
+        assert info["data"]["start_cmd_id"] == 42
         assert info["data"]["hash"] == kwargs["hash"]
         assert info["data"]["team_id"] == kwargs["team_id"]
 
