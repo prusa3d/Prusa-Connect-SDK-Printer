@@ -3,6 +3,7 @@ ChangeLog
 
 0.7.0rc3
     * Added new flat struct for filesystem, old one is renamed to legacy
+    * transfer_id moved to root to all events
 
 0.7.0rc2(2022-11-30)
     * Camera support

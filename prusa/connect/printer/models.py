@@ -122,6 +122,7 @@ class Event(LoopObject):
                  timestamp: Optional[float] = None,
                  command_id: Optional[int] = None,
                  job_id: Optional[int] = None,
+                 transfer_id: Optional[int] = None,
                  reason: Optional[str] = None,
                  state: Optional[const.State] = None,
                  **kwargs):
@@ -130,6 +131,7 @@ class Event(LoopObject):
         self.source = source
         self.command_id = command_id
         self.job_id = job_id
+        self.transfer_id = transfer_id
         self.reason = reason
         self.state = state
         self.data = kwargs
@@ -141,7 +143,7 @@ class Event(LoopObject):
             "source": self.source.value,
             "data": filter_null(self.data)
         }
-        for attr in ('command_id', 'job_id', 'reason'):
+        for attr in ('command_id', 'job_id', 'transfer_id', 'reason'):
             value = getattr(self, attr)
             if value:
                 data[attr] = value

@@ -302,6 +302,8 @@ class Printer:
             return
         if self.job_id:
             kwargs['job_id'] = self.job_id
+        if self.transfer.in_progress and self.transfer.start_ts:
+            kwargs['transfer_id'] = self.transfer.transfer_id
         if 'state' not in kwargs:
             kwargs['state'] = self.state
         event_ = Event(event, source, timestamp, command_id, **kwargs)
