@@ -326,9 +326,10 @@ class CameraConfigurator:
         loaded_driver.connect()
 
         if loaded_driver.is_connected:
-            self.camera_controller.add_camera(Camera(loaded_driver))
+            camera = Camera(loaded_driver)
+            self.camera_controller.add_camera(camera)
             # Take the first photo right away
-            loaded_driver.trigger()
+            camera.trigger_a_photo()
 
     def _store_config(self, camera_id: str, config: Dict[str, str]) -> None:
         """Stores the config given to it, doesn't validate"""

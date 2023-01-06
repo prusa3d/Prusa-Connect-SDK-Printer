@@ -1,10 +1,12 @@
 """Implements test for the camera related modules"""
 from configparser import ConfigParser
 from threading import Event, Barrier
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
+import pytest
 from _pytest.python_api import raises
 
+from prusa.connect.printer import get_timestamp
 from prusa.connect.printer.camera_driver import CameraDriver
 from prusa.connect.printer.camera import Camera, Resolution, Snapshot
 from prusa.connect.printer.camera_controller import CameraController
@@ -186,10 +188,11 @@ def test_humpty_function():
     camera.trigger_a_photo()
     camera.photo_cb.event.wait(0.1)
     camera.photo_cb.assert_called_once()
-    assert camera.photo_cb.call_args.args[0] == camera
-    assert len(camera.photo_cb.call_args.args[1]) == 5
-    assert len(camera.photo_cb.call_args.args[1][0]) == 5
-    last = camera.last_photo
+    snapshot = camera.photo_cb.call_args.args[0]
+    assert snapshot.camera_fingerprint == camera.fingerprint
+    assert len(snapshot.data) == 5
+    assert len(snapshot.data[0]) == 5
+    last = camera.last_snapshot.data
     assert len(last) == len(last[0]) == 5
 
     camera.scheme_cb = EventSetMock()
@@ -233,7 +236,7 @@ def test_humpty_function():
         }, Mock())
     driver.connect()
     assert driver.is_connected
-    driver._photo_taker()
+    driver._photo_taker(Snapshot())
     driver.disconnected_cb.assert_called_once()
 
 
@@ -345,7 +348,7 @@ def test_configurator_auto_add():
     assert "abc" in configurator.loaded
     # Do not use trigger, that creates a thread and we do not want to deal
     # with synchronization in the tests
-    configurator.loaded["abc"]._photo_taker()
+    configurator.loaded["abc"]._photo_taker(Snapshot())
     assert "abc" not in configurator.camera_controller
     assert not configurator.is_connected("abc")
 
@@ -463,6 +466,9 @@ def test_camera_controller():
     camera_id1 = controller.get_camera(id1)
     camera_abc = controller.get_camera("abc")
 
+    camera_id1.wait_ready(0.1)
+    camera_abc.wait_ready(0.1)
+
     assert camera_abc in controller._trigger_piles[TriggerScheme.MANUAL]
 
     camera_id1.trigger_scheme = TriggerScheme.TEN_SEC
@@ -484,18 +490,57 @@ def test_camera_controller():
 
     camera_id1.photo_cb = barrier_handler
     camera_abc.photo_cb = barrier_handler
-    barrier_mock.assert_not_called()
-    controller.trigger_pile(TriggerScheme.TEN_SEC)
-    # a broken barrier is a fail - the callback was not called
-    barrier.wait(0.1)
-    barrier_mock.assert_has_calls(calls=[
-        call(camera_id1, [[1] * RES_BOTH] * RES_BOTH),
-        call(camera_abc, [[1] * RES_BOTH] * RES_BOTH)
-    ],
-                                  any_order=True)
 
-    controller.get_camera("abc").trigger_scheme = TriggerScheme.EACH_LAYER
+    controller.trigger_pile(TriggerScheme.TEN_SEC)
+    barrier.wait(0.1)
+    assert barrier_mock.call_count == 2
+    for arguments in barrier_mock.call_args_list:
+        snapshot = arguments.args[0]
+        assert snapshot.data == [[1] * RES_BOTH] * RES_BOTH
+        assert snapshot.camera_fingerprint in {
+            camera_abc.fingerprint, camera_id1.fingerprint
+        }
+
+    camera_abc.wait_ready(0.1)
+    camera_abc.trigger_scheme = TriggerScheme.EACH_LAYER
     assert camera_abc in controller._trigger_piles[TriggerScheme.EACH_LAYER]
+
+
+def test_passing_printer_uuid():
+    """Test that we can reliably pass a printer UUID
+    through the photo call chain"""
+    controller = CameraController(Mock(), "", Mock())
+    configurator = CameraConfigurator(controller,
+                                      ConfigParser(),
+                                      "/dev/null",
+                                      drivers=[DummyDriver])
+    assert configurator is not None
+
+    id1 = CameraDriver.make_hash("id1")
+    camera_id1 = controller.get_camera(id1)
+
+    camera_id1.wait_ready(0.1)
+
+    camera_id1.trigger_scheme = TriggerScheme.MANUAL
+    assert camera_id1 in controller._trigger_piles[TriggerScheme.MANUAL]
+
+    barrier = Barrier(2)
+    barrier_mock = Mock()
+
+    def barrier_handler(*args, **kwargs):
+        """If the test and both cameras wait on this barrier, they'll get
+        through. A timeout means fail of the test"""
+        barrier_mock(*args, **kwargs)
+        barrier.wait()
+
+    camera_id1.photo_cb = barrier_handler
+
+    snapshot = Snapshot()
+    snapshot.printer_uuid = "Rise and shine"
+    camera_id1.trigger_a_photo(snapshot)
+    barrier.wait(100.1)
+    barrier_mock.assert_called()
+    assert barrier_mock.call_args.args[0].printer_uuid == snapshot.printer_uuid
 
 
 def test_setting_conversions():
@@ -521,41 +566,40 @@ def test_setting_conversions():
     assert exported_settings == back_from_string
 
 
-class MockCamera:
-    def __init__(self):
-        self.is_registered = True
-        self.name = "Mock camera"
-        self.fingerprint = "test_fingerprint"
-        self.token = "test_token"
+@pytest.fixture()
+def snapshot():
+    snapshot = Snapshot()
+    snapshot.camera_fingerprint = "test_fingerprint"
+    snapshot.camera_token = "test_token"
+    snapshot.camera_id = "test_id"
+    snapshot.timestamp = get_timestamp()
+    snapshot.data = b'1010'
+    return snapshot
 
 
-def test_snapshot(printer):
+def test_snapshot(printer, snapshot):
     camera_controller = printer.camera_controller
 
-    data = b'1010'
-
-    camera_controller.photo_handler(MockCamera(), data)
+    camera_controller.photo_handler(snapshot)
     item = camera_controller.snapshot_queue.get_nowait()
     assert isinstance(item, Snapshot)
-    assert item.camera.fingerprint == "test_fingerprint"
-    assert item.camera.token == "test_token"
-    assert item.data == data
+    assert item.camera_fingerprint == "test_fingerprint"
+    assert item.camera_token == "test_token"
+    assert item.data == snapshot.data
 
 
-def test_snapshot_loop(requests_mock, printer):
+def test_snapshot_loop(requests_mock, printer, snapshot):
     camera_controller = printer.camera_controller
 
     requests_mock.put(SERVER + "/c/snapshot", status_code=204)
-    data = b'1010'
-    camera = MockCamera()
 
-    camera_controller.photo_handler(camera, data)
+    camera_controller.photo_handler(snapshot)
     run_loop(camera_controller.snapshot_loop)
     req = requests_mock.request_history[0]
     assert (str(req) == f"PUT {SERVER}/c/snapshot")
-    assert req.headers["Fingerprint"] == camera.fingerprint
-    assert req.headers["Token"] == camera.token
-    assert req.headers["Content-Length"] == str(len(data))
+    assert req.headers["Fingerprint"] == snapshot.camera_fingerprint
+    assert req.headers["Token"] == snapshot.camera_token
+    assert req.headers["Content-Length"] == str(len(snapshot.data))
 
 
 def test_camera_register(printer):
