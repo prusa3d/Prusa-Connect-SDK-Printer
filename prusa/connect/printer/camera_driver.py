@@ -8,7 +8,7 @@ from threading import Thread
 from typing import Set, Optional, Callable, Iterable, Dict
 
 from . import get_timestamp
-from .camera import Resolution
+from .camera import Resolution, Snapshot
 from .const import CapabilityType, ALWAYS_REQURIED, ConfigError, CameraConfigs
 
 log = logging.getLogger("camera_driver")
@@ -45,7 +45,7 @@ class CameraDriver:
         A cameraDriver is not supposed to raise on init, just don't set
         connected to True"""
         # Do not call these, call the methods that call them
-        self.photo_cb: Callable[[bytes], None] = lambda photo: None
+        self.photo_cb: Callable[[Snapshot], None] = lambda photo: None
         self.disconnected_cb = disconnected_cb
         self.store_cb: Callable[[str], None] = lambda camera_id: None
 
@@ -61,8 +61,7 @@ class CameraDriver:
         self._capabilities: Set[CapabilityType] = set()
         self._available_resolutions: Set[Resolution] = set()
         # For web to show a preview even if the camera does not work right now
-        self._last_photo: Optional[bytes] = None
-        self._last_photo_timestamp: Optional[float] = None
+        self._last_snapshot: Optional[Snapshot] = None
 
     def _connect(self):
         """Put all your connecting code over here"""
@@ -195,29 +194,33 @@ class CameraDriver:
         """Override this, with your exposure setting method"""
         not_implemented(self, "exposure")
 
-    def trigger(self) -> None:
+    def trigger(self, snapshot: Optional[Snapshot] = None) -> None:
         """This method is not allowed to block, it just
         creates a new thread and runs it"""
+        if snapshot is None:
+            snapshot = Snapshot()
+            snapshot.camera_id = self.camera_id
         self._photo_thread = Thread(target=self._photo_taker,
+                                    args=(snapshot, ),
                                     name="Photographer",
                                     daemon=True)
         self._photo_thread.start()
 
-    def _photo_taker(self) -> None:
+    def _photo_taker(self, snapshot: Snapshot) -> None:
         """The thread target, calls the blocking photo taking method and
         catches errors. If a camera errors out while taking a photo it's
         considered disconnected"""
         try:
-            photo = self.take_a_photo()
+            snapshot.data = self.take_a_photo()
         except Exception:  # pylint: disable=broad-except
             log.exception(
                 "The driver %s broke while taking a photo. "
                 "Disconnecting", self.name)
             self.disconnect()
         else:
-            self._last_photo = photo
-            self._last_photo_timestamp = get_timestamp()
-            self.photo_cb(photo)
+            snapshot.timestamp = get_timestamp()
+            self._last_snapshot = snapshot
+            self.photo_cb(snapshot)
 
     def take_a_photo(self) -> bytes:
         """Takes a photo and returns it. Can block"""
@@ -243,18 +246,11 @@ class CameraDriver:
         return self._connected
 
     @property
-    def last_photo(self) -> Optional[bytes]:
+    def last_snapshot(self) -> Optional[Snapshot]:
         """
         Returns the last photo the camera has taken - None by default
         """
-        return self._last_photo
-
-    @property
-    def last_photo_timestamp(self) -> Optional[float]:
-        """
-        Returns the last photo the camera has taken - None by default
-        """
-        return self._last_photo_timestamp
+        return self._last_snapshot
 
     @property
     def camera_id(self) -> str:

@@ -15,7 +15,6 @@ from .models import CameraRegister, LoopObject
 log = logging.getLogger("camera_controller")
 
 # pylint: disable=fixme
-# TODO: Add Z change trigger thingy
 
 
 class CameraController:
@@ -138,13 +137,11 @@ class CameraController:
         self._trigger_piles[old].remove(camera)
         self._trigger_piles[new].add(camera)
 
-    def photo_handler(self, camera: Camera, photo_data: bytes) -> None:
-        """Here a callback call to the SDK starts the image upload"""
-        if not camera.is_registered:
+    def photo_handler(self, snapshot: Snapshot) -> None:
+        """Puts a snapshot received from the callback into a queue
+        for sending"""
+        if not snapshot.is_sendable():
             return
-        log.debug("A camera %s has taken a photo. (%s bytes)", camera.name,
-                  len(photo_data))
-        snapshot = Snapshot(photo_data, camera)
         self.snapshot_queue.put(snapshot)
 
     def snapshot_loop(self) -> None:
@@ -160,7 +157,7 @@ class CameraController:
                 if res.status_code in (401, 403):
                     log.error("Failed to authorize request, "
                               "resetting camera token")
-                    item.camera.set_token(None)
+                    self.get_camera(item.camera_id).set_token(None)
                 if res.status_code > 400:
                     log.warning(res.text)
                 elif res.status_code == 400:

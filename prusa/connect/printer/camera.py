@@ -10,7 +10,7 @@ from requests import Session
 
 from .const import CapabilityType, TriggerScheme, DEFAULT_CAMERA_SETTINGS, \
     NotSupported, PHOTO_TIMEOUT, CameraBusy, CONNECTION_TIMEOUT, DriverError
-from .util import make_fingerprint, get_timestamp
+from .util import make_fingerprint
 
 log = logging.getLogger("camera")
 
@@ -21,23 +21,40 @@ class Snapshot:
     method = "PUT"
 
     # pylint: disable=too-many-arguments
-    def __init__(self, data: bytes, camera: "Camera"):
-        self.data = data
-        self.camera = camera
-        self.timestamp = get_timestamp()
+    def __init__(self):
+        self.camera_token = None
+        self.camera_fingerprint = None
+        self.camera_id = None
+        self.printer_uuid = None
+        self.data = None
+        self.timestamp = None
+
+    def is_sendable(self) -> bool:
+        """Is this snapshot complete and can it therefore be sent?"""
+        required_attributes = [
+            self.camera_fingerprint, self.camera_token, self.camera_id,
+            self.timestamp, self.data
+        ]
+        return all(attribute is not None for attribute in required_attributes)
 
     def send(self, conn: Session, server):
         """A snapshot send function"""
+        if not self.is_sendable():
+            log.warning("Sending an incomplete snapshot")
         name = self.__class__.__name__
         log.debug("Sending %s: %s", name, self)
 
         headers = {
             "Timestamp": str(self.timestamp),
-            "Fingerprint": self.camera.fingerprint,
-            "Token": self.camera.token,
+            "Fingerprint": self.camera_fingerprint,
+            "Token": self.camera_token,
             'Content-Type': "image/jpg"
         }
+        params = {}
+        if self.printer_uuid is not None:
+            params["printer_uuid"] = self.printer_uuid
         res = conn.request(method=self.method,
+                           params=params,
                            url=server + self.endpoint,
                            headers=headers,
                            data=self.data,
@@ -149,8 +166,6 @@ def value_getter(capability_type):
 # pylint: disable=too-many-public-methods
 class Camera:
     """The class for fully loaded cameras to be operated by the application"""
-    _last_photo: Any
-
     def __init__(self, driver):
         self._trigger_scheme = None
         self._resolution = None
@@ -161,12 +176,11 @@ class Camera:
 
         self._ready_event = Event()
         self._ready_event.set()
-        self._last_photo = None
 
         # Changed the trigger scheme of this camera - tell the manager
         self.scheme_cb = lambda camera, old, new: None
         # A photo has been taken - give it to the manager
-        self.photo_cb = lambda camera, photo: None
+        self.photo_cb = lambda snapshot: None
 
         self._driver = driver
         self._driver.photo_cb = self._photo_handler
@@ -352,9 +366,9 @@ class Camera:
         if not self.is_busy:
             self.trigger_a_photo()
         self.wait_ready(timeout=PHOTO_TIMEOUT)
-        return self.last_photo
+        return self.last_snapshot
 
-    def trigger_a_photo(self):
+    def trigger_a_photo(self, snapshot: Optional[Snapshot] = None):
         """Triggers the camera, if we're expecting an image back,
         be busy until it arrives """
         if self.is_busy:
@@ -362,12 +376,12 @@ class Camera:
                              "to take more photos")
         if CapabilityType.IMAGING in self._capabilities:
             self._ready_event.clear()
-        self._driver.trigger()
+        self._driver.trigger(snapshot)
 
     @property
-    def last_photo(self):
+    def last_snapshot(self):
         """Gets the camera's last photo it has taken (can be None)"""
-        return self._last_photo
+        return self._driver.last_snapshot
 
     @property
     def output_resolution(self):
@@ -493,11 +507,14 @@ class Camera:
 
     # --- Private parts ---
 
-    def _photo_handler(self, photo_data):
+    def _photo_handler(self, snapshot: Snapshot):
         """Notifies the SDK that a photo has been taken by this camera"""
         if not self.supports(CapabilityType.IMAGING):
             raise RuntimeError("Driver that does not support imaging has "
                                "taken a photo")
-        self._last_photo = photo_data
+        snapshot.camera_fingerprint = self.fingerprint
+        snapshot.camera_token = self.token
+        self.photo_cb(snapshot)
         self._ready_event.set()
-        self.photo_cb(self, photo_data)
+        log.debug("A camera %s has taken a photo. (%s bytes)", self.name,
+                  len(snapshot.data))
