@@ -319,15 +319,34 @@ class TestPrinter:
         assert info["event"] == "FILE_CHANGED"
         assert info["source"] == "WUI"
 
-        # check file structure
-        file_system = storage.tree.to_dict()
+        # check file structure without children
+        file_system = storage.tree.to_dict(include_children=False)
         remove_m_time(file_system)
         assert file_system == {
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False,
-            'children': ['test_dir']
+            'ro': False
+        }
+
+        # check file structure
+        file_system = storage.tree.to_dict()
+        remove_m_time(file_system)
+        assert file_system == {
+            'type':
+            'FOLDER',
+            'name':
+            'test',
+            'size':
+            0,
+            'ro':
+            False,
+            'children': [{
+                'type': 'FOLDER',
+                'name': 'test_dir',
+                'ro': False,
+                'size': 0
+            }]
         }
 
         printer.command()  # exec DELETE_DIRECTORY
@@ -406,11 +425,20 @@ class TestPrinter:
         file_system = storage.tree.to_dict()
         remove_m_time(file_system)
         assert file_system == {
-            'type': 'FOLDER',
-            'name': 'test',
-            'ro': False,
-            'size': 1,
-            'children': ['test-file.hex']
+            'type':
+            'FOLDER',
+            'name':
+            'test',
+            'ro':
+            False,
+            'size':
+            1,
+            'children': [{
+                'type': 'FIRMWARE',
+                'name': 'test-file.hex',
+                'ro': False,
+                'size': 1
+            }]
         }
 
         printer.command()  # exec DELETE_FILE
@@ -497,15 +525,35 @@ class TestPrinter:
 
         run_loop(printer.loop)
 
-        # check file structure
-        file_system = storage.tree.to_dict()
+        # check file structure without children
+        file_system = storage.tree.to_dict(include_children=False)
         remove_m_time(file_system)
         assert file_system == {
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False,
-            'children': ['test_dir']
+            'ro': False
+        }
+        assert os.path.exists(path) is True
+
+        # check file structure
+        file_system = storage.tree.to_dict()
+        remove_m_time(file_system)
+        assert file_system == {
+            'type':
+            'FOLDER',
+            'name':
+            'test',
+            'size':
+            0,
+            'ro':
+            False,
+            'children': [{
+                'type': 'FOLDER',
+                'name': 'test_dir',
+                'ro': False,
+                'size': 0
+            }]
         }
         assert os.path.exists(path) is True
 

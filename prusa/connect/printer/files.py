@@ -54,6 +54,17 @@ def delete(abs_path, is_dir):
                                 f" File or folder doesn't exist.")
 
 
+def get_file_type(file):
+    """Return file type of file/folder"""
+    if file.is_dir:
+        return const.FileType.FOLDER
+    if file.name.endswith(const.GCODE_EXTENSIONS):
+        return const.FileType.PRINT_FILE
+    if file.name.endswith(const.FIRMWARE_EXTENSION):
+        return const.FileType.FIRMWARE
+    return const.FileType.FILE
+
+
 class File:
     """A node of a Filesystem representing either a file or a folder"""
     def __init__(self,
@@ -194,29 +205,23 @@ class File:
                          _last=counter == 0,
                          _first=False)
 
-    def to_dict(self):
-        """:return `self` in the format for Connect Backend"""
-        if self.is_dir:
-            file_type = const.FileType.FOLDER.value
-        else:
-            if self.name.endswith(const.GCODE_EXTENSIONS):
-                file_type = const.FileType.PRINT_FILE.value
-            elif self.name.endswith(const.FIRMWARE_EXTENSION):
-                file_type = const.FileType.FIRMWARE.value
-            else:
-                file_type = const.FileType.FILE.value
-
+    def to_dict(self, include_children=True):
+        """Return self in the format for Connect Backend"""
         result = {
-            "type": file_type,
+            "type": get_file_type(self).value,
             "name": self.name,
         }
         for attr in ("ro", "m_timestamp"):
             if attr in self.attrs:
                 result[attr] = self.attrs[attr]
         result['size'] = self.size
-        children = [child.name for child in self.children.values()]
-        if self.is_dir:
+
+        if self.is_dir and include_children:
+            children = []
+            for child in self.children.values():
+                children.append(child.to_dict(False))
             result['children'] = children
+
         return result
 
     def to_dict_legacy(self):
@@ -309,7 +314,9 @@ class Storage:
         """Returns tree in a format for Connect. Add attributes free_space and
         total_space to tree, if available"""
         if self.tree:
-            tree = self.tree.to_dict()
+            tree = self.tree.to_dict(self.storage)
+        else:
+            tree = {}
         space_info = self.get_space_info()
         free_space = space_info.get("free_space")
         total_space = space_info.get("total_space")
@@ -325,6 +332,8 @@ class Storage:
         This is a deprecated legacy code"""
         if self.tree:
             tree = self.tree.to_dict_legacy()
+        else:
+            tree = {}
         space_info = self.get_space_info()
         free_space = space_info.get("free_space")
         total_space = space_info.get("total_space")
