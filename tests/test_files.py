@@ -209,12 +209,45 @@ class TestFile:
     def test_to_dict(self, fs_from_dir):
         res = fs_from_dir.get("/a").to_dict()
         assert res == {
+            'type':
+            'FOLDER',
+            'name':
+            'a',
+            'ro':
+            True,
+            'm_timestamp':
+            1596120005,
+            'size':
+            9132,
+            'children': [{
+                'type': 'FOLDER',
+                'name': 'b',
+                'ro': True,
+                'm_timestamp': 1596120005,
+                'size': 0
+            }, {
+                'type': 'FOLDER',
+                'name': 'c',
+                'ro': True,
+                'm_timestamp': 1596120005,
+                'size': 6088
+            }, {
+                'type': 'PRINT_FILE',
+                'name': '1.gcode',
+                'ro': True,
+                'm_timestamp': 1596120005,
+                'size': 3044
+            }]
+        }
+
+    def test_to_dict_no_children(self, fs_from_dir):
+        res = fs_from_dir.get("/a").to_dict(include_children=False)
+        assert res == {
             'type': 'FOLDER',
             'name': 'a',
             'ro': True,
             'm_timestamp': 1596120005,
-            'size': 9132,
-            'children': ['b', 'c', '1.gcode']
+            'size': 9132
         }
 
     def test_to_dict_legacy(self, fs_from_dir):
