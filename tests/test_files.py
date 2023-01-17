@@ -319,14 +319,14 @@ class TestFilesystem:
         assert fs.storage_dict["storage"].get_space_info().get(
             "total_space") > 0
 
-    def test_dettach(self, fs):
-        fs.dettach("storage")
+    def test_detach(self, fs):
+        fs.detach("storage")
         assert len(fs.storage_dict) == 0
 
-    def test_dettach_invalid_storage(self):
+    def test_detach_invalid_storage(self):
         fs = Filesystem()
         with pytest.raises(ValueError):
-            fs.dettach("doesn-not-exist")
+            fs.detach("doesn-not-exist")
 
     def test_from_dir(self, fs_from_dir, fs):
         b = fs_from_dir.get("/a/b")
