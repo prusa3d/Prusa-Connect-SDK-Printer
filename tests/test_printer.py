@@ -644,7 +644,7 @@ class TestPrinter:
 
     def test_inotify(self, printer):
         # create two dirs. This will test if recreating the InotifyHandler
-        # in attach/dettach has side effects of creating multiple events
+        # in attach/detach has side effects of creating multiple events
         # for the same thing
         dir1 = tempfile.TemporaryDirectory()
         open(f"{dir1.name}/before1.txt", "w").close()
