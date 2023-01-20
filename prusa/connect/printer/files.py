@@ -6,6 +6,7 @@ import weakref
 from logging import getLogger
 from time import time, sleep
 from os import path, access, W_OK, stat, walk
+from shutil import rmtree
 from collections import Counter
 from typing import Optional
 from inotify_simple import INotify, flags  # type: ignore
@@ -38,15 +39,19 @@ def common_start(sa, sb):
     return ''.join(_iter())
 
 
-def delete(abs_path, is_dir):
+def delete(abs_path, is_dir, force=False):
     """Delete file or folder.
 
     :param abs_path: absolute path
     :param is_dir: True if folder
+    :param force: Force delete non-empty folder if True
     """
     if os.path.exists(abs_path):
         if is_dir:
-            os.rmdir(abs_path)
+            if force:
+                rmtree(abs_path)
+            else:
+                os.rmdir(abs_path)
         else:
             os.unlink(abs_path)
     else:

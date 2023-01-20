@@ -554,7 +554,7 @@ class Printer:
 
         abs_path = self.inotify_handler.get_abs_os_path(caller.kwargs["path"])
 
-        delete(abs_path, True)
+        delete(abs_path, True, force=caller.kwargs.get("force", False))
 
         return dict(source=const.Source.CONNECT)
 
