@@ -388,7 +388,7 @@ class Printer:
                     sdk=__version__,
                     network_info=self.network_info,
                     api_key=self.api_key,
-                    files=self.fs.to_dict(),
+                    files=self.fs.to_dict_legacy(),
                     sn=self.sn,
                     fingerprint=self.fingerprint,
                     mbl=self.mbl,

@@ -254,7 +254,7 @@ class TestFile:
         res = fs_from_dir.get("/a").to_dict_legacy()
         assert res == {
             'type':
-            'FOLDER',
+            'DIR',
             'name':
             'a',
             'ro':
@@ -264,7 +264,7 @@ class TestFile:
             'size':
             9132,
             'children': [{
-                'type': 'FOLDER',
+                'type': 'DIR',
                 'name': 'b',
                 'ro': True,
                 'm_timestamp': 1596120005,
@@ -272,7 +272,7 @@ class TestFile:
                 'children': []
             }, {
                 'type':
-                'FOLDER',
+                'DIR',
                 'name':
                 'c',
                 'ro':
@@ -295,7 +295,7 @@ class TestFile:
                     'size': 3044
                 }]
             }, {
-                'type': 'PRINT_FILE',
+                'type': 'FILE',
                 'name': '1.gcode',
                 'ro': True,
                 'm_timestamp': 1596120005,
@@ -416,33 +416,33 @@ class TestFilesystem:
             'ro':
             True,
             'type':
-            'FOLDER',
+            'DIR',
             'children': [{
                 'type':
-                'FOLDER',
+                'DIR',
                 'name':
                 'storage',
                 'size':
                 0,
                 'children': [{
                     'type':
-                    'FOLDER',
+                    'DIR',
                     'name':
                     'a',
                     'size':
                     0,
                     'children': [{
-                        'type': 'PRINT_FILE',
+                        'type': 'FILE',
                         'name': '1.gcode',
                         'size': 0
                     }, {
-                        'type': 'FOLDER',
+                        'type': 'DIR',
                         'name': 'b',
                         'size': 0,
                         'children': []
                     }, {
                         'type':
-                        'FOLDER',
+                        'DIR',
                         'name':
                         'c',
                         'size':
