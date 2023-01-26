@@ -232,15 +232,7 @@ class File:
     def to_dict_legacy(self):
         """:return `self` in the format for Connect Backend
         This is a deprecated legacy code"""
-        if self.is_dir:
-            file_type = const.FileType.FOLDER.value
-        else:
-            if self.name.endswith(const.GCODE_EXTENSIONS):
-                file_type = const.FileType.PRINT_FILE.value
-            elif self.name.endswith(const.FIRMWARE_EXTENSION):
-                file_type = const.FileType.FIRMWARE.value
-            else:
-                file_type = const.FileType.FILE.value
+        file_type = "DIR" if self.is_dir else "FILE"
 
         result = {
             "type": file_type,
@@ -417,7 +409,7 @@ class Filesystem:
         if self.event_cb:
             payload = {
                 "root": f"{self.sep}{name}",
-                "files": self.storage_dict[name].to_dict()
+                "files": self.storage_dict[name].to_dict_legacy()
             }
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
@@ -514,10 +506,10 @@ class Filesystem:
 
         :return: dictionary representation of the Filesystem.
         """
-        root = {"type": "FOLDER", "name": "/", "ro": True, "children": []}
+        root = {"type": "DIR", "name": "/", "ro": True, "children": []}
 
         if ROOT in self.storage_dict:
-            root = self.storage_dict[ROOT].to_dict()
+            root = self.storage_dict[ROOT].to_dict_legacy()
 
         root["children"].extend([
             v.to_dict_legacy() for k, v in self.storage_dict.items()
