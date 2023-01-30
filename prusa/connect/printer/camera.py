@@ -347,9 +347,6 @@ class Camera:
         if not self.supports(CapabilityType.IMAGING):
             raise NotSupported("This camera does not support "
                                "returning images")
-        if self.trigger_scheme != TriggerScheme.MANUAL:
-            raise NotSupported("Taking a photo manually is supported only "
-                               "in the MANUAL TriggerScheme")
         if not self.is_busy:
             self.trigger_a_photo()
         self.wait_ready(timeout=CAMERA_WAIT_TIMEOUT)
