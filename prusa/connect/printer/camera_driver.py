@@ -78,10 +78,7 @@ class CameraDriver:
         except Exception:  # pylint: disable=broad-except
             log.exception("Initialization of camera %s has failed",
                           self.config.get("name", "unknown"))
-            try:
-                self.disconnect()
-            except Exception:  # pylint: disable=broad-except
-                pass  # Try disconnecting, don't care whether it fails or not
+            self.disconnect()
         else:
             self._connected = True
 
@@ -166,12 +163,18 @@ class CameraDriver:
         return not missing_settings
 
     def disconnect(self) -> None:
-        """If a camera needs to handle a disconnect,
-        override this in your driver
-        Call this parent implementation when your camera gets disconnected
-        or breaks down"""
+        """Called when a camera breaks down or disconnects. Does not raise"""
+        try:
+            self._disconnect()
+        except Exception:  # pylint: disable=broad-except
+            log.exception("Driver %s for a camera %s threw an error while "
+                          "disconnecting", self.name, self.camera_id)
         self._connected = False
         self.disconnected_cb(self)
+
+    def _disconnect(self) -> None:
+        """If your driver needs to handle a disconnect, override this"""
+
 
     # --- Setting change handlers ---
     # These get called when the camera object wants to change settings
