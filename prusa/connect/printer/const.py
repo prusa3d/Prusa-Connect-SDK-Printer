@@ -4,7 +4,7 @@ from typing import Dict
 
 TIMESTAMP_PRECISION = 0.1  # 100ms
 CONNECTION_TIMEOUT = 10  # 10s
-PHOTO_TIMEOUT = 10  # 10s
+CAMERA_WAIT_TIMEOUT = 3  # 3s
 ONE_SECOND_TIMEOUT = 1  # 1s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
 FIRMWARE_EXTENSION = ".hex"
@@ -198,6 +198,9 @@ class CameraNotFound(RuntimeError):
 class CameraNotDetected(RuntimeError):
     """Raised when trying to ad a camera only by its ID and it is not
     in the detected cameras"""
+
+class ReadyTimeoutError(RuntimeError):
+    """Raised when we time out waiting for a camera to become ready"""
 
 
 # These settings are always required to instance a camera

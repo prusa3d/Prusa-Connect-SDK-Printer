@@ -9,7 +9,8 @@ from typing import Any, Set, Optional, Dict
 from requests import Session
 
 from .const import CapabilityType, TriggerScheme, DEFAULT_CAMERA_SETTINGS, \
-    NotSupported, PHOTO_TIMEOUT, CameraBusy, CONNECTION_TIMEOUT, DriverError
+    NotSupported, CAMERA_WAIT_TIMEOUT, CameraBusy, CONNECTION_TIMEOUT, \
+    DriverError, ReadyTimeoutError
 from .util import make_fingerprint
 
 log = logging.getLogger("camera")
@@ -123,9 +124,7 @@ def value_setter(capability_type):
                 raise NotSupported(
                     f"The camera {camera.name} does not support setting "
                     f"{capability_type.name}")
-            if camera.is_busy:
-                raise CameraBusy(f"The camera {camera.name} is far too busy "
-                                 f"to take care of your request")
+            camera.wait_ready(timeout=CAMERA_WAIT_TIMEOUT)
             try:
                 func(camera, value)
             except Exception as exception:  # pylint: disable=broad-except
@@ -312,8 +311,8 @@ class Camera:
         """Waits for the camera to become ready.
         raises TimeoutError if unsuccessful"""
         if not self._ready_event.wait(timeout):
-            raise TimeoutError(f"The camera did not become ready in "
-                               f"{timeout}s")
+            raise ReadyTimeoutError(
+                f"The camera {self.camera_id} did not become ready in time.")
 
     @property
     def camera_id(self):
@@ -353,7 +352,7 @@ class Camera:
                                "in the MANUAL TriggerScheme")
         if not self.is_busy:
             self.trigger_a_photo()
-        self.wait_ready(timeout=PHOTO_TIMEOUT)
+        self.wait_ready(timeout=CAMERA_WAIT_TIMEOUT)
         return self.last_snapshot
 
     def trigger_a_photo(self, snapshot: Optional[Snapshot] = None):
