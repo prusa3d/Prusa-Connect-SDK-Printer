@@ -131,17 +131,12 @@ def value_setter(capability_type):
             except Exception as exception:  # pylint: disable=broad-except
                 log.exception("Exception while setting %s",
                               capability_type.name)
-                try:
-                    func(camera, old_value, call_back=False)
-                except (AttributeError, ValueError, KeyError, TypeError):
-                    # Might not be an ideal way to resolve this
-                    camera.force_reset(capability_type)
-                finally:
-                    # pylint: disable=protected-access
-                    raise DriverError(
-                        f"The driver {camera._driver.name} failed to set the"
-                        f" {capability_type.value} from {old_value} "
-                        f"to {value}.") from exception
+                camera.disconnect()
+                # pylint: disable=protected-access
+                raise DriverError(
+                    f"The driver {camera._driver.name} failed to set the"
+                    f" {capability_type.value} from {old_value} "
+                    f"to {value}.") from exception
 
         return inner
 
@@ -224,12 +219,6 @@ class Camera:
         """Calls the setter for the value specified by CapabilityType"""
         setattr(self, str(capability_type.value), value)
 
-    def force_reset(self, capability_type: CapabilityType):
-        """Forces the value to None after failed attempts to change it"""
-        if not self.supports(capability_type):
-            raise NotSupported(f"The camera does not support: {self.name}")
-        setattr(self, "_" + str(capability_type.value), None)
-
     @property
     @value_getter(CapabilityType.TRIGGER_SCHEME)
     def trigger_scheme(self):
@@ -238,12 +227,14 @@ class Camera:
 
     @trigger_scheme.setter
     @value_setter(CapabilityType.TRIGGER_SCHEME)
-    def trigger_scheme(self, trigger_scheme: TriggerScheme, call_back=True):
-        """Setter for trigger scheme capability value"""
-        old_value = self._trigger_scheme
+    def trigger_scheme(self, trigger_scheme: TriggerScheme):
+        """Setter for trigger scheme capability value
+
+        valid for all following setters:
+        Calls the driver first, so if it fails, the config change
+        will get skipped"""
+        self.scheme_cb(self, self._trigger_scheme, trigger_scheme)
         self._trigger_scheme = trigger_scheme
-        if call_back:
-            self.scheme_cb(self, old_value, trigger_scheme)
 
     @property
     @value_getter(CapabilityType.RESOLUTION)
@@ -253,13 +244,12 @@ class Camera:
 
     @resolution.setter
     @value_setter(CapabilityType.RESOLUTION)
-    def resolution(self, resolution: Resolution, call_back=True):
+    def resolution(self, resolution: Resolution):
         """Setter for resolution capability value"""
         if resolution not in self.available_resolutions:
             raise ValueError(f"Resolution {resolution} is not available")
+        self._driver.set_resolution(resolution)
         self._resolution = resolution
-        if call_back:
-            self._driver.set_resolution(resolution)
 
     @property
     @value_getter(CapabilityType.ROTATION)
@@ -269,13 +259,12 @@ class Camera:
 
     @rotation.setter
     @value_setter(CapabilityType.ROTATION)
-    def rotation(self, rotation: int, call_back=True):
+    def rotation(self, rotation: int):
         """Setter for rotation capability value"""
         if rotation not in {0, 90, 180, 270}:
             raise ValueError(f"Rotation of {rotation}° is not allowed")
+        self._driver.set_rotation(rotation)
         self._rotation = rotation
-        if call_back:
-            self._driver.set_rotation(rotation)
 
     @property
     @value_getter(CapabilityType.EXPOSURE)
@@ -285,13 +274,12 @@ class Camera:
 
     @exposure.setter
     @value_setter(CapabilityType.EXPOSURE)
-    def exposure(self, exposure: float, call_back=True):
+    def exposure(self, exposure: float):
         """Setter for exposure capability value"""
         if not -2 <= exposure <= 2:
             raise ValueError(f"Exposure of {exposure} is not allowed")
+        self._driver.set_exposure(exposure)
         self._exposure = exposure
-        if call_back:
-            self._driver.set_exposure(exposure)
 
     # -----------------------------
 
