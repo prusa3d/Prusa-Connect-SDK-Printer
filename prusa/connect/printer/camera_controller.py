@@ -9,7 +9,7 @@ from requests import Session
 
 from .camera import Snapshot, Camera
 from .const import TriggerScheme, TIMESTAMP_PRECISION, \
-    TRIGGER_SCHEME_TO_SECONDS
+    TRIGGER_SCHEME_TO_SECONDS, CameraBusy
 from .models import CameraRegister, LoopObject
 
 log = logging.getLogger("camera_controller")
@@ -125,11 +125,11 @@ class CameraController:
         """Triggers a pile of cameras (cameras are piled by their trigger
         scheme)"""
         for camera in self._trigger_piles[scheme]:
-            if camera.is_busy:
+            try:
+                camera.trigger_a_photo()
+            except CameraBusy:
                 log.warning("Skipping camera %s because it's busy",
                             camera.name)
-            else:
-                camera.trigger_a_photo()
 
     def scheme_handler(self, camera: Camera, old: TriggerScheme,
                        new: TriggerScheme) -> None:
