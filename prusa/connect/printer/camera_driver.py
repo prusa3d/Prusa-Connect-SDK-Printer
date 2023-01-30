@@ -83,6 +83,18 @@ class CameraDriver:
             self._connected = True
 
     @staticmethod
+    def _get_initial_resolution(available_resolutions, config):
+        """Gets the configured resolution and validates it, if invalid gives
+        the highest possible one"""
+        highest_resolution = sorted(available_resolutions)[-1]
+        configured_resolution = config.get(
+            "resolution", str(highest_resolution))
+        if configured_resolution not in available_resolutions:
+            configured_resolution = highest_resolution
+        return configured_resolution
+
+
+    @staticmethod
     def make_hash(plaintext_id: str) -> str:
         """Hashes the camera ID"""
         hashed_id = hashlib.blake2b(plaintext_id.encode("ascii"),
