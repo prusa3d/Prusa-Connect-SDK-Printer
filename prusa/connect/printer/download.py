@@ -92,7 +92,7 @@ class Transfer:
     os_path: str
 
     def __init__(self):
-        self.transfer_id = randint(0, 2**64 - 1)
+        self.transfer_id = randint(0, 2**32 - 1)
         self.type = TransferType.NO_TRANSFER
         self._transferred = 0
         self.lock = threading.Lock()
