@@ -16,6 +16,7 @@ ChangeLog
     * Fix priority commands (RESET_PRINTER)
     * Remove PREPARED, use only READY and IDLE
     * Shorten the request timeout from 30 to 10 seconds
+    * Transfer ID changed from 64bit to 32bit number
 
 0.7.0rc1 (2022-9-13)
     * IDLE / READY states correction
