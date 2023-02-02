@@ -378,22 +378,24 @@ class Printer:
             type_, ver, sub = self.__type.value
         else:
             type_, ver, sub = (None, None, None)
-        return dict(source=const.Source.CONNECT,
-                    event=const.Event.INFO,
-                    state=self.__state,
-                    type=type_,
-                    version=ver,
-                    subversion=sub,
-                    firmware=self.firmware,
-                    sdk=__version__,
-                    network_info=self.network_info,
-                    api_key=self.api_key,
-                    files=self.fs.to_dict_legacy(),
-                    sn=self.sn,
-                    fingerprint=self.fingerprint,
-                    mbl=self.mbl,
-                    sheet_settings=self.sheet_settings,
-                    active_sheet=self.active_sheet)
+        return {
+            "source": const.Source.CONNECT,
+            "event": const.Event.INFO,
+            "state": self.__state,
+            "type": type_,
+            "version": ver,
+            "subversion": sub,
+            "firmware": self.firmware,
+            "sdk": __version__,
+            "network_info": self.network_info,
+            "api_key": self.api_key,
+            "files": self.fs.to_dict_legacy(),
+            "sn": self.sn,
+            "fingerprint": self.fingerprint,
+            "mbl": self.mbl,
+            "sheet_settings": self.sheet_settings,
+            "active_sheet": self.active_sheet
+        }
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
@@ -456,7 +458,7 @@ class Printer:
         if transfer_id and transfer_id != self.transfer.transfer_id:
             raise RuntimeError("Wrong transfer_id")
         self.transfer.stop()
-        return dict(source=const.Source.CONNECT)
+        return {"source": const.Source.CONNECT}
 
     def transfer_info(self, caller: Command) -> Dict[str, Any]:
         """Provide info of the running transfer"""
@@ -497,11 +499,11 @@ class Printer:
         if node.is_dir:
             raise ValueError("FILE_INFO doesn't work for folders")
 
-        info = dict(
-            source=const.Source.CONNECT,
-            event=const.Event.FILE_INFO,
-            path=path,
-        )
+        info = {
+            "source": const.Source.CONNECT,
+            "event": const.Event.FILE_INFO,
+            "path": path,
+        }
 
         try:
             path_ = os.path.split(self.fs.get_os_path(path))
@@ -537,7 +539,7 @@ class Printer:
 
         delete(abs_path, False)
 
-        return dict(source=const.Source.CONNECT)
+        return {"source": const.Source.CONNECT}
 
     def delete_folder(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete a folder."""
@@ -556,7 +558,7 @@ class Printer:
 
         delete(abs_path, True, force=caller.kwargs.get("force", False))
 
-        return dict(source=const.Source.CONNECT)
+        return {"source": const.Source.CONNECT}
 
     def create_folder(self, caller: Command) -> Dict[str, Any]:
         """Handler for create a folder."""
@@ -568,7 +570,7 @@ class Printer:
             relative_path_parameter)
 
         os.makedirs(abs_path, exist_ok=True)
-        return dict(source=const.Source.CONNECT)
+        return {"source": const.Source.CONNECT}
 
     def set_handler(self, command: const.Command,
                     handler: Callable[[Command], Dict[str, Any]]):
