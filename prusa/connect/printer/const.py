@@ -9,6 +9,7 @@ ONE_SECOND_TIMEOUT = 1  # 1s
 GCODE_EXTENSIONS = (".gcode", ".gc", ".g", ".gco")
 FIRMWARE_EXTENSION = ".hex"
 SL_EXTENSIONS = (".sl1", )
+CAMERA_BUSY_TIMEOUT = 20  # 20s
 
 # Maximum length of filename, including .gcode suffix
 FILENAME_LENGTH = 248

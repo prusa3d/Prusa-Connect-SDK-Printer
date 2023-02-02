@@ -415,7 +415,7 @@ def test_add_more():
     extra = CameraDriver.make_hash("extra")
     with AdditionalCamera():
         assert extra not in configurator.loaded
-        configurator._load_cameras()
+        configurator.load_cameras()
         assert extra in configurator.loaded
         assert extra not in configurator.stored
         assert extra in configurator.order
@@ -439,7 +439,7 @@ def test_update_disconnected():
     assert extra in configurator.loaded
     assert not configurator.is_connected(extra)
     with AdditionalCamera():
-        configurator._load_cameras()
+        configurator.load_cameras()
         assert extra in configurator.loaded
         assert configurator.is_connected(extra)
 
