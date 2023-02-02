@@ -273,9 +273,11 @@ class DownloadMgr:
             retval = self.transfer.start(type_, path, url, to_print, to_select,
                                          start_cmd_id, hash_, team_id)
         except TransferRunningError:
-            return dict(event=Event.REJECTED,
-                        source=Source.CONNECT,
-                        reason="Another transfer in progress")
+            return {
+                "event": Event.REJECTED,
+                "source": Source.CONNECT,
+                "reason": "Another transfer in progress"
+            }
 
         log.info("Starting download: %s", url)
 
