@@ -4,13 +4,14 @@ Snapshot and Resolution"""
 import logging
 from copy import deepcopy
 from threading import Event
+from time import time
 from typing import Any, Set, Optional, Dict
 
 from requests import Session
 
 from .const import CapabilityType, TriggerScheme, DEFAULT_CAMERA_SETTINGS, \
     NotSupported, CAMERA_WAIT_TIMEOUT, CameraBusy, CONNECTION_TIMEOUT, \
-    DriverError, ReadyTimeoutError
+    DriverError, ReadyTimeoutError, CAMERA_BUSY_TIMEOUT
 from .util import make_fingerprint
 
 log = logging.getLogger("camera")
@@ -119,24 +120,25 @@ def value_setter(capability_type):
     it is valid"""
     def value_setter_decorator(func):
         def inner(camera: "Camera", value):
+            # pylint: disable=protected-access
             old_value = camera.get_value(capability_type)
             if not camera.supports(capability_type):
                 raise NotSupported(
                     f"The camera {camera.name} does not support setting "
                     f"{capability_type.name}")
-            camera.wait_ready(timeout=CAMERA_WAIT_TIMEOUT)
+            camera.wait_ready(timeout=camera.wait_timeout)
+            camera._become_busy()
             try:
                 func(camera, value)
             except Exception as exception:  # pylint: disable=broad-except
                 log.exception("Exception while setting %s",
                               capability_type.name)
                 camera.disconnect()
-                # pylint: disable=protected-access
                 raise DriverError(
                     f"The driver {camera._driver.name} failed to set the"
                     f" {capability_type.value} from {old_value} "
                     f"to {value}.") from exception
-
+            camera._become_ready()
         return inner
 
     return value_setter_decorator
@@ -160,6 +162,10 @@ def value_getter(capability_type):
 # pylint: disable=too-many-public-methods
 class Camera:
     """The class for fully loaded cameras to be operated by the application"""
+
+    wait_timeout = CAMERA_WAIT_TIMEOUT
+    busy_timeout = CAMERA_BUSY_TIMEOUT
+
     def __init__(self, driver):
         self._trigger_scheme = None
         self._resolution = None
@@ -170,6 +176,7 @@ class Camera:
 
         self._ready_event = Event()
         self._ready_event.set()
+        self._busy_since = None
 
         # Changed the trigger scheme of this camera - tell the manager
         self.scheme_cb = lambda camera, old, new: None
@@ -307,6 +314,12 @@ class Camera:
         """Is this camera busy? That's usually when taking a photo"""
         return not self._ready_event.is_set()
 
+    @property
+    def is_stuck(self):
+        """Is this camera stuck in a busy state? Does it need help?"""
+        return (self._busy_since is not None
+                and time() - self._busy_since > self.busy_timeout)
+
     def wait_ready(self, timeout=None):
         """Waits for the camera to become ready.
         raises TimeoutError if unsuccessful"""
@@ -349,7 +362,7 @@ class Camera:
                                "returning images")
         if not self.is_busy:
             self.trigger_a_photo()
-        self.wait_ready(timeout=CAMERA_WAIT_TIMEOUT)
+        self.wait_ready(timeout=self.wait_timeout)
         return self.last_snapshot
 
     def trigger_a_photo(self, snapshot: Optional[Snapshot] = None):
@@ -359,7 +372,7 @@ class Camera:
             raise CameraBusy("The camera is far too busy "
                              "to take more photos")
         if CapabilityType.IMAGING in self._capabilities:
-            self._ready_event.clear()
+            self._become_busy()
         self._driver.trigger(snapshot)
 
     @property
@@ -499,6 +512,16 @@ class Camera:
         snapshot.camera_fingerprint = self.fingerprint
         snapshot.camera_token = self.token
         self.photo_cb(snapshot)
-        self._ready_event.set()
+        self._become_ready()
         log.debug("A camera %s has taken a photo. (%s bytes)", self.name,
                   len(snapshot.data))
+
+    def _become_busy(self):
+        """Makes the camera become busy"""
+        self._ready_event.clear()
+        self._busy_since = time()
+
+    def _become_ready(self):
+        """Makes the camera become ready"""
+        self._ready_event.set()
+        self._busy_since = None

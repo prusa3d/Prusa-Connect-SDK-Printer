@@ -48,7 +48,9 @@ class CameraConfigurator:
         # A list of camera IDs in descending order of importance
         self.order: List[str] = []
 
-        self._load_cameras(load_configs=True)
+        self._already_loaded_configs = False
+
+        self.load_cameras(load_configs=True)
 
     # --- Public ----
 
@@ -75,6 +77,37 @@ class CameraConfigurator:
             # If valid, store the config
             self._store_config(camera_id, config)
             self._load_driver(camera_id, config)
+
+    def load_cameras(self, load_configs=False, auto_detect=True) -> None:
+        """Loads the cameras from config
+        Run with load_configs = True only once!
+        """
+        with self.lock:
+            if load_configs:
+                if self._already_loaded_configs:
+                    raise RuntimeError(
+                        "Loading configs more than once is not supported")
+                self._already_loaded_configs = True
+                self.order, config_dict = self._get_configs()
+                self.stored = set(config_dict)
+                self._update_order()
+            else:
+                config_dict = self._get_loaded_configs()
+
+            if auto_detect:
+                detected_configs = self._get_detected_cameras()
+                self.detected = set(detected_configs.keys())
+                self.hash_to_detected = self._extract_hash_pairings(
+                    detected_configs)
+                self._update_order()
+
+            updated_configs = self._get_updated_configs(
+                config_dict, detected_configs)
+            # Filters additional detected cameras while already running
+            new_configs = self._filter_new_configs(updated_configs)
+
+            for camera_id, config in new_configs.items():
+                self._load_driver(camera_id, config)
 
     def reset_to_defaults(self, camera_id: str) -> None:
         """Resets any camera to default settings -
@@ -176,32 +209,6 @@ class CameraConfigurator:
     def _disconnected_handler(self, loaded_driver: CameraDriver) -> None:
         """This camera is defunct, remove it from SDK cameras"""
         self.camera_controller.remove_camera(loaded_driver.camera_id)
-
-    def _load_cameras(self, load_configs=False) -> None:
-        """Loads the cameras from config
-        Run with load_configs = True only once!
-        """
-        with self.lock:
-            if load_configs:
-                self.order, config_dict = self._get_configs()
-                self.stored = set(config_dict)
-                self._update_order()
-            else:
-                config_dict = self._get_loaded_configs()
-
-            detected_configs = self._get_detected_cameras()
-            self.detected = set(detected_configs.keys())
-            self.hash_to_detected = self._extract_hash_pairings(
-                detected_configs)
-            self._update_order()
-
-            updated_configs = self._get_updated_configs(
-                config_dict, detected_configs)
-            # Filters additional detected cameras while already running
-            new_configs = self._filter_new_configs(updated_configs)
-
-            for camera_id, config in new_configs.items():
-                self._load_driver(camera_id, config)
 
     def _extract_hash_pairings(self, config_dict: CameraConfigs):
         hash_pairings = {}

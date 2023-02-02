@@ -77,6 +77,16 @@ class CameraController:
         """Does the camera manager know about a camera with given ID?"""
         return camera_id in self._cameras
 
+    def disconnect_stuck_cameras(self):
+        """Calls disconnect on any cameras deemed stuck by being busy
+        for longer than Camera.busy_timeout """
+        for camera_id, camera in self._cameras.items():
+            if camera.is_stuck:
+                log.warning(
+                    "Camera: %s id: %s looks stuck. Disconnecting",
+                    camera.name, camera_id)
+                camera.disconnect()
+
     @property
     def cameras_in_order(self) -> Iterator[Camera]:
         """Iterates over functional cameras in the configured order"""

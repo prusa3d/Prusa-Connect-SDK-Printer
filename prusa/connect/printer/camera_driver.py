@@ -181,12 +181,15 @@ class CameraDriver:
         except Exception:  # pylint: disable=broad-except
             log.exception("Driver %s for a camera %s threw an error while "
                           "disconnecting", self.name, self.camera_id)
-        self._connected = False
-        self.disconnected_cb(self)
+        if self._connected:
+            # If we got stuck taking a photo and are returning late, the
+            # driver is already stopped, so we must not call the disconnected
+            # callback, otherwise we'd break another working camera
+            self._connected = False
+            self.disconnected_cb(self)
 
     def _disconnect(self) -> None:
         """If your driver needs to handle a disconnect, override this"""
-
 
     # --- Setting change handlers ---
     # These get called when the camera object wants to change settings
