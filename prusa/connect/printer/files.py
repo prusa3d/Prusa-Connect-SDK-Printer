@@ -63,10 +63,14 @@ def get_file_type(file):
     """Return file type of file/folder"""
     if file.is_dir:
         return const.FileType.FOLDER
-    if file.name.endswith(const.GCODE_EXTENSIONS):
+
+    filename = file.name.lower()
+    if filename.endswith(const.GCODE_EXTENSIONS):
         return const.FileType.PRINT_FILE
-    if file.name.endswith(const.FIRMWARE_EXTENSION):
+
+    if filename.endswith(const.FIRMWARE_EXTENSION):
         return const.FileType.FIRMWARE
+
     return const.FileType.FILE
 
 

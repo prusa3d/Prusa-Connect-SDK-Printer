@@ -523,16 +523,16 @@ def get_metadata(path: str, save_cache=True):
     """
     # pylint: disable=redefined-outer-name
     fnl = path.lower()
-    meta: MetaData
-    if fnl.endswith(GCODE_EXTENSIONS):
-        meta = FDMMetaData(path)
-    elif fnl.endswith(".sl1"):
-        meta = SLMetaData(path)
+    metadata: MetaData
+    if fnl.lower().endswith(GCODE_EXTENSIONS):
+        metadata = FDMMetaData(path)
+    elif fnl.lower().endswith(".sl1"):
+        metadata = SLMetaData(path)
     else:
         raise UnknownGcodeFileType(path)
 
-    meta.load(save_cache)
-    return meta
+    metadata.load(save_cache)
+    return metadata
 
 
 if __name__ == "__main__":
