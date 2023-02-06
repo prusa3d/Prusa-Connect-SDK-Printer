@@ -2,10 +2,10 @@
 import os
 import threading
 import time
-from random import randint
 from logging import getLogger
 from os.path import normpath, abspath, basename, dirname
 from typing import Optional, Callable
+from random import randint
 
 import requests
 
@@ -78,6 +78,11 @@ def foldername_too_long(path):
     return any(len(folder) > const.MAX_NAME_LENGTH for folder in path_)
 
 
+def generate_transfer_id():
+    """Return transfer ID as 32bit integer"""
+    return randint(0, 2**32 - 1)
+
+
 class Transfer:
     """File transfer representation object"""
 
@@ -92,7 +97,7 @@ class Transfer:
     os_path: str
 
     def __init__(self):
-        self.transfer_id = randint(0, 2**32 - 1)
+        self.transfer_id = None
         self.type = TransferType.NO_TRANSFER
         self._transferred = 0
         self.lock = threading.Lock()
@@ -132,7 +137,6 @@ class Transfer:
               team_id: Optional[int] = None) -> dict:
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
-        self.start_cmd_id = start_cmd_id
         filename = basename(path)
 
         if forbidden_characters(filename):
@@ -149,6 +153,8 @@ class Transfer:
                 raise TransferRunningError
             self.reset()
 
+            self.start_cmd_id = start_cmd_id
+            self.transfer_id = generate_transfer_id()
             self.type = type_
             self.path = path
             self.url = url
