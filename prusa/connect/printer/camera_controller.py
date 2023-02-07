@@ -80,12 +80,17 @@ class CameraController:
     def disconnect_stuck_cameras(self):
         """Calls disconnect on any cameras deemed stuck by being busy
         for longer than Camera.busy_timeout """
-        for camera_id, camera in self._cameras.items():
+        to_disconnect = []
+        for camera in self._cameras.values():
             if camera.is_stuck:
-                log.warning(
-                    "Camera: %s id: %s looks stuck. Disconnecting",
-                    camera.name, camera_id)
-                camera.disconnect()
+                to_disconnect.append(camera)
+
+        for camera in to_disconnect:
+            log.warning(
+                "Camera: %s id: %s looks stuck. Disconnecting",
+                camera.name, camera.camera_id)
+            camera.disconnect()
+        return len(to_disconnect)
 
     @property
     def cameras_in_order(self) -> Iterator[Camera]:
