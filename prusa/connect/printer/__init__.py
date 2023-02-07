@@ -331,6 +331,7 @@ class Printer:
             kwargs['transfer_progress'] = self.transfer.progress
             kwargs['transfer_time_remaining'] = self.transfer.time_remaining()
             kwargs['transfer_transferred'] = self.transfer.transferred
+            kwargs['time_transferring'] = self.transfer.time_transferring()
         if self.is_initialised():
             telemetry = Telemetry(self.__state, timestamp, **kwargs)
         else:

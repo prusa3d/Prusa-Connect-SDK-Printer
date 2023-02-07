@@ -106,8 +106,11 @@ class Transfer:
         self.progress_cb = lambda: None
         self.stopped_cb = lambda: None
 
+        # start_ts is deprecated, because it uses system time, instead of tics
         self.start_ts = 0
         self.stop_ts = 0
+
+        self.start_time = None
 
     @property
     def transferred(self):
@@ -155,6 +158,7 @@ class Transfer:
 
             self.start_cmd_id = start_cmd_id
             self.transfer_id = generate_transfer_id()
+            self.start_time = time.monotonic()
             self.type = type_
             self.path = path
             self.url = url
@@ -190,6 +194,11 @@ class Transfer:
         if self.size is not None:
             return self.transferred / self.size * 100
         return 0.0
+
+    def time_transferring(self):
+        """Return elapsed transferring time as a difference of the start
+        time and current time using monotonic"""
+        return int(time.monotonic() - self.start_time)
 
     def time_remaining(self):
         """Return the estimated time remaining for the transfer in seconds.
@@ -229,6 +238,7 @@ class Transfer:
                 "progress": float("%.2f" % self.progress),
                 "transferred": self.transferred,
                 "time_remaining": time_remaining,
+                "time_transferring": self.time_transferring(),
                 "to_select": self.to_select,
                 "to_print": self.to_print,
             }
