@@ -138,7 +138,13 @@ Printer state
 
 Files
 -----
-**TODO**
+Files are sent to Connect in a dictionary using the **SEND_INFO** command.
+Within the **SEND_INFO** commmand response, there's a `files` dictionary with all
+files and folders within the Filesystem. Here you can find info about file (or
+folder). Available info is type, name, ro (read only), m_timestamp (when the
+file was last modified), size and in case of folder, info about its children.
+Also you can find here information about free_space and total_space of the each
+storage, if available.
 
 Commands
 --------
