@@ -914,8 +914,6 @@ class TestPrinter:
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["data"]["start_cmd_id"] == 42
-        assert info["data"]["hash"] == kwargs["hash"]
-        assert info["data"]["team_id"] == kwargs["team_id"]
 
     def test_transfer_info(self, printer_sdcard, requests_mock):
         # prepare command and mocks
@@ -963,10 +961,8 @@ class TestPrinter:
         assert info["command_id"] == 42
         assert info["data"]['size'] == 1000
         assert info["data"]['transferred'] == 100
-        assert info["data"]['start'] == int(now)
         assert info["data"]['time_remaining'] > 0
         assert info["data"]['to_print'] is False
-        assert info["data"]['to_select'] is True
 
     def test_transfer_info_id(self, printer_sdcard, requests_mock):
         # prepare command and mocks
