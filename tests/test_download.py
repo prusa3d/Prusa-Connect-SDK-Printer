@@ -134,11 +134,9 @@ def test_download_info(gcode, download_mgr):
     assert download_mgr.transfer.os_path == storage_path(
         download_mgr.fs, 'my_example.gcode')
     assert info['transferred'] >= 0
-    assert info['start'] is None
     assert info['progress'] >= 0
     assert info['progress'] == 0.0
     assert info['to_print'] is False
-    assert info['to_select'] is True
     assert info['time_remaining'] is None
     assert info['size'] is None
     assert info['url'] == GCODE_URL

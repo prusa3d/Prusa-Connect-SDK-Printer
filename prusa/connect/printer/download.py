@@ -231,15 +231,11 @@ class Transfer:
                 "type": self.type.value,
                 "path": self.path,
                 "url": self.url,
-                "hash": self.hash,
-                "team_id": self.team_id,
                 "size": self.size,
-                "start": int(self.start_ts) if self.start_ts else None,
                 "progress": float("%.2f" % self.progress),
                 "transferred": self.transferred,
                 "time_remaining": time_remaining,
                 "time_transferring": self.time_transferring(),
-                "to_select": self.to_select,
                 "to_print": self.to_print,
             }
         return {"type": self.type.value}
