@@ -1,12 +1,12 @@
 ChangeLog
 =========
 
-0.7.0rc3
+0.7.0rc3 (2023-03-01)
     * Added new flat struct for filesystem, old one is renamed to legacy
     * transfer_id moved to root to all events
     * New kwargs parameter "force" added to DELETE_FOLDER command
 
-0.7.0rc2(2022-11-30)
+0.7.0rc2 (2022-11-30)
     * Camera support
         - Autodetection
         - Resolution changing

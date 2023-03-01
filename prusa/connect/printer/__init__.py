@@ -1,19 +1,6 @@
 """Python printer library for PrusaConnect.
 
-    Copyright (C) 2022 PrusaResearch
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+    Copyright (C) 2023 PrusaResearch
 """
 
 import configparser
@@ -40,9 +27,9 @@ from .clock import ClockWatcher
 from .download import DownloadMgr, Transfer
 from .util import RetryingSession, get_timestamp
 
-__version__ = "0.7.0rc2"
-__date__ = "30 Nov 2022"  # version date
-__copyright__ = "(c) 2022 Prusa 3D"
+__version__ = "0.7.0rc3"
+__date__ = "01 Mar 2023"  # version date
+__copyright__ = "(c) 2023 Prusa 3D"
 __author_name__ = "Prusa Link Developers"
 __author_email__ = "link@prusa3d.cz"
 __author__ = f"{__author_name__} <{__author_email__}>"
