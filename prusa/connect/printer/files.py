@@ -718,23 +718,24 @@ class InotifyHandler:
         events = self.inotify.read(timeout=timeout)
         events = self.filter_delete_events(events)
         for event in events:
-            parent_dir = self.wds[event.wd]
-            for storage in self.fs.storage_dict.values():
-                if parent_dir.startswith(storage.path_storage):
-                    storage.last_updated = time()
-            for flag in flags.from_mask(event.mask):
-                # remove wds that are no longer needed
-                if flag.name == "IGNORED":
-                    del self.wds[event.wd]
-                    continue
-                # ignore non watched events
-                if not self.WATCH_FLAGS & flag:
-                    log.debug("Ignoring %s", flag.name)
-                    continue
+            # Ignore hidden files .<filename>
+            if not event.name.startswith("."):
+                parent_dir = self.wds[event.wd]
+                for storage in self.fs.storage_dict.values():
+                    if parent_dir.startswith(storage.path_storage):
+                        storage.last_updated = time()
+                for flag in flags.from_mask(event.mask):
+                    # remove wds that are no longer needed
+                    if flag.name == "IGNORED":
+                        del self.wds[event.wd]
+                        continue
+                    # ignore non watched events
+                    if not self.WATCH_FLAGS & flag:
+                        log.debug("Ignoring %s", flag.name)
+                        continue
 
-                abs_path = path.join(parent_dir, event.name)
-                # Ignore hidden files .<filename>
-                if not event.name.startswith("."):
+                    abs_path = path.join(parent_dir, event.name)
+
                     log.debug("Flag: %s %s %s", flag.name, abs_path, event)
                     handler = self.HANDLERS[flag.name]
                     log.debug("Calling %s: %s", handler, abs_path)
