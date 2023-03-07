@@ -3,6 +3,7 @@
 import os
 import typing
 import weakref
+from functools import reduce
 from logging import getLogger
 from time import time, sleep
 from os import path, access, W_OK, stat, walk
@@ -578,10 +579,6 @@ class InotifyHandler:
     using it makes sure that all its storage' `trees are updated on changes
     on the physical storage"""
 
-    WATCH_FLAGS = (flags.CREATE | flags.DELETE | flags.MODIFY
-                   | flags.DELETE_SELF | flags.MOVED_TO | flags.MOVED_FROM
-                   | flags.MOVE_SELF)
-
     def __init__(self, fs: Filesystem):
         # pylint: disable=invalid-name
         self.fs = fs
@@ -727,7 +724,7 @@ class InotifyHandler:
                     storage.last_updated = time()
             for flag in flags.from_mask(event.mask):
                 # remove wds that are no longer needed
-                if flag.name == "IGNORED":
+                if flag == flags.IGNORED:
                     del self.wds[event.wd]
                     continue
                 # ignore non watched events
@@ -738,7 +735,7 @@ class InotifyHandler:
                 abs_path = path.join(parent_dir, event.name)
 
                 log.debug("Flag: %s %s %s", flag.name, abs_path, event)
-                handler = self.HANDLERS[flag.name]
+                handler = self.HANDLERS[flag]
                 log.debug("Calling %s: %s", handler, abs_path)
                 handler(self, abs_path, event.mask & flags.ISDIR)
 
@@ -794,6 +791,18 @@ class InotifyHandler:
         """
         rel_path = abs_path[len(storage.path_storage):]
         return rel_path.rstrip(self.fs.sep).split(self.fs.sep)
+
+    def process_close_write(self, abs_path, is_dir):
+        """Handles CLOSE_WRITE inotify event, it either creates or modifies
+        a file depending on whether it exists in our tree or not"""
+        # pylint: disable=unused-argument
+        base_storage = self.attach_for(abs_path)
+        parts = self.__rel_path_parts(abs_path, base_storage)
+        node = base_storage.tree.get(parts)
+        if node is None:
+            self.process_create(abs_path, is_dir)
+        else:
+            self.process_modify(abs_path, is_dir)
 
     def process_create(self, abs_path, is_dir):
         """Handle CREATE inotify signal by creating the file/folder
@@ -890,11 +899,12 @@ class InotifyHandler:
 
     # handlers for inotify file events
     HANDLERS = {
-        "CREATE": process_create,
-        "MODIFY": process_modify,
-        "DELETE": process_delete,
-        "MOVED_TO": process_create,
-        "MOVED_FROM": process_delete,
-        "DELETE_SELF": process_delete,
-        "MOVE_SELF": process_delete,
+        flags.CLOSE_WRITE: process_close_write,
+        flags.DELETE: process_delete,
+        flags.MOVED_TO: process_create,
+        flags.MOVED_FROM: process_delete,
+        flags.DELETE_SELF: process_delete,
+        flags.MOVE_SELF: process_delete,
     }
+
+    WATCH_FLAGS = reduce(lambda x, y: x|y, HANDLERS.keys())
