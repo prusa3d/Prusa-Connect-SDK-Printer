@@ -14,13 +14,13 @@ from typing import Optional, List, Any, Callable, Dict
 from requests import Session, RequestException, Response
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError
+from gcode_metadata import get_metadata
 
 from . import const, errors
 from .camera_controller import CameraController
 from .command import Command, CommandFailed
 from .conditions import CondState, API, TOKEN, HTTP, INTERNET
 from .files import Filesystem, InotifyHandler, delete
-from .metadata import get_metadata
 from .models import Event, Telemetry, Sheet, Register, LoopObject, \
     CameraRegister
 from .clock import ClockWatcher

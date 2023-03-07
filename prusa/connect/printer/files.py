@@ -10,9 +10,9 @@ from shutil import rmtree
 from collections import Counter
 from typing import Optional
 from inotify_simple import INotify, flags  # type: ignore
+from gcode_metadata import get_metadata, UnknownGcodeFileType
 
 from . import const
-from .metadata import get_metadata, UnknownGcodeFileType
 from .models import EventCallback
 
 ROOT = '__ROOT__'

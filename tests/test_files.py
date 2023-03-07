@@ -15,7 +15,7 @@ from prusa.connect.printer import const
 from prusa.connect.printer.files import File, Filesystem, \
     InvalidStorageError, InotifyHandler
 from prusa.connect.printer.models import Event
-from prusa.connect.printer.metadata import MetaData
+from gcode_metadata import MetaData
 from typing import Optional
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
