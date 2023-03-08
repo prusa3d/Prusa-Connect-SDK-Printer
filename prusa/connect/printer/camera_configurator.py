@@ -25,9 +25,11 @@ class CameraConfigurator:
     connected to PrusaLink, or we would need one order for saving and another
     for the instance.
     """
+    # pylint: disable=too-many-arguments
     def __init__(self, camera_controller: CameraController,
                  config: ConfigParser, config_file_path: str,
-                 drivers: List[Type[CameraDriver]]) -> None:
+                 drivers: List[Type[CameraDriver]],
+                 auto_detect=True) -> None:
         self.camera_controller = camera_controller
         self.config = config
         self.config_file_path = config_file_path
@@ -36,6 +38,7 @@ class CameraConfigurator:
             driver.name: driver
             for driver in drivers
         }
+        self.auto_detect = auto_detect
 
         # Camera drivers that are loaded - even broken ones
         self.loaded: Dict[str, CameraDriver] = {}
@@ -78,7 +81,7 @@ class CameraConfigurator:
             self._store_config(camera_id, config)
             self._load_driver(camera_id, config)
 
-    def load_cameras(self, load_configs=False, auto_detect=True) -> None:
+    def load_cameras(self, load_configs=False) -> None:
         """Loads the cameras from config
         Run with load_configs = True only once!
         """
@@ -94,7 +97,8 @@ class CameraConfigurator:
             else:
                 config_dict = self._get_loaded_configs()
 
-            if auto_detect:
+            detected_configs = {}
+            if self.auto_detect:
                 detected_configs = self._get_detected_cameras()
                 self.detected = set(detected_configs.keys())
                 self.hash_to_detected = self._extract_hash_pairings(
