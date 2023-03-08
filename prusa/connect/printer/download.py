@@ -244,8 +244,8 @@ class Transfer:
 class DownloadMgr:
     """Download manager."""
     LOOP_INTERVAL = .1
-    VALID_MIME_TYPES = ('application/gcode', 'text/plain', 'text/x.gcode',
-                        'application/binary', 'application/octet-stream')
+    VALID_MIME_TYPES = ('text/plain', 'text/x.gcode', 'application/binary',
+                        'application/octet-stream')
     SMALL_BUFFER = 1024
     BIG_BUFFER = 1024 * 100
 
