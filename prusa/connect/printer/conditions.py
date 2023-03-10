@@ -251,6 +251,10 @@ class ConditionTracker:
             self._cached_worst = worst_error
             return worst_error
 
+    def is_tracked(self, condition: Condition):
+        """Is the specified condition being tracked"""
+        return condition in self._tracked_conditions
+
 
 # ---- The same condition chain as before ----
 
