@@ -352,7 +352,8 @@ class DownloadMgr:
                                 Source.CONNECT,
                                 reason=msg,
                                 path=self.transfer.path,
-                                transfer_id=self.transfer.transfer_id)
+                                transfer_id=self.transfer.transfer_id,
+                                start_cmd_id=self.transfer.start_cmd_id)
 
                     self.event_cb(Event.TRANSFER_FINISHED,
                                   Source.CONNECT,
@@ -365,7 +366,8 @@ class DownloadMgr:
                     self.event_cb(Event.TRANSFER_STOPPED,
                                   Source.CONNECT,
                                   path=self.transfer.path,
-                                  transfer_id=self.transfer.transfer_id)
+                                  transfer_id=self.transfer.transfer_id,
+                                  start_cmd_id=self.transfer.start_cmd_id)
 
                 except Exception as err:  # pylint: disable=broad-except
                     log.error(err)
@@ -373,7 +375,8 @@ class DownloadMgr:
                                   Source.CONNECT,
                                   reason=str(err),
                                   path=self.transfer.path,
-                                  transfer_id=self.transfer.transfer_id)
+                                  transfer_id=self.transfer.transfer_id,
+                                  start_cmd_id=self.transfer.start_cmd_id)
                 finally:
                     # End of transfer - reset transfer data
                     self.transfer.type = TransferType.NO_TRANSFER
