@@ -212,6 +212,11 @@ class CameraDriver:
         """Override this, with your exposure setting method"""
         not_implemented(self, "exposure")
 
+    # pylint: disable=unused-argument
+    def set_focus(self, focus: float) -> None:
+        """Override this, with your focus setting method"""
+        not_implemented(self, "focus")
+
     def trigger(self, snapshot: Optional[Snapshot] = None) -> None:
         """This method is not allowed to block, it just
         creates a new thread and runs it"""

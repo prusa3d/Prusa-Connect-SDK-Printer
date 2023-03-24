@@ -172,6 +172,7 @@ class Camera:
         self._available_resolutions = {}
         self._rotation = 0
         self._exposure = 0.0
+        self._focus = 0.0
         self._token = None
 
         self._ready_event = Event()
@@ -286,6 +287,21 @@ class Camera:
             raise ValueError(f"Exposure of {exposure} is not allowed")
         self._driver.set_exposure(exposure)
         self._exposure = exposure
+
+    @property
+    @value_getter(CapabilityType.FOCUS)
+    def focus(self):
+        """Getter for focus capability value"""
+        return self._focus
+
+    @focus.setter
+    @value_setter(CapabilityType.FOCUS)
+    def focus(self, focus: float):
+        """Setter for focus capability value"""
+        if not 0 <= focus <= 1:
+            raise ValueError(f"Focus value of {focus} is not allowed")
+        self._driver.set_focus(focus)
+        self._focus = focus
 
     # -----------------------------
 
@@ -434,6 +450,8 @@ class Camera:
             elif setting == CapabilityType.ROTATION.value:
                 value = int(src_value)
             elif setting == CapabilityType.EXPOSURE.value:
+                value = float(src_value)
+            elif setting == CapabilityType.FOCUS.value:
                 value = float(src_value)
             settings[setting] = value
         return settings
