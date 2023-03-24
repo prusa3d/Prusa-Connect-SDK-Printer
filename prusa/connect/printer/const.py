@@ -218,6 +218,7 @@ class CapabilityType(Enum):
     RESOLUTION = "resolution"  # Can set a resolution of a camera
     ROTATION = "rotation"  # Can rotate the image from a camera
     EXPOSURE = "exposure"  # Can change the exposure compensation of a camera
+    FOCUS = "focus"  # Can change the focal point
 
 
 class TriggerScheme(Enum):

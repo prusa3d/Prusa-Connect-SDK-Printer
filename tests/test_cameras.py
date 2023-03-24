@@ -110,8 +110,9 @@ class GoodDriver(CameraDriver):
             "EnormousCamera": {
                 "name": "The most muscular camera you've ever seen",
                 "resolution": "12288x6480",
+                "rotation": "0",
                 "exposure": "0",
-                "rotation": "0"
+                "focus": "0"
             },
         }
 
@@ -123,7 +124,7 @@ class GoodDriver(CameraDriver):
         self._capabilities = ({
             CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
             CapabilityType.IMAGING, CapabilityType.ROTATION,
-            CapabilityType.EXPOSURE
+            CapabilityType.EXPOSURE, CapabilityType.FOCUS
         })
         self._available_resolutions = ({Resolution(12288, 6480)})
 
@@ -135,6 +136,9 @@ class GoodDriver(CameraDriver):
 
     def set_exposure(self, exposure):
         self._config["exposure"] = exposure
+
+    def set_focus(self, focus):
+        self._config["focus"] = focus
 
     def take_a_photo(self):
         return "photo_data"
@@ -553,11 +557,11 @@ def test_setting_conversions():
     assert enormous in configurator.loaded
     driver = configurator.loaded[enormous]
     assert {"resolution", "name", "exposure",
-            "rotation"}.issubset(driver.config)
+            "rotation", "focus"}.issubset(driver.config)
     camera = configurator.camera_controller.get_camera(enormous)
     exported_settings = camera.get_settings()
     assert {"resolution", "name", "exposure",
-            "rotation"}.issubset(exported_settings)
+            "rotation", "focus"}.issubset(exported_settings)
     json_settings = Camera.json_from_settings(exported_settings)
     back_from_json = Camera.settings_from_json(json_settings)
     assert exported_settings == back_from_json
