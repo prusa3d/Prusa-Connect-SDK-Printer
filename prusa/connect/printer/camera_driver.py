@@ -97,7 +97,7 @@ class CameraDriver:
     @staticmethod
     def make_hash(plaintext_id: str) -> str:
         """Hashes the camera ID"""
-        hashed_id = hashlib.blake2b(plaintext_id.encode("ascii"),
+        hashed_id = hashlib.blake2b(plaintext_id.encode("latin-1"),
                                     digest_size=9).digest()
         return base64.urlsafe_b64encode(hashed_id).decode()
 
