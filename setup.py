@@ -26,6 +26,7 @@ setup(name="prusa.connect.sdk.printer",
       author_email=METADATA["author_email"],
       maintainer=METADATA["author_name"],
       maintainer_email=METADATA["author_email"],
+      license="Freeware",
       url=METADATA["url"],
       project_urls={
           "Bug Tracker":
@@ -42,7 +43,7 @@ setup(name="prusa.connect.sdk.printer",
       classifiers=[
           "Development Status :: 5 - Production/Stable",
           "Intended Audience :: Developers", "Natural Language :: English",
-          "Operating System :: POSIX",
+          "License :: Freeware", "Operating System :: POSIX",
           "Programming Language :: Python :: 3 :: Only",
           "Topic :: Software Development :: Libraries :: Python Modules"
       ],
