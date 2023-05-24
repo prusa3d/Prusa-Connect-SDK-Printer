@@ -1,19 +1,22 @@
 ---
+dist: bionic
+
 language: python
 
 python:
- - "3.8"
  - "3.9"
+ - "3.11"
 
 install:
  - pip3 install -U types-pkg_resources types-requests
- - pip3 install -U pytest pytest-pylint pytest-doctestplus requests
-   requests_mock pytest-mypy inotify_simple func-timeout "responses==0.20"
+ - pip3 install -U ruff pytest pytest-pylint pytest-doctestplus requests
+   requests_mock pytest-mypy inotify_simple func-timeout responses
 
 before_script:
  - export TZ=Europe/Prague
 
 script:
+ - ruff check .
  - pytest -v --mypy tests --log-cli-level=10
  - pytest -v --mypy --pylint --doctest-rst prusa/connect/printer
  - pytest -v --doctest-plus prusa

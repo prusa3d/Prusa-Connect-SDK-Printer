@@ -4,19 +4,22 @@ import shutil
 import stat
 import sys
 import tempfile
-
 from collections import namedtuple
-from unittest.mock import patch
 from queue import Queue
+from typing import Optional
+from unittest.mock import patch
 
 import pytest  # type: ignore
 
 from prusa.connect.printer import const
-from prusa.connect.printer.files import File, Filesystem, \
-    InvalidStorageError, InotifyHandler
-from prusa.connect.printer.models import Event
+from prusa.connect.printer.files import (
+    File,
+    Filesystem,
+    InotifyHandler,
+    InvalidStorageError,
+)
 from prusa.connect.printer.metadata import MetaData
-from typing import Optional
+from prusa.connect.printer.models import Event
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
@@ -224,20 +227,20 @@ class TestFile:
                 'name': 'b',
                 'ro': True,
                 'm_timestamp': 1596120005,
-                'size': 0
+                'size': 0,
             }, {
                 'type': 'FOLDER',
                 'name': 'c',
                 'ro': True,
                 'm_timestamp': 1596120005,
-                'size': 6088
+                'size': 6088,
             }, {
                 'type': 'PRINT_FILE',
                 'name': '1.gcode',
                 'ro': True,
                 'm_timestamp': 1596120005,
-                'size': 3044
-            }]
+                'size': 3044,
+            }],
         }
 
     def test_to_dict_no_children(self, fs_from_dir):
@@ -247,7 +250,7 @@ class TestFile:
             'name': 'a',
             'ro': True,
             'm_timestamp': 1596120005,
-            'size': 9132
+            'size': 9132,
         }
 
     def test_to_dict_legacy(self, fs_from_dir):
@@ -269,7 +272,7 @@ class TestFile:
                 'ro': True,
                 'm_timestamp': 1596120005,
                 'size': 0,
-                'children': []
+                'children': [],
             }, {
                 'type':
                 'DIR',
@@ -286,21 +289,21 @@ class TestFile:
                     'name': '2.sl1',
                     'ro': True,
                     'm_timestamp': 1596120005,
-                    'size': 3044
+                    'size': 3044,
                 }, {
                     'type': 'FILE',
                     'name': '3.txt',
                     'ro': True,
                     'm_timestamp': 1596120005,
-                    'size': 3044
-                }]
+                    'size': 3044,
+                }],
             }, {
                 'type': 'FILE',
                 'name': '1.gcode',
                 'ro': True,
                 'm_timestamp': 1596120005,
-                'size': 3044
-            }]
+                'size': 3044,
+            }],
         }
 
     def test_contains(self, nodes):
@@ -400,7 +403,7 @@ class TestFilesystem:
             'name': '/',
             'ro': True,
             'type': 'FOLDER',
-            'children': ['storage']
+            'children': ['storage'],
         }
 
     def test_to_dict_legacy(self, fs):
@@ -434,12 +437,12 @@ class TestFilesystem:
                     'children': [{
                         'type': 'FILE',
                         'name': '1.gcode',
-                        'size': 0
+                        'size': 0,
                     }, {
                         'type': 'DIR',
                         'name': 'b',
                         'size': 0,
-                        'children': []
+                        'children': [],
                     }, {
                         'type':
                         'DIR',
@@ -450,19 +453,19 @@ class TestFilesystem:
                         'children': [{
                             'type': 'FILE',
                             'name': '2.sl1',
-                            'size': 0
+                            'size': 0,
                         }, {
                             'type': 'FILE',
                             'name': '3.txt',
-                            'size': 0
-                        }]
+                            'size': 0,
+                        }],
                     }],
                 }],
                 'free_space':
                 0,
                 'total_space':
-                42
-            }]
+                42,
+            }],
         }
 
 

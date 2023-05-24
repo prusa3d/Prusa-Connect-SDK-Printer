@@ -1,5 +1,5 @@
 """Test for error state functionality"""
-from prusa.connect.printer.errors import TOKEN, API, INTERNET, HTTP
+from prusa.connect.printer.errors import API, HTTP, INTERNET, TOKEN
 
 # pylint: disable=missing-function-docstring
 

@@ -6,6 +6,7 @@ from time import time
 from typing import Optional
 
 import requests
+
 from . import const
 
 log = logging.getLogger("connect-printer")

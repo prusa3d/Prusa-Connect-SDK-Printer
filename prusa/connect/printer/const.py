@@ -200,6 +200,7 @@ class CameraNotDetected(RuntimeError):
     """Raised when trying to ad a camera only by its ID and it is not
     in the detected cameras"""
 
+
 class ReadyTimeoutError(RuntimeError):
     """Raised when we time out waiting for a camera to become ready"""
 
@@ -207,7 +208,7 @@ class ReadyTimeoutError(RuntimeError):
 # These settings are always required to instance a camera
 ALWAYS_REQURIED = {
     "name": "The camera name. The more unique the better.",
-    "driver": "Which driver to give this setting to"
+    "driver": "Which driver to give this setting to",
 }
 
 
@@ -242,7 +243,7 @@ TRIGGER_SCHEME_TO_SECONDS = {
 DEFAULT_CAMERA_SETTINGS = {
     CapabilityType.TRIGGER_SCHEME.value: TriggerScheme.THIRTY_SEC,
     CapabilityType.EXPOSURE.value: 0,
-    CapabilityType.ROTATION.value: 0
+    CapabilityType.ROTATION.value: 0,
 }
 
 CameraConfigs = Dict[str, Dict[str, str]]

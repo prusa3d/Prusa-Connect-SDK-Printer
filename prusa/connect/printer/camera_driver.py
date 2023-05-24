@@ -5,11 +5,11 @@ import hashlib
 import logging
 from copy import deepcopy
 from threading import Thread
-from typing import Set, Optional, Callable, Iterable, Dict
+from typing import Callable, Dict, Iterable, Optional, Set
 
 from . import get_timestamp
 from .camera import Resolution, Snapshot
-from .const import CapabilityType, ALWAYS_REQURIED, ConfigError, CameraConfigs
+from .const import ALWAYS_REQURIED, CameraConfigs, CapabilityType, ConfigError
 
 log = logging.getLogger("camera_driver")
 
@@ -87,12 +87,11 @@ class CameraDriver:
         """Gets the configured resolution and validates it, if invalid gives
         the highest possible one"""
         highest_resolution = sorted(available_resolutions)[-1]
-        configured_resolution = config.get(
-            "resolution", str(highest_resolution))
+        configured_resolution = config.get("resolution",
+                                           str(highest_resolution))
         if configured_resolution not in available_resolutions:
             configured_resolution = highest_resolution
         return configured_resolution
-
 
     @staticmethod
     def make_hash(plaintext_id: str) -> str:
@@ -179,8 +178,9 @@ class CameraDriver:
         try:
             self._disconnect()
         except Exception:  # pylint: disable=broad-except
-            log.exception("Driver %s for a camera %s threw an error while "
-                          "disconnecting", self.name, self.camera_id)
+            log.exception(
+                "Driver %s for a camera %s threw an error while "
+                "disconnecting", self.name, self.camera_id)
         if self._connected:
             # If we got stuck taking a photo and are returning late, the
             # driver is already stopped, so we must not call the disconnected

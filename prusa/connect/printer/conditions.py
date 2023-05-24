@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 from enum import Enum
 from multiprocessing import RLock
-from typing import Callable, Set, Optional
+from typing import Callable, Optional, Set
 
 cond_lock = RLock()
 

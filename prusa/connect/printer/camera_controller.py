@@ -1,15 +1,19 @@
 """Implementation of CameraController"""
 import logging
 from functools import partial
-from queue import Queue, Empty
+from queue import Empty, Queue
 from time import time
-from typing import Set, Dict, List, Callable, Iterator, Optional
+from typing import Callable, Dict, Iterator, List, Optional, Set
 
 from requests import Session
 
-from .camera import Snapshot, Camera
-from .const import TriggerScheme, TIMESTAMP_PRECISION, \
-    TRIGGER_SCHEME_TO_SECONDS, CameraBusy
+from .camera import Camera, Snapshot
+from .const import (
+    TIMESTAMP_PRECISION,
+    TRIGGER_SCHEME_TO_SECONDS,
+    CameraBusy,
+    TriggerScheme,
+)
 from .models import CameraRegister, LoopObject
 
 log = logging.getLogger("camera_controller")
@@ -86,9 +90,8 @@ class CameraController:
                 to_disconnect.append(camera)
 
         for camera in to_disconnect:
-            log.warning(
-                "Camera: %s id: %s looks stuck. Disconnecting",
-                camera.name, camera.camera_id)
+            log.warning("Camera: %s id: %s looks stuck. Disconnecting",
+                        camera.name, camera.camera_id)
             camera.disconnect()
         return len(to_disconnect)
 

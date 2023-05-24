@@ -3,16 +3,16 @@ import os
 import threading
 import time
 from logging import getLogger
-from os.path import normpath, abspath, basename, dirname
-from typing import Optional, Callable
+from os.path import abspath, basename, dirname, normpath
 from random import randint
+from typing import Callable, Optional
 
 import requests
 
 from . import const
-from .const import TransferType, Event, Source, CONNECTION_TIMEOUT
-from .models import EventCallback
+from .const import CONNECTION_TIMEOUT, Event, Source, TransferType
 from .files import Filesystem
+from .models import EventCallback
 
 log = getLogger("connect-printer")
 
@@ -288,7 +288,7 @@ class DownloadMgr:
             return {
                 "event": Event.REJECTED,
                 "source": Source.CONNECT,
-                "reason": "Another transfer in progress"
+                "reason": "Another transfer in progress",
             }
 
         log.info("Starting download: %s", url)

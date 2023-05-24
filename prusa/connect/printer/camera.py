@@ -5,13 +5,22 @@ import logging
 from copy import deepcopy
 from threading import Event
 from time import time
-from typing import Any, Set, Optional, Dict
+from typing import Any, Dict, Optional, Set
 
 from requests import Session
 
-from .const import CapabilityType, TriggerScheme, DEFAULT_CAMERA_SETTINGS, \
-    NotSupported, CAMERA_WAIT_TIMEOUT, CameraBusy, CONNECTION_TIMEOUT, \
-    DriverError, ReadyTimeoutError, CAMERA_BUSY_TIMEOUT
+from .const import (
+    CAMERA_BUSY_TIMEOUT,
+    CAMERA_WAIT_TIMEOUT,
+    CONNECTION_TIMEOUT,
+    DEFAULT_CAMERA_SETTINGS,
+    CameraBusy,
+    CapabilityType,
+    DriverError,
+    NotSupported,
+    ReadyTimeoutError,
+    TriggerScheme,
+)
 from .util import make_fingerprint
 
 log = logging.getLogger("camera")
@@ -34,8 +43,11 @@ class Snapshot:
     def is_sendable(self) -> bool:
         """Is this snapshot complete and can it therefore be sent?"""
         required_attributes = [
-            self.camera_fingerprint, self.camera_token, self.camera_id,
-            self.timestamp, self.data
+            self.camera_fingerprint,
+            self.camera_token,
+            self.camera_id,
+            self.timestamp,
+            self.data,
         ]
         return all(attribute is not None for attribute in required_attributes)
 
@@ -50,7 +62,7 @@ class Snapshot:
             "Timestamp": str(self.timestamp),
             "Fingerprint": self.camera_fingerprint,
             "Token": self.camera_token,
-            'Content-Type': "image/jpg"
+            'Content-Type': "image/jpg",
         }
         params = {}
         if self.printer_uuid is not None:
@@ -139,6 +151,7 @@ def value_setter(capability_type):
                     f" {capability_type.value} from {old_value} "
                     f"to {value}.") from exception
             camera._become_ready()
+
         return inner
 
     return value_setter_decorator

@@ -1,20 +1,24 @@
 """Implements test for the camera related modules"""
 from configparser import ConfigParser
-from threading import Event, Barrier
+from threading import Barrier, Event
 from unittest.mock import Mock
 
 import pytest
 from _pytest.python_api import raises
 
 from prusa.connect.printer import get_timestamp
-from prusa.connect.printer.camera_driver import CameraDriver
 from prusa.connect.printer.camera import Camera, Resolution, Snapshot
-from prusa.connect.printer.camera_controller import CameraController
 from prusa.connect.printer.camera_configurator import CameraConfigurator
+from prusa.connect.printer.camera_controller import CameraController
+from prusa.connect.printer.camera_driver import CameraDriver
+from prusa.connect.printer.const import (
+    CapabilityType,
+    DriverError,
+    NotSupported,
+    TriggerScheme,
+)
 from prusa.connect.printer.models import CameraRegister
-from prusa.connect.printer.const import CapabilityType, TriggerScheme, \
-    NotSupported, DriverError
-from tests.util import run_loop, SERVER, printer
+from tests.util import SERVER, printer, run_loop
 
 # Shut up flake8, I'm importing a fixture!
 assert printer  # type: ignore
@@ -30,7 +34,7 @@ class DummyDriver(CameraDriver):
     scanned_cameras = {
         "id1": {
             "name": "Bad Camera 1",
-            "parameter": "very parametric"
+            "parameter": "very parametric",
         },
         "id2": {
             "name": "Bad Camera 2",
@@ -38,7 +42,7 @@ class DummyDriver(CameraDriver):
         },
         "id3": {
             # everything missing
-        }
+        },
     }
 
     @classmethod
@@ -51,8 +55,9 @@ class DummyDriver(CameraDriver):
 
     def _connect(self):
         self._capabilities = ({
-            CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
-            CapabilityType.IMAGING
+            CapabilityType.TRIGGER_SCHEME,
+            CapabilityType.RESOLUTION,
+            CapabilityType.IMAGING,
         })
         self._available_resolutions = ({Resolution(3, 3), Resolution(5, 5)})
         self._config.update({"resolution": "3x3"})
@@ -112,7 +117,7 @@ class GoodDriver(CameraDriver):
                 "resolution": "12288x6480",
                 "rotation": "0",
                 "exposure": "0",
-                "focus": "0"
+                "focus": "0",
             },
         }
 
@@ -122,9 +127,12 @@ class GoodDriver(CameraDriver):
 
     def _connect(self):
         self._capabilities = ({
-            CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
-            CapabilityType.IMAGING, CapabilityType.ROTATION,
-            CapabilityType.EXPOSURE, CapabilityType.FOCUS
+            CapabilityType.TRIGGER_SCHEME,
+            CapabilityType.RESOLUTION,
+            CapabilityType.IMAGING,
+            CapabilityType.ROTATION,
+            CapabilityType.EXPOSURE,
+            CapabilityType.FOCUS,
         })
         self._available_resolutions = ({Resolution(12288, 6480)})
 
@@ -178,8 +186,9 @@ def test_humpty_function():
     driver.connect()
     camera = Camera(driver)
     expected = {
-        CapabilityType.TRIGGER_SCHEME, CapabilityType.RESOLUTION,
-        CapabilityType.IMAGING
+        CapabilityType.TRIGGER_SCHEME,
+        CapabilityType.RESOLUTION,
+        CapabilityType.IMAGING,
     }
     differences = camera.capabilities.symmetric_difference(expected)
     assert differences == set()
@@ -225,7 +234,7 @@ def test_humpty_function():
         "id4", {
             "name": "Camera with errors",
             "driver": "Humpty Dumpty",
-            "parameter": "Driver error"
+            "parameter": "Driver error",
         }, Mock())
     driver.connect()
     assert driver.is_connected
@@ -236,7 +245,7 @@ def test_humpty_function():
         "id5", {
             "name": "Camera-shy camera",
             "driver": "Humpty Dumpty",
-            "parameter": "Camera shy"
+            "parameter": "Camera shy",
         }, Mock())
     driver.connect()
     assert driver.is_connected
@@ -255,17 +264,17 @@ def test_configurator_from_config():
         f"camera::{id1}": {
             "name": "The best camera I own",
             "driver": "Humpty Dumpty",
-            "parameter": "old value"
+            "parameter": "old value",
         },
         "camera::bar": {
             "name": "Disconnected Camera",
             "driver": "Humpty Dumpty",
-            "parameter": "fall over"
+            "parameter": "fall over",
         },
         "camera::derp": {
             "name": "Derpy is best pony",
             "driver": "Humpty Dumpty",
-            "parameter": "screw up"
+            "parameter": "screw up",
         },
         "camera::foo": {
             "name": "Missing required parameter Camera",
@@ -273,7 +282,7 @@ def test_configurator_from_config():
         },
         "camera::asdf": {
             "name": "Made up Camera",
-            "driver": "Non existent"
+            "driver": "Non existent",
         },
     })
     configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
@@ -314,7 +323,7 @@ def test_duplicates():
         "camera::same_cfg_as_id1": {
             "name": "Duplicate bad camera",
             "driver": "Humpty Dumpty",
-            "parameter": "very parametric"
+            "parameter": "very parametric",
         },
     })
     configurator = CameraConfigurator(CameraController(Mock(), "", Mock()),
@@ -345,7 +354,7 @@ def test_configurator_auto_add():
         "abc", {
             "name": "Camera-shy camera",
             "driver": "Humpty Dumpty",
-            "parameter": "Camera shy"
+            "parameter": "Camera shy",
         })
     assert "abc" in configurator.order
     assert "abc" in configurator.stored
@@ -366,7 +375,7 @@ def test_configurator_remove():
         "def", {
             "name": "A camera",
             "driver": "Humpty Dumpty",
-            "parameter": "Nothing special"
+            "parameter": "Nothing special",
         })
     assert "def" in configurator.loaded
     assert "def" in configurator.camera_controller
@@ -438,7 +447,7 @@ def test_update_disconnected():
         extra, {
             "name": "Re-connecting Camera",
             "driver": "Humpty Dumpty",
-            "parameter": "fall over"
+            "parameter": "fall over",
         })
     assert extra in configurator.loaded
     assert not configurator.is_connected(extra)
@@ -464,7 +473,7 @@ def test_camera_controller():
             "name": "Second camera",
             "driver": "Humpty Dumpty",
             "parameter": "my imagination ran out",
-            "trigger_scheme": "MANUAL"
+            "trigger_scheme": "MANUAL",
         })
 
     camera_id1 = controller.get_camera(id1)
@@ -502,7 +511,8 @@ def test_camera_controller():
         snapshot = arguments.args[0]
         assert snapshot.data == [[1] * RES_BOTH] * RES_BOTH
         assert snapshot.camera_fingerprint in {
-            camera_abc.fingerprint, camera_id1.fingerprint
+            camera_abc.fingerprint,
+            camera_id1.fingerprint,
         }
 
     camera_abc.wait_ready(0.1)
@@ -556,12 +566,12 @@ def test_setting_conversions():
     enormous = CameraDriver.make_hash("EnormousCamera")
     assert enormous in configurator.loaded
     driver = configurator.loaded[enormous]
-    assert {"resolution", "name", "exposure",
-            "rotation", "focus"}.issubset(driver.config)
+    assert {"resolution", "name", "exposure", "rotation",
+            "focus"}.issubset(driver.config)
     camera = configurator.camera_controller.get_camera(enormous)
     exported_settings = camera.get_settings()
-    assert {"resolution", "name", "exposure",
-            "rotation", "focus"}.issubset(exported_settings)
+    assert {"resolution", "name", "exposure", "rotation",
+            "focus"}.issubset(exported_settings)
     json_settings = Camera.json_from_settings(exported_settings)
     back_from_json = Camera.settings_from_json(json_settings)
     assert exported_settings == back_from_json

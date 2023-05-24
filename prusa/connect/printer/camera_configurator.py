@@ -3,13 +3,17 @@ import logging
 from configparser import ConfigParser
 from copy import deepcopy
 from multiprocessing import RLock
-from typing import Dict, Type, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Type
 
 from . import CameraController
 from .camera import Camera
 from .camera_driver import CameraDriver
-from .const import ConfigError, CameraAlreadyConnected, CameraConfigs, \
-    CameraNotFound
+from .const import (
+    CameraAlreadyConnected,
+    CameraConfigs,
+    CameraNotFound,
+    ConfigError,
+)
 
 log = logging.getLogger("camera_configurator")
 
@@ -25,9 +29,12 @@ class CameraConfigurator:
     connected to PrusaLink, or we would need one order for saving and another
     for the instance.
     """
+
     # pylint: disable=too-many-arguments
-    def __init__(self, camera_controller: CameraController,
-                 config: ConfigParser, config_file_path: str,
+    def __init__(self,
+                 camera_controller: CameraController,
+                 config: ConfigParser,
+                 config_file_path: str,
                  drivers: List[Type[CameraDriver]],
                  auto_detect=True) -> None:
         self.camera_controller = camera_controller
