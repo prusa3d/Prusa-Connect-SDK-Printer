@@ -1,3 +1,43 @@
+[project]
+name = "prusa.connect.sdk.printer"
+description = "Python printer library for PrusaConnect"
+readme = "README.rst"
+license = {text = "Freeware"}
+
+authors = [
+    {name = "Prusa Link Developers", email = "link@prusa3d.cz"},
+]
+maintainers = [
+    {name = "Ondřej Tůma", email = "mcbig@zeropage.cz"},
+    {name = "Michal Zoubek", email = "michal.zoubek@prusa3d.cz"},
+    {name = "Tomáš Jozífek", email = "jozifektomas@gmail.com"}
+]
+
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "License :: Freeware",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dynamic = [
+    "version",
+    "dependencies",
+]
+
+[project.urls]
+"Repository" = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer"
+"Bug Tracker" = "https://github.com/prusa3d/Prusa-Connect-SDK-Printer/issues"
+
+[tool.setuptools]
+packages = ["prusa.connect.printer"]
+
+[tool.setuptools.package-data]
+"prusa.connect.printer" = ["py.typed"]
+
 [tool.ruff]
 select = [
     "F",    # pyflakes

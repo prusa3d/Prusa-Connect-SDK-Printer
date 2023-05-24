@@ -49,7 +49,7 @@ setup(name="prusa.connect.sdk.printer",
           "Programming Language :: Python :: 3 :: Only",
           "Topic :: Software Development :: Libraries :: Python Modules",
       ],
-      python_requires=">=3.6",
+      python_requires=">=3.9",
       install_requires=REQUIRES,
       tests_require=[
           'pytest',
