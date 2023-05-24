@@ -1,11 +1,15 @@
 import os
-import pytest
-import tempfile
 import shutil
+import tempfile
 import time
 
-from prusa.connect.printer.metadata import get_metadata, UnknownGcodeFileType,\
-    MetaData
+import pytest
+
+from prusa.connect.printer.metadata import (
+    MetaData,
+    UnknownGcodeFileType,
+    get_metadata,
+)
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "gcodes", "metadata")
@@ -117,7 +121,7 @@ class TestFDNMetaData:
             'layer_height': 0.15,
             'support_material': 0,
             'temperature': 250,
-            'ironing': 0
+            'ironing': 0,
         }
         assert len(meta.thumbnails['640x480']) == 158644
 
@@ -160,7 +164,7 @@ class TestSLMetaData:
             'min_exposure_time': 1.0,
             'layer_height': 0.05,
             'materialName': 'Prusa Orange Tough @0.05',
-            'fileCreationTimestamp': '2020-09-17 at 13:53:21 UTC'
+            'fileCreationTimestamp': '2020-09-17 at 13:53:21 UTC',
         }
 
         assert len(meta.thumbnails["400x400"]) == 19688

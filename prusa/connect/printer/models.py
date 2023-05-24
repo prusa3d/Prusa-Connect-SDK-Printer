@@ -1,7 +1,8 @@
 """Connect printer data models."""
 from logging import getLogger
 from time import time
-from typing import Dict, Any, Callable, Optional, TypedDict
+from typing import Any, Callable, Dict, Optional, TypedDict
+
 from mypy_extensions import Arg, DefaultArg, KwArg
 from requests import Session
 
@@ -21,13 +22,13 @@ EventCallback = Callable[[
     Arg(const.Source, 'source'),  # noqa
     DefaultArg(Optional[float], 'timestamp'),  # noqa
     DefaultArg(Optional[int], 'command_id'),  # noqa
-    KwArg(Any)
+    KwArg(Any),
 ], None]
 
 TelemetryCallback = Callable[[
     Arg(const.State, 'state'),  # noqa
     DefaultArg(Optional[float], 'timestamp'),  # noqa
-    KwArg(Any)
+    KwArg(Any),
 ], None]
 
 
@@ -141,7 +142,7 @@ class Event(LoopObject):
         data = {
             "event": self.event.value,
             "source": self.source.value,
-            "data": filter_null(self.data)
+            "data": filter_null(self.data),
         }
         for attr in ('command_id', 'job_id', 'transfer_id', 'reason'):
             value = getattr(self, attr)
@@ -209,7 +210,7 @@ class CameraRegister(LoopObject):
             "config": config,
             "options": options,
             "capabilities": capabilities,
-            "fingerprint": self.camera.fingerprint
+            "fingerprint": self.camera.fingerprint,
         }
         return data
 

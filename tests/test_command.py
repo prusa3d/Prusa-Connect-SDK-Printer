@@ -1,13 +1,13 @@
 """Test Command interface"""
 import threading
 from queue import Queue
+from typing import Optional
 
 import pytest
 
 from prusa.connect.printer import const
 from prusa.connect.printer.command import Command
 from prusa.connect.printer.models import Event
-from typing import Optional
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name

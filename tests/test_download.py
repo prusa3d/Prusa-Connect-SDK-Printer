@@ -1,16 +1,16 @@
 """Unit tests for Download manager and transfer info."""
 import os
-import time
 import queue
-import threading
-import tempfile
 import shutil
+import tempfile
+import threading
+import time
 
 import pytest
 import responses
 
-from prusa.connect.printer import const
-from prusa.connect.printer import Telemetry
+from prusa.connect.printer import Telemetry, const
+
 from .util import printer
 
 assert printer  # type: ignore

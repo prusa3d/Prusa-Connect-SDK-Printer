@@ -1,9 +1,15 @@
+"""Test conditions"""
 from unittest.mock import Mock
 
 import pytest  # type: ignore
 
-from prusa.connect.printer.conditions import CondState, Condition, \
-    ConditionTracker
+from prusa.connect.printer.conditions import (
+    Condition,
+    ConditionTracker,
+    CondState,
+)
+
+# pylint: disable=missing-function-docstring
 
 
 def test_sanity():

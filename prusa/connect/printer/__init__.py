@@ -2,32 +2,38 @@
 
     Copyright (C) 2023 PrusaResearch
 """
-
 import configparser
 import os
 import re
 from logging import getLogger
-from queue import Queue, Empty
-from time import time, sleep
-from typing import Optional, List, Any, Callable, Dict
+from queue import Empty, Queue
+from time import sleep, time
+from typing import Any, Callable, Dict, List, Optional
 
-from requests import Session, RequestException, Response
+from requests import RequestException, Response, Session
+
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError
 
 from . import const, errors
 from .camera_controller import CameraController
+from .clock import ClockWatcher
 from .command import Command, CommandFailed
-from .conditions import CondState, API, TOKEN, HTTP, INTERNET
+from .conditions import API, HTTP, INTERNET, TOKEN, CondState
+from .download import DownloadMgr, Transfer
 from .files import Filesystem, InotifyHandler, delete
 from .metadata import get_metadata
-from .models import Event, Telemetry, Sheet, Register, LoopObject, \
-    CameraRegister
-from .clock import ClockWatcher
-from .download import DownloadMgr, Transfer
+from .models import (
+    CameraRegister,
+    Event,
+    LoopObject,
+    Register,
+    Sheet,
+    Telemetry,
+)
 from .util import RetryingSession, get_timestamp
 
-__version__ = "0.7.0"
+__version__ = "0.7.1dev0"
 __date__ = "02 May 2023"  # version date
 __copyright__ = "(c) 2023 Prusa 3D"
 __author_name__ = "Prusa Link Developers"
@@ -95,7 +101,7 @@ class Printer:
             "wifi_ssid": None,
             "hostname": None,
             "username": None,
-            "digest": None
+            "digest": None,
         }
         self.api_key: Optional[str] = None
         self.code: Optional[str] = None
@@ -138,7 +144,7 @@ class Printer:
         # Handler blocks communication with Connect in loop method!
         self.register_handler = default_register_handler
         self.__printed_file_cb = lambda: None
-        self.download_finished_cb = lambda Transfer: None
+        self.download_finished_cb = lambda transfer: None  # noaq: ARG005
 
         self.clock_watcher = ClockWatcher()
 
@@ -247,7 +253,7 @@ class Printer:
 
         headers = {
             "Fingerprint": self.fingerprint,
-            "Timestamp": str(timestamp)
+            "Timestamp": str(timestamp),
         }
         if self.token:
             headers['Token'] = self.token
@@ -382,7 +388,7 @@ class Printer:
             "fingerprint": self.fingerprint,
             "mbl": self.mbl,
             "sheet_settings": self.sheet_settings,
-            "active_sheet": self.active_sheet
+            "active_sheet": self.active_sheet,
         }
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
@@ -657,7 +663,7 @@ class Printer:
             "sn": self.sn,
             "fingerprint": self.fingerprint,
             "printer_type": str(self.__type),
-            "firmware": self.firmware
+            "firmware": self.firmware,
         }
         res = self.conn.post(self.server + "/p/register",
                              headers=self.make_headers(),

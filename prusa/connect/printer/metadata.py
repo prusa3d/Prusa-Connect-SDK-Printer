@@ -1,17 +1,21 @@
 """Metadata parser for Prusa Slicer gcode files. Extracts preview pictures
 as well.
 """
-from time import time, sleep
-
 import base64
 import json
-import re
 import os
+import re
 import zipfile
-from typing import Dict, Any
 from logging import getLogger
-from .const import GCODE_EXTENSIONS, METADATA_MAX_OFFSET, \
-    METADATA_CHUNK_SIZE, COMMENT_BLOCK_MAX_SIZE
+from time import sleep, time
+from typing import Any, Dict
+
+from .const import (
+    COMMENT_BLOCK_MAX_SIZE,
+    GCODE_EXTENSIONS,
+    METADATA_CHUNK_SIZE,
+    METADATA_MAX_OFFSET,
+)
 
 log = getLogger("connect-printer")
 
@@ -133,7 +137,7 @@ class MetaData:
             if self.thumbnails or self.data:
                 dict_data = {
                     "thumbnails": thumbnail_from_bytes(self.thumbnails),
-                    "data": self.data
+                    "data": self.data,
                 }
                 with open(self.cache_name, "w", encoding='utf-8') as file:
                     json.dump(dict_data, file, indent=2)

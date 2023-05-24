@@ -1,22 +1,29 @@
 """Test for Printer object."""
-import os
 import io
-import queue
-import time
-import tempfile
 import json
+import os
+import queue
+import tempfile
+import time
 from typing import Any
 
 import pytest  # type: ignore
 import requests
-from func_timeout import func_timeout, FunctionTimedOut  # type: ignore
+from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 
-from prusa.connect.printer import Printer, const, Command, \
-    Register, errors
-from prusa.connect.printer.models import Telemetry, Event
-from prusa.connect.printer.conditions import CondState, HTTP, INTERNET, API
-from tests.util import run_loop, CONNECT_HOST, CONNECT_PORT, TOKEN, SERVER, \
-    FINGERPRINT, SN, printer
+from prusa.connect.printer import Command, Printer, Register, const, errors
+from prusa.connect.printer.conditions import API, HTTP, INTERNET, CondState
+from prusa.connect.printer.models import Event, Telemetry
+from tests.util import (
+    CONNECT_HOST,
+    CONNECT_PORT,
+    FINGERPRINT,
+    SERVER,
+    SN,
+    TOKEN,
+    printer,
+    run_loop,
+)
 
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name
@@ -237,7 +244,7 @@ class TestPrinter:
                            text='{"command":"SEND_INFO"}',
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -285,7 +292,7 @@ class TestPrinter:
             'name': 'test',
             'ro': False,
             'size': 0,
-            'children': []
+            'children': [],
         }
 
         # MEDIUM_INSERTED event resulting from ataching
@@ -294,14 +301,14 @@ class TestPrinter:
         cmd = {
             "command": "DELETE_DIRECTORY",
             "kwargs": {
-                "path": "/test/test_dir"
-            }
+                "path": "/test/test_dir",
+            },
         }
         requests_mock.post(SERVER + "/p/telemetry",
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -326,7 +333,7 @@ class TestPrinter:
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False
+            'ro': False,
         }
 
         # check file structure
@@ -345,8 +352,8 @@ class TestPrinter:
                 'type': 'FOLDER',
                 'name': 'test_dir',
                 'ro': False,
-                'size': 0
-            }]
+                'size': 0,
+            }],
         }
 
         printer.command()  # exec DELETE_DIRECTORY
@@ -362,7 +369,7 @@ class TestPrinter:
             'name': 'test',
             'ro': False,
             'size': 0,
-            'children': []
+            'children': [],
         }
         # directory is removed
         assert os.path.exists(path) is False
@@ -389,7 +396,7 @@ class TestPrinter:
             'name': 'test',
             'ro': False,
             'size': 0,
-            'children': []
+            'children': [],
         }
 
         # MEDIUM_INSERTED event resulting from attaching
@@ -398,14 +405,14 @@ class TestPrinter:
         cmd = {
             "command": "DELETE_FILE",
             "kwargs": {
-                "path": "/test/test-file.hex"
-            }
+                "path": "/test/test-file.hex",
+            },
         }
         requests_mock.post(SERVER + "/p/telemetry",
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -437,8 +444,8 @@ class TestPrinter:
                 'type': 'FIRMWARE',
                 'name': 'test-file.hex',
                 'ro': False,
-                'size': 1
-            }]
+                'size': 1,
+            }],
         }
 
         printer.command()  # exec DELETE_FILE
@@ -454,7 +461,7 @@ class TestPrinter:
             'name': 'test',
             'ro': False,
             'size': 0,
-            'children': []
+            'children': [],
         }
         assert os.path.exists(file_path) is False
 
@@ -478,20 +485,20 @@ class TestPrinter:
             'name': 'test',
             'size': 0,
             'ro': False,
-            'children': []
+            'children': [],
         }
 
         cmd = {
             "command": "CREATE_FOLDER",
             "kwargs": {
-                "path": "/test/test_dir"
-            }
+                "path": "/test/test_dir",
+            },
         }
         requests_mock.post(SERVER + "/p/telemetry",
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -517,7 +524,7 @@ class TestPrinter:
             'name': 'test',
             'size': 0,
             'ro': False,
-            'children': []
+            'children': [],
         }
 
         printer.command()  # exec CREATE_FOLDER
@@ -532,7 +539,7 @@ class TestPrinter:
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False
+            'ro': False,
         }
         assert os.path.exists(path) is True
 
@@ -552,8 +559,8 @@ class TestPrinter:
                 'type': 'FOLDER',
                 'name': 'test_dir',
                 'ro': False,
-                'size': 0
-            }]
+                'size': 0,
+            }],
         }
         assert os.path.exists(path) is True
 
@@ -575,7 +582,7 @@ class TestPrinter:
                            headers={
                                "Command-Id": "1",
                                "Content-Type": "text/x.gcode",
-                               "Force": "1"
+                               "Force": "1",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -743,7 +750,7 @@ class TestPrinter:
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -821,7 +828,7 @@ class TestPrinter:
         assert info['reason'] == 'Command error'
         assert info['data'] == {
             'error': "ValueError('File does not exist: "
-            "/N/A/file.txt')"
+            "/N/A/file.txt')",
         }
 
     def test_url_download(self, requests_mock, printer_sdcard):
@@ -831,14 +838,14 @@ class TestPrinter:
             "path": path,
             "url": url,
             "selecting": True,
-            "printing": False
+            "printing": False,
         }
         cmd = {"command": "START_URL_DOWNLOAD", "kwargs": kwargs}
         requests_mock.post(SERVER + "/p/telemetry",
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.get(url,
@@ -881,7 +888,7 @@ class TestPrinter:
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.get(SERVER + uri,
@@ -925,7 +932,7 @@ class TestPrinter:
                            text=cmd,
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -998,7 +1005,7 @@ class TestPrinter:
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
 
@@ -1026,7 +1033,7 @@ class TestPrinter:
                            text=json.dumps(cmd),
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
 
@@ -1074,7 +1081,7 @@ class TestPrinter:
                            text=cmd,
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -1115,7 +1122,7 @@ class TestPrinter:
                            text=cmd,
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -1147,7 +1154,7 @@ class TestPrinter:
                            text=cmd,
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -1243,7 +1250,7 @@ class TestPrinter:
                            text=cmd,
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -1270,7 +1277,7 @@ class TestPrinter:
                            text=cmd,
                            headers={
                                "Command-Id": "42",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)
@@ -1293,7 +1300,7 @@ class TestPrinter:
                            text=cmd_cancel,
                            headers={
                                "Command-Id": "43",
-                               "Content-Type": "application/json"
+                               "Content-Type": "application/json",
                            },
                            status_code=200)
         requests_mock.post(SERVER + "/p/events", status_code=204)

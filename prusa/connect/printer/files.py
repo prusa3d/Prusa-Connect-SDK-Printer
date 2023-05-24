@@ -3,16 +3,17 @@
 import os
 import typing
 import weakref
-from logging import getLogger
-from time import time, sleep
-from os import path, access, W_OK, stat, walk
-from shutil import rmtree
 from collections import Counter
+from logging import getLogger
+from os import W_OK, access, path, stat, walk
+from shutil import rmtree
+from time import sleep, time
 from typing import Optional
+
 from inotify_simple import INotify, flags  # type: ignore
 
 from . import const
-from .metadata import get_metadata, UnknownGcodeFileType
+from .metadata import UnknownGcodeFileType, get_metadata
 from .models import EventCallback
 
 ROOT = '__ROOT__'
@@ -413,7 +414,7 @@ class Filesystem:
         if self.event_cb:
             payload = {
                 "root": f"{self.sep}{name}",
-                "files": self.storage_dict[name].to_dict_legacy()
+                "files": self.storage_dict[name].to_dict_legacy(),
             }
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 

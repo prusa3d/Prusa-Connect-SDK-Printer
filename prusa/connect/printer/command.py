@@ -1,10 +1,10 @@
 """Command class representation."""
-from multiprocessing import Event
-from typing import Optional, List, Any, Dict, Callable
 from logging import getLogger
+from multiprocessing import Event
+from typing import Any, Callable, Dict, List, Optional
 
 from . import const
-from .const import PRIORITY_COMMANDS, ONE_SECOND_TIMEOUT
+from .const import ONE_SECOND_TIMEOUT, PRIORITY_COMMANDS
 from .models import EventCallback
 
 log = getLogger("connect-printer")
