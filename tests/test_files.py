@@ -216,7 +216,7 @@ class TestFile:
             'FOLDER',
             'name':
             'a',
-            'ro':
+            'read_only':
             True,
             'm_timestamp':
             1596120005,
@@ -225,19 +225,19 @@ class TestFile:
             'children': [{
                 'type': 'FOLDER',
                 'name': 'b',
-                'ro': True,
+                'read_only': True,
                 'm_timestamp': 1596120005,
                 'size': 0,
             }, {
                 'type': 'FOLDER',
                 'name': 'c',
-                'ro': True,
+                'read_only': True,
                 'm_timestamp': 1596120005,
                 'size': 6088,
             }, {
                 'type': 'PRINT_FILE',
                 'name': '1.gcode',
-                'ro': True,
+                'read_only': True,
                 'm_timestamp': 1596120005,
                 'size': 3044,
             }],
@@ -248,7 +248,7 @@ class TestFile:
         assert res == {
             'type': 'FOLDER',
             'name': 'a',
-            'ro': True,
+            'read_only': True,
             'm_timestamp': 1596120005,
             'size': 9132,
         }
@@ -260,7 +260,7 @@ class TestFile:
             'DIR',
             'name':
             'a',
-            'ro':
+            'read_only':
             True,
             'm_timestamp':
             1596120005,
@@ -269,7 +269,7 @@ class TestFile:
             'children': [{
                 'type': 'DIR',
                 'name': 'b',
-                'ro': True,
+                'read_only': True,
                 'm_timestamp': 1596120005,
                 'size': 0,
                 'children': [],
@@ -278,7 +278,7 @@ class TestFile:
                 'DIR',
                 'name':
                 'c',
-                'ro':
+                'read_only':
                 True,
                 'm_timestamp':
                 1596120005,
@@ -287,20 +287,20 @@ class TestFile:
                 'children': [{
                     'type': 'FILE',
                     'name': '2.sl1',
-                    'ro': True,
+                    'read_only': True,
                     'm_timestamp': 1596120005,
                     'size': 3044,
                 }, {
                     'type': 'FILE',
                     'name': '3.txt',
-                    'ro': True,
+                    'read_only': True,
                     'm_timestamp': 1596120005,
                     'size': 3044,
                 }],
             }, {
                 'type': 'FILE',
                 'name': '1.gcode',
-                'ro': True,
+                'read_only': True,
                 'm_timestamp': 1596120005,
                 'size': 3044,
             }],
@@ -401,7 +401,7 @@ class TestFilesystem:
 
         assert fs_dict == {
             'name': '/',
-            'ro': True,
+            'read_only': True,
             'type': 'FOLDER',
             'children': ['storage'],
         }
@@ -416,7 +416,7 @@ class TestFilesystem:
         assert fs_dict == {
             'name':
             '/',
-            'ro':
+            'read_only':
             True,
             'type':
             'DIR',
@@ -489,7 +489,7 @@ class TestINotify:
         assert event.source == const.Source.WUI
         assert len(str(event.data['file']['m_timestamp'])) == 10
         assert event.data['file']['name'] == "simple.gcode"
-        assert not event.data['file']['ro']
+        assert not event.data['file']['read_only']
         assert event.data['file']['type'] == 'PRINT_FILE'
         assert event.data['new_path'] == '/test/simple.gcode'
         assert event.data['old_path'] is None
@@ -512,7 +512,7 @@ class TestINotify:
         assert event.source == const.Source.WUI
         assert len(str(event.data['file']['m_timestamp'])) == 10
         assert event.data['file']['name'] == "folder"
-        assert not event.data['file']['ro']
+        assert not event.data['file']['read_only']
         assert event.data['file']['type'] == "FOLDER"
         assert event.data['new_path'] == '/test/folder'
         assert event.data['old_path'] is None
@@ -657,7 +657,7 @@ class TestINotify:
         """Write into a file and make sure that the change is reflected"""
         node = inotify.fs.get("/test/a/1.gcode")
         assert node.attrs['size'] == 0
-        assert node.attrs['ro'] is False
+        assert node.attrs['read_only'] is False
         path = node.abs_path(inotify.path)
         with open(path, "a") as fh:
             fh.write("Hello World")
@@ -666,7 +666,7 @@ class TestINotify:
         inotify.handler()
         node = inotify.fs.get("/test/a/1.gcode")
         assert node.attrs['size'] == 11
-        assert node.attrs['ro'] is True
+        assert node.attrs['read_only'] is True
 
         # check event to Connect
         event = None
@@ -676,7 +676,7 @@ class TestINotify:
         assert event.source == const.Source.WUI
         assert event.data['file']['name'] == "1.gcode"
         assert "m_timestamp" in event.data['file']
-        assert event.data['file']['ro']
+        assert event.data['file']['read_only']
         assert event.data['old_path'] == "/test/a/1.gcode"
         assert event.data['new_path'] == "/test/a/1.gcode"
         assert event.data['free_space'] > 0

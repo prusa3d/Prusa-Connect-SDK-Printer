@@ -290,7 +290,7 @@ class TestPrinter:
         assert file_system == {
             'type': 'FOLDER',
             'name': 'test',
-            'ro': False,
+            'read_only': False,
             'size': 0,
             'children': [],
         }
@@ -333,7 +333,7 @@ class TestPrinter:
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False,
+            'read_only': False,
         }
 
         # check file structure
@@ -346,12 +346,12 @@ class TestPrinter:
             'test',
             'size':
             0,
-            'ro':
+            'read_only':
             False,
             'children': [{
                 'type': 'FOLDER',
                 'name': 'test_dir',
-                'ro': False,
+                'read_only': False,
                 'size': 0,
             }],
         }
@@ -367,7 +367,7 @@ class TestPrinter:
         assert file_system == {
             'type': 'FOLDER',
             'name': 'test',
-            'ro': False,
+            'read_only': False,
             'size': 0,
             'children': [],
         }
@@ -394,7 +394,7 @@ class TestPrinter:
         assert file_system == {
             'type': 'FOLDER',
             'name': 'test',
-            'ro': False,
+            'read_only': False,
             'size': 0,
             'children': [],
         }
@@ -436,14 +436,14 @@ class TestPrinter:
             'FOLDER',
             'name':
             'test',
-            'ro':
+            'read_only':
             False,
             'size':
             1,
             'children': [{
                 'type': 'FIRMWARE',
                 'name': 'test-file.hex',
-                'ro': False,
+                'read_only': False,
                 'size': 1,
             }],
         }
@@ -459,7 +459,7 @@ class TestPrinter:
         assert file_system == {
             'type': 'FOLDER',
             'name': 'test',
-            'ro': False,
+            'read_only': False,
             'size': 0,
             'children': [],
         }
@@ -484,7 +484,7 @@ class TestPrinter:
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False,
+            'read_only': False,
             'children': [],
         }
 
@@ -523,7 +523,7 @@ class TestPrinter:
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False,
+            'read_only': False,
             'children': [],
         }
 
@@ -539,7 +539,7 @@ class TestPrinter:
             'type': 'FOLDER',
             'name': 'test',
             'size': 0,
-            'ro': False,
+            'read_only': False,
         }
         assert os.path.exists(path) is True
 
@@ -553,12 +553,12 @@ class TestPrinter:
             'test',
             'size':
             0,
-            'ro':
+            'read_only':
             False,
             'children': [{
                 'type': 'FOLDER',
                 'name': 'test_dir',
-                'ro': False,
+                'read_only': False,
                 'size': 0,
             }],
         }

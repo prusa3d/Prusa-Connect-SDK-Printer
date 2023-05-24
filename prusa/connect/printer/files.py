@@ -89,7 +89,7 @@ class File:
         :param parent: Parent for this File, which itself is a
             File(is_dir=True)
         :param attrs: Any attributes for the file you want to store. File's
-            to_dict() method add `ro`, `m_timestamp` and `size`
+            to_dict() method add `read_only`, `m_timestamp` and `size`
             attributes, if it finds them.
         """
         self.name = name
@@ -221,7 +221,7 @@ class File:
             "type": get_file_type(self).value,
             "name": self.name,
         }
-        for attr in ("ro", "m_timestamp"):
+        for attr in ("read_only", "m_timestamp"):
             if attr in self.attrs:
                 result[attr] = self.attrs[attr]
         result['size'] = self.size
@@ -243,7 +243,7 @@ class File:
             "type": file_type,
             "name": self.name,
         }
-        for attr in ("ro", "m_timestamp"):
+        for attr in ("read_only", "m_timestamp"):
             if attr in self.attrs:
                 result[attr] = self.attrs[attr]
         result['size'] = self.size
@@ -265,11 +265,11 @@ class File:
         return self.name
 
     def set_attrs(self, abs_path):
-        """Set `ro`, `size_` and `m_timestamp` attributes on this file
+        """Set `read_only`, `size_` and `m_timestamp` attributes on this file
         according to `abs_path` file on storage.
         """
         stats = stat(abs_path)
-        self.attrs["ro"] = not access(abs_path, W_OK)
+        self.attrs["read_only"] = not access(abs_path, W_OK)
         if not self.is_dir:
             self.size = stats.st_size
         self.attrs["m_timestamp"] = int(stats.st_mtime)
@@ -494,7 +494,12 @@ class Filesystem:
 
         :return: dictionary representation of the Filesystem.
         """
-        root = {"type": "FOLDER", "name": "/", "ro": True, "children": []}
+        root = {
+            "type": "FOLDER",
+            "name": "/",
+            "read_only": True,
+            "children": [],
+        }
 
         if ROOT in self.storage_dict:
             root = self.storage_dict[ROOT].to_dict()
@@ -511,7 +516,7 @@ class Filesystem:
 
         :return: dictionary representation of the Filesystem.
         """
-        root = {"type": "DIR", "name": "/", "ro": True, "children": []}
+        root = {"type": "DIR", "name": "/", "read_only": True, "children": []}
 
         if ROOT in self.storage_dict:
             root = self.storage_dict[ROOT].to_dict_legacy()
