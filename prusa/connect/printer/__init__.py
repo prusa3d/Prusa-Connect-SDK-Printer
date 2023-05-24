@@ -523,7 +523,7 @@ class Printer:
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command_name} requires kwargs")
 
-        if self.fs.get(caller.kwargs["path"]).to_dict()["ro"]:
+        if self.fs.get(caller.kwargs["path"]).to_dict()["read_only"]:
             raise ValueError("File is read only")
 
         if self.printed_file_cb() == caller.kwargs["path"]:
@@ -540,7 +540,7 @@ class Printer:
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError(f"{caller.command_name} requires kwargs")
 
-        if self.fs.get(caller.kwargs["path"]).to_dict()["ro"]:
+        if self.fs.get(caller.kwargs["path"]).to_dict()["read_only"]:
             raise ValueError("Folder is read only")
 
         if self.printed_file_cb():

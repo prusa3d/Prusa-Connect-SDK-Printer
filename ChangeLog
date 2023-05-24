@@ -2,6 +2,7 @@ ChangeLog
 =========
 
 0.7.1dev0
+    * Attribute ro renamed to read_only
 
 0.7.0 (2023-05-02)
     * Added new flat struct for filesystem, old one is renamed to legacy
