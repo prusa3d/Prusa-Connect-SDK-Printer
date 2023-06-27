@@ -5,7 +5,7 @@ from hashlib import sha256
 from time import time
 from typing import Optional
 
-import requests
+import requests  # type: ignore
 
 from . import const
 

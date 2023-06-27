@@ -8,12 +8,13 @@ from logging import getLogger
 from os import W_OK, access, path, stat, walk
 from shutil import rmtree
 from time import sleep, time
+from types import MappingProxyType
 from typing import Optional
 
+from gcode_metadata import UnknownGcodeFileType, get_metadata
 from inotify_simple import INotify, flags  # type: ignore
 
 from . import const
-from .metadata import UnknownGcodeFileType, get_metadata
 from .models import EventCallback
 
 ROOT = '__ROOT__'
@@ -895,7 +896,7 @@ class InotifyHandler:
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
 
     # handlers for inotify file events
-    HANDLERS = {
+    HANDLERS = MappingProxyType({
         "CREATE": process_create,
         "MODIFY": process_modify,
         "DELETE": process_delete,
@@ -903,4 +904,4 @@ class InotifyHandler:
         "MOVED_FROM": process_delete,
         "DELETE_SELF": process_delete,
         "MOVE_SELF": process_delete,
-    }
+    })

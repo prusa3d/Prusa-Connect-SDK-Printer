@@ -7,7 +7,7 @@ from os.path import abspath, basename, dirname, normpath
 from random import randint
 from typing import Callable, Optional
 
-import requests
+import requests  # type: ignore
 
 from . import const
 from .const import CONNECTION_TIMEOUT, Event, Source, TransferType

@@ -4,7 +4,7 @@ from time import time
 from typing import Any, Callable, Dict, Optional, TypedDict
 
 from mypy_extensions import Arg, DefaultArg, KwArg
-from requests import Session
+from requests import Session  # type: ignore
 
 from . import const
 from .camera import Camera

@@ -5,7 +5,7 @@ from queue import Empty, Queue
 from time import time
 from typing import Callable, Dict, Iterator, List, Optional, Set
 
-from requests import Session
+from requests import Session  # type: ignore
 
 from .camera import Camera, Snapshot
 from .const import (

@@ -5,6 +5,7 @@ import hashlib
 import logging
 from copy import deepcopy
 from threading import Thread
+from types import MappingProxyType
 from typing import Callable, Dict, Iterable, Optional, Set
 
 from . import get_timestamp
@@ -35,7 +36,7 @@ class CameraDriver:
     name: str
     # Keys are the keys of the dictionary needed to instance the driver
     # Values are human-readable hints.
-    REQUIRES_SETTINGS: Dict[str, str] = {}
+    REQUIRES_SETTINGS: MappingProxyType[str, str] = MappingProxyType({})
 
     def __init__(self, camera_id: str, config: Dict[str, str],
                  disconnected_cb: Callable[["CameraDriver"], None]) -> None:
