@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pytest  # type: ignore
 from gcode_metadata import MetaData
 
+from gcode_metadata import MetaData
 from prusa.connect.printer import const
 from prusa.connect.printer.files import (
     File,
