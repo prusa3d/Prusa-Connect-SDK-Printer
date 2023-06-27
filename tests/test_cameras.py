@@ -1,6 +1,8 @@
 """Implements test for the camera related modules"""
 from configparser import ConfigParser
 from threading import Barrier, Event
+from types import MappingProxyType
+from typing import ClassVar
 from unittest.mock import Mock
 
 import pytest
@@ -28,10 +30,12 @@ class DummyDriver(CameraDriver):
     """It's a dummy driver for testing"""
 
     name = "Humpty Dumpty"
-    REQUIRES_SETTINGS = {"parameter": "A placeholder parameter for testing"}
+    REQUIRES_SETTINGS = MappingProxyType({
+        "parameter": "A placeholder parameter for testing",
+    })
 
     # Allows changes for tests with newly detected cameras
-    scanned_cameras = {
+    scanned_cameras: ClassVar[dict] = {
         "id1": {
             "name": "Bad Camera 1",
             "parameter": "very parametric",

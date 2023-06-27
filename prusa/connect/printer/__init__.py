@@ -10,10 +10,11 @@ from queue import Empty, Queue
 from time import sleep, time
 from typing import Any, Callable, Dict, List, Optional
 
-from requests import RequestException, Response, Session
+from gcode_metadata import get_metadata
+from requests import RequestException, Response, Session  # type: ignore
 
 # pylint: disable=redefined-builtin
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError  # type: ignore
 
 from . import const, errors
 from .camera_controller import CameraController
@@ -22,7 +23,6 @@ from .command import Command, CommandFailed
 from .conditions import API, HTTP, INTERNET, TOKEN, CondState
 from .download import DownloadMgr, Transfer
 from .files import Filesystem, InotifyHandler, delete
-from .metadata import get_metadata
 from .models import (
     CameraRegister,
     Event,

@@ -7,7 +7,7 @@ from threading import Event
 from time import time
 from typing import Any, Dict, Optional, Set
 
-from requests import Session
+from requests import Session  # type: ignore
 
 from .const import (
     CAMERA_BUSY_TIMEOUT,

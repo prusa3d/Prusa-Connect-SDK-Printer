@@ -10,6 +10,7 @@ from typing import Optional
 from unittest.mock import patch
 
 import pytest  # type: ignore
+from gcode_metadata import MetaData
 
 from prusa.connect.printer import const
 from prusa.connect.printer.files import (
@@ -18,7 +19,6 @@ from prusa.connect.printer.files import (
     InotifyHandler,
     InvalidStorageError,
 )
-from prusa.connect.printer.metadata import MetaData
 from prusa.connect.printer.models import Event
 
 gcodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),

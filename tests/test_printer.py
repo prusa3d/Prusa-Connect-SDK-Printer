@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 import pytest  # type: ignore
-import requests
+import requests  # type: ignore
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 
 from prusa.connect.printer import Command, Printer, Register, const, errors
