@@ -4,9 +4,8 @@ import shutil
 import stat
 import sys
 import tempfile
-from collections import namedtuple
 from queue import Queue
-from typing import Optional
+from typing import NamedTuple, Optional
 from unittest.mock import patch
 
 import pytest  # type: ignore
@@ -60,8 +59,10 @@ def fs_from_dir(*mocks):
     return fs
 
 
-InotifyFixture = namedtuple('InotifyFixture',
-                            ['path', 'handler', 'fs', 'queue'])
+InotifyFixture = NamedTuple('InotifyFixture', [('path', str),
+                                               ('handler', InotifyHandler),
+                                               ('fs', Filesystem),
+                                               ('queue', Queue)])
 
 
 @pytest.fixture
