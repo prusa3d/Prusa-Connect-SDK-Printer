@@ -73,7 +73,7 @@ def test_download_ok(download_mgr, gcode):
                        to_select=False)
     run_test_loop(download_mgr)
     assert transfer.progress >= 0
-    assert type(transfer.progress) is float
+    assert isinstance(transfer.progress, float)
     assert download_mgr.transfer.os_path == \
            storage_path(download_mgr.fs, 'my_example.gcode')
     assert transfer.to_print is False
