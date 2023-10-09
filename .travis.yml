@@ -8,10 +8,10 @@ python:
  - "3.11"
 
 install:
+ - pip3 install -U -r requirements.txt
  - pip3 install -U types-pkg_resources types-requests
- - pip3 install -U ruff pytest pytest-pylint pytest-doctestplus requests
-   requests_mock pytest-mypy inotify_simple func-timeout responses
- - pip3 install git+https://github.com/prusa3d/gcode-metadata.git@master#egg=gcode_metadata
+ - pip3 install -U ruff pytest pytest-pylint pytest-doctestplus
+   requests_mock pytest-mypy func-timeout responses
 
 before_script:
  - export TZ=Europe/Prague

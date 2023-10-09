@@ -1,4 +1,4 @@
-gcode-metadata
+py-gcode-metadata
 requests>=2.31.0
 inotify_simple~=1.3.5
 mypy-extensions~=1.0.0
