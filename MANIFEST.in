@@ -1,0 +1,7 @@
+include *.py
+include MANIFEST.in
+include requirements.txt
+graft tests/gcodes/
+global-exclude *~
+global-exclude *.swp
+prune venv
