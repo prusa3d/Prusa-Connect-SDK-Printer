@@ -2,6 +2,7 @@ ChangeLog
 =========
 0.7.2dev
     * Report read timeouts differently
+    * Initial support for the new connect MMU API
 
 0.7.1 (2023-10-09)
     * Attribute ro renamed to read_only
