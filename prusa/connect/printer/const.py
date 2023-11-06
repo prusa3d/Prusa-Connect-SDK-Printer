@@ -60,6 +60,16 @@ class PrinterType(Enum):
         return '.'.join(str(i) for i in self.value)
 
 
+class MMUType(Enum):
+    """MMU Type"""
+    MMU3 = "MMU3"
+
+
+MMU_SLOT_COUNTS: Dict[MMUType, int] = {
+    MMUType.MMU3: 5,
+}
+
+
 class StorageType(Enum):
     """Storage Type"""
     LOCAL = 'LOCAL'
@@ -89,6 +99,8 @@ class Event(Enum):
     TRANSFER_STOPPED = "TRANSFER_STOPPED"
     TRANSFER_FINISHED = "TRANSFER_FINISHED"
 
+    SLOT_EVENT = "SLOT_EVENT"
+
 
 class Source(Enum):
     """Printer event source."""
@@ -101,6 +113,7 @@ class Source(Enum):
     FIRMWARE = "FIRMWARE"
     HW = "HW"
     USER = "USER"
+    SLOT = "SLOT"
 
 
 class Command(Enum):
@@ -134,6 +147,7 @@ class Command(Enum):
 
     LOAD_FILAMENT = "LOAD_FILAMENT"
     UNLOAD_FILAMENT = "UNLOAD_FILAMENT"
+    SLOT_ACTION = "SLOT_ACTION"
 
 
 class TransferType(Enum):

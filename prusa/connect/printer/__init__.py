@@ -15,13 +15,14 @@ from requests import RequestException, Response, Session  # type: ignore
 
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError  # type: ignore
-from urllib3.exceptions import ReadTimeoutError
+from urllib3.exceptions import ReadTimeoutError  # type: ignore
 
 from . import const, errors
 from .camera_controller import CameraController
 from .clock import ClockWatcher
 from .command import Command, CommandFailed
 from .conditions import API, HTTP, INTERNET, TOKEN, CondState
+from .const import MMU_SLOT_COUNTS
 from .download import DownloadMgr, Transfer
 from .files import Filesystem, InotifyHandler, delete
 from .models import (
@@ -113,6 +114,9 @@ class Printer:
         self.mbl: Optional[List[float]] = None
         self.sheet_settings: Optional[List[Sheet]] = None
         self.active_sheet: Optional[int] = None  # index
+        self.mmu_enabled: bool = False
+        self.mmu_fw: Optional[str] = None
+        self.mmu_type: Optional[const.MMUType] = None
 
         if max_retries > 1:
             self.conn = RetryingSession(max_retries=max_retries)
@@ -374,7 +378,12 @@ class Printer:
             type_, ver, sub = self.__type.value
         else:
             type_, ver, sub = (None, None, None)
-        return {
+
+        mmu: Dict[str, Any] = {"enabled": self.mmu_enabled}
+        if self.mmu_fw is not None:
+            mmu["version"] = self.mmu_fw
+
+        data = {
             "source": const.Source.CONNECT,
             "event": const.Event.INFO,
             "state": self.__state,
@@ -391,7 +400,11 @@ class Printer:
             "mbl": self.mbl,
             "sheet_settings": self.sheet_settings,
             "active_sheet": self.active_sheet,
+            "mmu": mmu,
         }
+        if self.mmu_type is not None and self.mmu_enabled:
+            data["slots"] = MMU_SLOT_COUNTS.get(self.mmu_type)
+        return data
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
         """Accept command arguments and adapt the call for the getter"""
