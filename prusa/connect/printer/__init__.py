@@ -15,6 +15,7 @@ from requests import RequestException, Response, Session  # type: ignore
 
 # pylint: disable=redefined-builtin
 from requests.exceptions import ConnectionError  # type: ignore
+from urllib3.exceptions import ReadTimeoutError
 
 from . import const, errors
 from .camera_controller import CameraController
@@ -738,6 +739,10 @@ class Printer:
         headers = self.make_headers(item.timestamp)
         try:
             res = item.send(self.conn, self.server, headers)
+        except ReadTimeoutError as err:
+            errors.HTTP.ok = False
+            HTTP.state = CondState.NOK
+            log.error("Experiencing connect communication problems - %s", err)
         except ConnectionError as err:
             errors.HTTP.ok = False
             HTTP.state = CondState.NOK
