@@ -18,9 +18,9 @@ assert printer  # type: ignore
 # pylint: disable=missing-function-docstring
 # pylint: disable=redefined-outer-name
 
-GCODE_URL = "https://media.prusaprinters.org/media/prints/27216/gcodes/" + \
-            "272161_a9977cd4-cc70-4fb3-8d09-276a023b132d/" + \
-            "cam_clip_3_015mm_pla_mk3s_2h13m.gcode"
+GCODE_URL = ("https://files.printables.com/media/prints/27216/gcodes/"
+             "272161_a9977cd4-cc70-4fb3-8d09-276a023b132d/"
+             "cam_clip_3_015mm_pla_mk3s_2h13m.gcode")
 DST = '/sdcard/my_example.gcode'
 
 
