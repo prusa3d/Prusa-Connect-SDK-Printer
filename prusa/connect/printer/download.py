@@ -399,7 +399,8 @@ class DownloadMgr:
         # server is not connect server, set token to None
         if not server or \
                 not self.transfer.url.lower().startswith(server.lower()):
-            self.headers = {}
+            user_agent = self.headers.get("User-Agent")
+            self.headers = {"User-Agent": user_agent}
 
         res = requests.get(self.transfer.url,
                            stream=True,

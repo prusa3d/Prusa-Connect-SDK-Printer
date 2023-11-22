@@ -255,6 +255,7 @@ class Printer:
         headers = {
             "Fingerprint": self.fingerprint,
             "Timestamp": str(timestamp),
+            "User-Agent": f"Prusa-Connect-SDK-Printer/{__version__}",
         }
         if self.token:
             headers['Token'] = self.token
