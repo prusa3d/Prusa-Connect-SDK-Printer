@@ -1,6 +1,6 @@
 ChangeLog
 =========
-0.7.2dev
+0.8.0alpha1
     * Report read timeouts differently
     * Initial support for the new connect MMU API
 
