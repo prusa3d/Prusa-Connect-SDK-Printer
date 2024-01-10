@@ -21,16 +21,11 @@ from tests.util import (
     SERVER,
     SN,
     TOKEN,
-    printer,
     run_loop,
 )
 
 # pylint: disable=missing-function-docstring
-# pylint: disable=redefined-outer-name
 # pylint: disable=too-many-lines
-
-# Shut up flake8, I'm importing a fixture!
-assert printer  # type: ignore
 
 MAC = "00:01:02:03:04:05"
 FIRMWARE = "3.9.0rc2"

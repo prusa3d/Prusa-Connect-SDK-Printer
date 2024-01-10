@@ -20,10 +20,7 @@ from prusa.connect.printer.const import (
     TriggerScheme,
 )
 from prusa.connect.printer.models import CameraRegister
-from tests.util import SERVER, printer, run_loop
-
-# Shut up flake8, I'm importing a fixture!
-assert printer  # type: ignore
+from tests.util import SERVER, run_loop
 
 
 class DummyDriver(CameraDriver):
@@ -31,7 +28,8 @@ class DummyDriver(CameraDriver):
 
     name = "Humpty Dumpty"
     REQUIRES_SETTINGS = MappingProxyType({
-        "parameter": "A placeholder parameter for testing",
+        "parameter":
+        "A placeholder parameter for testing",
     })
 
     # Allows changes for tests with newly detected cameras

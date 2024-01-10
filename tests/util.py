@@ -1,7 +1,4 @@
-import pytest
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
-
-from prusa.connect.printer import Printer, const, errors
 
 FINGERPRINT = "__fingerprint__"
 SN = "SN001002XP003"
@@ -16,15 +13,3 @@ def run_loop(fct, timeout=0.1):
         func_timeout(timeout, fct)
     except FunctionTimedOut:
         pass
-
-
-@pytest.fixture()
-def printer():
-    """Printer object as fixture."""
-    printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
-    printer.set_connection(SERVER, TOKEN)
-    yield printer
-    errors.INTERNET.ok = False
-    errors.TOKEN.ok = False
-    errors.API.ok = False
-    errors.HTTP.ok = False
