@@ -11,12 +11,7 @@ import responses
 
 from prusa.connect.printer import Telemetry, const
 
-from .util import printer
-
-assert printer  # type: ignore
-
 # pylint: disable=missing-function-docstring
-# pylint: disable=redefined-outer-name
 
 GCODE_URL = ("https://files.printables.com/media/prints/27216/gcodes/"
              "272161_a9977cd4-cc70-4fb3-8d09-276a023b132d/"
