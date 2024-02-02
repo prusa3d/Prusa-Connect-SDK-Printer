@@ -3,6 +3,7 @@ ChangeLog
 0.8.0alpha1
     * Report read timeouts differently
     * Initial support for the new connect MMU API
+    * Add new SL types
 
 0.7.1 (2023-10-09)
     * Attribute ro renamed to read_only
