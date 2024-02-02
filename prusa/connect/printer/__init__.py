@@ -88,7 +88,8 @@ class Printer:
                  type_: Optional[const.PrinterType] = None,
                  sn: Optional[str] = None,
                  fingerprint: Optional[str] = None,
-                 max_retries: int = 1):
+                 max_retries: int = 1,
+                 mmu_supported: bool = True):
         self.__type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint
@@ -114,6 +115,7 @@ class Printer:
         self.mbl: Optional[List[float]] = None
         self.sheet_settings: Optional[List[Sheet]] = None
         self.active_sheet: Optional[int] = None  # index
+        self.mmu_supported: bool = mmu_supported
         self.mmu_enabled: bool = False
         self.mmu_fw: Optional[str] = None
         self.mmu_type: Optional[const.MMUType] = None
@@ -379,10 +381,6 @@ class Printer:
         else:
             type_, ver, sub = (None, None, None)
 
-        mmu: Dict[str, Any] = {"enabled": self.mmu_enabled}
-        if self.mmu_fw is not None:
-            mmu["version"] = self.mmu_fw
-
         data = {
             "source": const.Source.CONNECT,
             "event": const.Event.INFO,
@@ -400,10 +398,16 @@ class Printer:
             "mbl": self.mbl,
             "sheet_settings": self.sheet_settings,
             "active_sheet": self.active_sheet,
-            "mmu": mmu,
         }
-        if self.mmu_type is not None and self.mmu_enabled:
-            data["slots"] = MMU_SLOT_COUNTS.get(self.mmu_type)
+
+        if self.mmu_supported:
+            mmu: Dict[str, Any] = {"enabled": self.mmu_enabled}
+            if self.mmu_fw is not None:
+                mmu["version"] = self.mmu_fw
+            data["mmu"] = mmu
+
+            if self.mmu_type is not None and self.mmu_enabled:
+                data["slots"] = MMU_SLOT_COUNTS.get(self.mmu_type)
         return data
 
     def send_info(self, caller: Command) -> Dict[str, Any]:
@@ -602,6 +606,7 @@ class Printer:
             def gcode(prn, gcode):
                 ...
         """
+
         def wrapper(handler: Callable[[Command], Dict[str, Any]]):
             self.set_handler(command, handler)
             return handler
