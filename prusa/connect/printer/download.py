@@ -428,6 +428,8 @@ class DownloadMgr:
             for data in res.iter_content(chunk_size=self.buffer_size):
                 if self.transfer.stop_ts > 0:
                     raise TransferStoppedError("Transfer was stopped")
+                if not self._running_loop:
+                    raise TransferAbortedError("Transfer was aborted")
                 f.write(data)
                 if self.throttle:
                     time.sleep(self.throttle)
