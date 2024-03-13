@@ -29,6 +29,7 @@ class CondState(Enum):
 # pylint: disable=too-many-arguments
 class Condition:
     """A more detailed condition for state tracking"""
+
     def __init__(self,
                  name: str,
                  long_msg: str,
@@ -159,8 +160,7 @@ class Condition:
 
     def __iter__(self):
         for child in self._children:
-            for child_iter in child:
-                yield child_iter
+            yield from child
         yield self
 
 
@@ -171,6 +171,7 @@ class ConditionTracker:
     The time complexity is O(n), but the number of
     items is expected to be low
     """
+
     def __init__(self) -> None:
         self._nok_conditions: Set[Condition] = set()
         self._tracked_conditions: Set[Condition] = set()
