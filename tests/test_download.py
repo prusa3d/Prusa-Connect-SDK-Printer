@@ -41,9 +41,10 @@ def download_mgr(printer):
 
 
 def run_test_loop(download_mgr, timeout=.1, unset_stop=False):
+
     def fullstop():
-        download_mgr.transfer.stop()
         if unset_stop:
+            download_mgr.transfer.stop()
             download_mgr.transfer.stop_ts = 0
         download_mgr._running_loop = False
 
@@ -115,6 +116,7 @@ def test_download_stop(gcode, download_mgr):
     transfer = download_mgr.transfer
     download_mgr.buffer_size = 1
     run_test_loop(download_mgr)
+    download_mgr.transfer.stop()
 
     assert transfer.time_remaining() == 0
 

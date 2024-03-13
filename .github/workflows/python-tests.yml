@@ -32,7 +32,7 @@ jobs:
     - name: Lint with ruff
       run: |
         ruff check .
-    - name: Lint with pylit
+    - name: Lint with pylint
       run: |
         pytest -v --mypy --pylint --doctest-plus --doctest-rst prusa/connect/printer
     - name: Tests
