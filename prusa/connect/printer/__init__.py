@@ -184,6 +184,11 @@ class Printer:
         return f"{protocol}://{host}"
 
     @property
+    def running_loop(self):
+        """Return if loop is running (if was started but not stopped)."""
+        return self.__running_loop
+
+    @property
     def printed_file_cb(self):
         """Returns path of currently printed file"""
         return self.__printed_file_cb
@@ -699,7 +704,7 @@ class Printer:
             else:
                 errors.HTTP.ok = True
                 HTTP.state = CondState.OK
-            log.debug("Status code: {res.status_code}")
+            log.debug("Status code: %d", res.status_code)
             raise RuntimeError(res.text)
 
         self.code = res.headers["Code"]
