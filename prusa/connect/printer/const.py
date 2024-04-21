@@ -148,6 +148,7 @@ class Command(Enum):
     LOAD_FILAMENT = "LOAD_FILAMENT"
     UNLOAD_FILAMENT = "UNLOAD_FILAMENT"
     SLOT_ACTION = "SLOT_ACTION"
+    DIALOG_ACTION = "DIALOG_ACTION"
 
 
 class TransferType(Enum):

@@ -30,9 +30,11 @@ def test_kwargs():
                   command_id=42,
                   job_id=12,
                   reason="Chuck Norris",
-                  state=const.State.FINISHED)
+                  state=const.State.FINISHED,
+                  dialog_id=33)
     payload = event.to_payload()
     assert payload['command_id'] == 42
     assert payload['job_id'] == 12
     assert payload['reason'] == "Chuck Norris"
     assert payload['state'] == "FINISHED"
+    assert payload['dialog_id'] == 33
