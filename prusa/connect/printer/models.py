@@ -126,6 +126,7 @@ class Event(LoopObject):
                  transfer_id: Optional[int] = None,
                  reason: Optional[str] = None,
                  state: Optional[const.State] = None,
+                 dialog_id: Optional[int] = None,
                  **kwargs):
         super().__init__(timestamp=timestamp)
         self.event = event
@@ -135,6 +136,7 @@ class Event(LoopObject):
         self.transfer_id = transfer_id
         self.reason = reason
         self.state = state
+        self.dialog_id = dialog_id
         self.data = kwargs
 
     def to_payload(self):
@@ -144,7 +146,11 @@ class Event(LoopObject):
             "source": self.source.value,
             "data": filter_null(self.data),
         }
-        for attr in ('command_id', 'job_id', 'transfer_id', 'reason'):
+        for attr in ('command_id',
+                     'job_id',
+                     'transfer_id',
+                     'reason',
+                     'dialog_id'):
             value = getattr(self, attr)
             if value:
                 data[attr] = value

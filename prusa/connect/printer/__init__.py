@@ -145,6 +145,8 @@ class Printer:
                          self.set_printer_ready)
         self.set_handler(const.Command.CANCEL_PRINTER_READY,
                          self.cancel_printer_ready)
+        self.set_handler(const.Command.DIALOG_ACTION,
+                         self.dialog_action)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -502,6 +504,14 @@ class Printer:
             self.set_state(const.State.IDLE, const.Source.CONNECT, ready=False)
             return {'source': const.Source.CONNECT}
         raise ValueError("Can't cancel, printer isn't ready")
+
+    def dialog_action(self, caller: Command) -> Dict[str, Any]:
+        """Process dialog action"""
+        # pylint: disable=unused-argument
+        if not caller.kwargs:
+            raise ValueError(
+                f"{const.Command.DIALOG_ACTION} requires kwargs")
+        return {'source': const.Source.CONNECT}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
         """Returns file info for a given file, if it exists."""
