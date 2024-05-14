@@ -82,6 +82,11 @@ class Printer:
     token: Optional[str] = None
     conn: Session
 
+    # Printer firmware version
+    firmware: Optional[str] = None
+    # Software version if is different to printer version
+    software: Optional[str] = None
+
     NOT_INITIALISED_MSG = "Printer has not been initialized properly"
 
     def __init__(self,
@@ -93,7 +98,6 @@ class Printer:
         self.__type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint
-        self.firmware = None
         self.network_info = {
             "lan_mac": None,
             "lan_ipv4": None,
@@ -269,6 +273,8 @@ class Printer:
             "Fingerprint": self.fingerprint,
             "Timestamp": str(timestamp),
             "User-Agent": f"Prusa-Connect-SDK-Printer/{__version__}",
+            "User-Agent-Printer": str(self.__type),
+            "User-Agent-Version": str(self.software or self.firmware),
         }
         if self.token:
             headers['Token'] = self.token
