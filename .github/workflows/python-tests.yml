@@ -37,4 +37,5 @@ jobs:
         pytest -v --mypy --pylint --doctest-plus --doctest-rst prusa/connect/printer
     - name: Tests
       run: |
-        TZ=Europe/Prague pytest -v --mypy tests --log-cli-level=10
+        # TZ=Europe/Prague pytest -v --mypy tests --log-cli-level=10
+        TZ=Europe/Prague pytest -v --mypy tests
