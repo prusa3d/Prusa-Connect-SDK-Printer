@@ -98,6 +98,7 @@ def printer_sdcard():
 
 class TestPrinter:
     """Tests for Printer class."""
+
     def test_init(self, printer):
         assert printer
 
@@ -125,6 +126,28 @@ class TestPrinter:
 
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'BUSY'}
+
+    def test_telemetry_headers(self, requests_mock, printer):
+        requests_mock.post(SERVER + "/p/telemetry", status_code=204)
+        printer.telemetry()
+
+        headers = printer.make_headers()
+        assert headers["Fingerprint"] == printer.fingerprint
+        assert headers["User-Agent"].startswith("Prusa-Connect-SDK-Printer/")
+        assert headers["User-Agent-Printer"] == str(printer.type)
+        assert headers["User-Agent-Version"] == printer.software
+        assert headers["Token"] == printer.token
+
+        item = printer.queue.get_nowait()
+        item.send(printer.conn, printer.server, headers)
+
+        req = requests_mock.request_history[0]
+        assert str(req) == f"POST {SERVER}/p/telemetry"
+        assert req.headers["Fingerprint"] == printer.fingerprint
+        assert req.headers["User-Agent"] == headers["User-Agent"]
+        assert req.headers["User-Agent-Printer"] == str(printer.type)
+        assert req.headers["User-Agent-Version"] == printer.software
+        assert req.headers["Token"] == printer.token
 
     def test_telemetry_no_fingerprint(self, printer_no_fp):
         printer_no_fp.telemetry(temp_bed=1, temp_nozzle=2)
@@ -218,6 +241,7 @@ class TestPrinter:
         assert HTTP.state is CondState.NOK
 
     def test_set_handler(self, printer):
+
         def send_info(caller: Command) -> Any:
             assert caller.args
 
@@ -226,6 +250,7 @@ class TestPrinter:
         assert printer.command.handlers[const.Command.SEND_INFO] == send_info
 
     def test_decorator(self, printer):
+
         @printer.handler(const.Command.GCODE)
         def gcode(caller: Command) -> None:
             assert caller.args
