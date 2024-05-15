@@ -130,6 +130,7 @@ class Printer:
         self.command = Command(self.event_cb)
         self.set_handler(const.Command.SEND_INFO, self.send_info)
         self.set_handler(const.Command.SEND_FILE_INFO, self.get_file_info)
+        self.set_handler(const.Command.SEND_STATE_INFO, self.get_state_info)
         self.set_handler(const.Command.CREATE_FOLDER, self.create_folder)
         self.set_handler(const.Command.CREATE_DIRECTORY, self.create_folder)
         self.set_handler(const.Command.DELETE_FILE, self.delete_file)
@@ -551,6 +552,16 @@ class Printer:
             log.debug("File not found: %s", path)
 
         return info
+
+    def get_state_info(self, caller: Command) -> Dict[str, Any]:
+        """Returns state info for a given file, if it exists."""
+        # pylint: disable=unused-argument
+
+        return {
+            "source": const.Source.CONNECT,
+            "event": const.Event.STATE_CHANGED,
+            "state": self.__state,
+        }
 
     def delete_file(self, caller: Command) -> Dict[str, Any]:
         """Handler for delete a file."""
