@@ -1,11 +1,9 @@
 ChangeLog
 =========
-0.8.0alpha3
+0.8.0 (2024-05-22)
     * Send additional version headers
     * Add printer dialog handling
     * Stop transfers on application exit
-
-0.8.0alpha2
     * Report read timeouts differently
     * Initial support for the new connect MMU API
     * Add new SL types

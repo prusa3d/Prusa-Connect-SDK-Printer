@@ -35,8 +35,8 @@ from .models import (
 )
 from .util import RetryingSession, get_timestamp
 
-__version__ = "0.8.0alpha3"
-__date__ = "14 May 2024"  # version date
+__version__ = "0.8.0"
+__date__ = "22 May 2024"  # version date
 __copyright__ = "(c) 2024 Prusa 3D"
 __author_name__ = "Prusa Link Developers"
 __author_email__ = "link@prusa3d.cz"
@@ -150,8 +150,7 @@ class Printer:
                          self.set_printer_ready)
         self.set_handler(const.Command.CANCEL_PRINTER_READY,
                          self.cancel_printer_ready)
-        self.set_handler(const.Command.DIALOG_ACTION,
-                         self.dialog_action)
+        self.set_handler(const.Command.DIALOG_ACTION, self.dialog_action)
 
         self.fs = Filesystem(sep=os.sep, event_cb=self.event_cb)
         self.inotify_handler = InotifyHandler(self.fs)
@@ -516,8 +515,7 @@ class Printer:
         """Process dialog action"""
         # pylint: disable=unused-argument
         if not caller.kwargs:
-            raise ValueError(
-                f"{const.Command.DIALOG_ACTION} requires kwargs")
+            raise ValueError(f"{const.Command.DIALOG_ACTION} requires kwargs")
         return {'source': const.Source.CONNECT}
 
     def get_file_info(self, caller: Command) -> Dict[str, Any]:
