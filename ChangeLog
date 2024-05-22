@@ -1,5 +1,8 @@
 ChangeLog
 =========
+0.8.1dev0
+    * Skip hidden sub-directories
+
 0.8.0 (2024-05-22)
     * Send additional version headers
     * Add printer dialog handling

@@ -91,6 +91,7 @@ def inotify(queue, nodes):
     directory. This returns the path to the dir on storage, the Inotify
     handler and filesystem as a tuple: (path, handler, filesystem).
     """
+
     def create_on_storage(root_dir, node):
         parts = node.abs_parts()
         parts.insert(0, root_dir)
@@ -138,6 +139,7 @@ def fs(nodes):
 
 class TestFile:
     """Test the methods of the File class"""
+
     def test_add(self):
         root = File("root", is_dir=True)
         assert not root.children
@@ -329,6 +331,7 @@ class TestFile:
 
 class TestFilesystem:
     """Test Filesystem class interface."""
+
     def test_storage(self, fs):
         assert len(fs.storage_dict) == 1
         assert "storage" in fs.storage_dict
@@ -384,6 +387,33 @@ class TestFilesystem:
         assert not fs_from_dir.get("/.h/.hidden.gcode")
         with pytest.raises(AttributeError):
             assert not h.is_dir
+
+    @patch("prusa.connect.printer.files.stat",
+           return_value=os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
+                                        1599740701, 1596120005, 1596120005)))
+    @patch("prusa.connect.printer.files.path.abspath", return_value='/a')
+    @patch("prusa.connect.printer.files.walk",
+           return_value=[('/a', ['b'], ['1.gcode']), ('/a/b', ['.c'], []),
+                         ('/a/b/.c', [], ['2.sl1', '3.txt'])])
+    def test_from_hidden_subdir(self, *mocks):
+        fs = Filesystem()
+        fs.from_dir('/somewhere/on/the/disk/a', 'a')
+        assert not fs.get("/a/b/.c/2.sl1")
+        assert not fs.get("/a/b/.c")
+
+    @patch("prusa.connect.printer.files.stat",
+           return_value=os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
+                                        1599740701, 1596120005, 1596120005)))
+    @patch("prusa.connect.printer.files.path.abspath", return_value='/a')
+    @patch("prusa.connect.printer.files.walk",
+           return_value=[('/a', ['b'], []), ('/a/b', ['.c'], []),
+                         ('/a/b/.c', ['d'], []), ('/a/b/.c/d', [], ['1.sl1'])])
+    def test_from_hidden_subsubdir(self, *mocks):
+        fs = Filesystem()
+        fs.from_dir('/somewhere/on/the/disk/a', 'a')
+        assert not fs.get("/a/b/.c")
+        assert not fs.get("/a/b/.c/d")
+        assert not fs.get("/a/b/.c/d/1.sl1")
 
     def test_get_root(self, fs):
         a = fs.get("storage")
@@ -472,6 +502,7 @@ class TestFilesystem:
 
 class TestINotify:
     """Test events from Inotify class."""
+
     def test_CREATE_file(self, inotify):
         """Test that creating a file is reflected in the Filesystem
         and that also Connect is notified by the means of an Event
