@@ -79,6 +79,7 @@ def get_file_type(file):
 
 class File:
     """A node of a Filesystem representing either a file or a folder"""
+
     def __init__(self,
                  name: str,
                  is_dir: bool = False,
@@ -156,7 +157,7 @@ class File:
         Return the node identified by `parts`, which is a collection of
         names that will be matched on the path to it.
 
-        :param parts: Path identifying a node you are looking fo
+        :param parts: Path identifying a node you are looking for
         :return: the found node
         :raise TypeError if `parts` is string and not a collection of strings
         """
@@ -279,6 +280,7 @@ class File:
 
 class Storage:
     """Represent a storage"""
+
     def __init__(self,
                  tree: File,
                  storage: str,
@@ -365,6 +367,7 @@ class Filesystem:
     A filesystem translates from physical representation on the storage to
     virtual. This virtual one is then sent to Connect.
     """
+
     def __init__(self,
                  sep: str = "/",
                  event_cb: Optional[EventCallback] = None):
@@ -544,16 +547,16 @@ class Filesystem:
         root.set_attrs(dirpath)
 
         for abs_dir, dirs, files in walk(dirpath):
-            dirname = abs_dir[len(dirpath):]
+            dirnames = abs_dir[len(dirpath):].split(path.sep)
 
             # skip hidden folders
-            if dirname.startswith("."):
+            if any(map(lambda e: e.startswith("."), dirnames)):
                 continue
 
-            if not dirname:
+            if not dirnames:
                 parent = root
             else:
-                parent = root.get(dirname.split(path.sep))
+                parent = root.get(dirnames)
 
             for name in dirs:
                 node = parent.add(name, is_dir=True)
@@ -928,4 +931,4 @@ class InotifyHandler:
         flags.MOVE_SELF: process_delete,
     })
 
-    WATCH_FLAGS = reduce(lambda x, y: x|y, HANDLERS.keys())
+    WATCH_FLAGS = reduce(lambda x, y: x | y, HANDLERS.keys())
