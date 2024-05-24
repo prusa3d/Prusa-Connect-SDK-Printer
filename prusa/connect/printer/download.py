@@ -434,6 +434,8 @@ class DownloadMgr:
                 if self.throttle:
                     time.sleep(self.throttle)
                 self.transfer.transferred += len(data)
+            f.flush()
+            os.fsync(f.fileno())
 
         if not self.transfer.transferred:
             raise TransferAbortedError("Empty response")
