@@ -1,8 +1,6 @@
 PrusaConnect SDK for Printer
 =============================
 
-:Requirements: basic knowledge of `PrusaConnect API docs <https://connect.prusa3d.com/docs/>`_.
-
 Printer instance
 ----------------
 You can create a Printer instance using the constructor and passing `server` and `token` to it. These you can find in  `prusa_printer_settings.ini`.
@@ -161,10 +159,6 @@ also the `event` key must be set in the returned dictionary.
 
 Additional data for this event is passed using the `data` key with
 a dictionary as a value.
-
-For further detail see https://connect.prusa3d.com/docs/printer_communication
-or have a look at the implementation details in the SDK (INFO event
-handled by the `Printer.get_info()` method).
 
 .. code:: python
 
