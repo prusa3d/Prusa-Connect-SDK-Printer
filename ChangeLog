@@ -3,6 +3,7 @@ ChangeLog
 0.8.1dev0
     * Skip hidden sub-directories
     * Sync files upon Transfer finish
+    * y2k38 fix on 32bit systems
 
 0.8.0 (2024-05-22)
     * Send additional version headers

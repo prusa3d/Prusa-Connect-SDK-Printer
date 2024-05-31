@@ -267,15 +267,18 @@ class File:
     def __str__(self):
         return self.name
 
-    def set_attrs(self, abs_path):
-        """Set `read_only`, `size_` and `m_timestamp` attributes on this file
-        according to `abs_path` file on storage.
+    def fill_attrs(self, abs_path):
+        """Read and fill `read_only`, `size_` and `m_timestamp` attributes
+        on this file according to `abs_path` file on storage.
         """
-        stats = stat(abs_path)
-        self.attrs["read_only"] = not access(abs_path, W_OK)
-        if not self.is_dir:
-            self.size = stats.st_size
-        self.attrs["m_timestamp"] = int(stats.st_mtime)
+        try:
+            stats = stat(abs_path)
+            self.attrs["read_only"] = not access(abs_path, W_OK)
+            if not self.is_dir:
+                self.size = stats.st_size
+            self.attrs["m_timestamp"] = int(stats.st_mtime)
+        except OSError:
+            log.exception("Failed to get attributes from `%s`", abs_path)
 
 
 class Storage:
@@ -544,7 +547,7 @@ class Filesystem:
             dirpath += path.sep
 
         root = File(storage, is_dir=True)
-        root.set_attrs(dirpath)
+        root.fill_attrs(dirpath)
 
         for abs_dir, dirs, files in walk(dirpath):
             dirnames = abs_dir[len(dirpath):].split(path.sep)
@@ -560,10 +563,10 @@ class Filesystem:
 
             for name in dirs:
                 node = parent.add(name, is_dir=True)
-                node.set_attrs(path.join(abs_dir, name))
+                node.fill_attrs(path.join(abs_dir, name))
             for name in files:
                 node = parent.add(name)
-                node.set_attrs(path.join(abs_dir, name))
+                node.fill_attrs(path.join(abs_dir, name))
 
         self.attach(storage, root, dirpath)
 
@@ -837,7 +840,7 @@ class InotifyHandler:
             if not parent:
                 return
             node = parent.add(name, is_dir=is_dir)
-            node.set_attrs(abs_path)
+            node.fill_attrs(abs_path)
 
         if is_dir:
             # add inotify watch
@@ -890,7 +893,7 @@ class InotifyHandler:
         base_storage = self.attach_for(abs_path)
         parts = self.__rel_path_parts(abs_path, base_storage)
         node = base_storage.tree.get(parts)
-        node.set_attrs(abs_path)
+        node.fill_attrs(abs_path)
         path_ = node.abs_path(base_storage.storage)
         self.send_file_changed(
             old_path=path_,
