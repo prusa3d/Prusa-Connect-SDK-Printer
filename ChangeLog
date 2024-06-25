@@ -1,6 +1,6 @@
 ChangeLog
 =========
-0.8.1dev0
+0.8.1 (2024-06-25)
     * Skip hidden sub-directories
     * Sync files upon Transfer finish
     * y2k38 fix on 32bit systems
