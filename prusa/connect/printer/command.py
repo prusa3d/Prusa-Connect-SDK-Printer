@@ -84,14 +84,16 @@ class Command:
             return False
         return True
 
-    def accept(  # pylint: disable=too-many-arguments
-            self,
-            command_id: int,
-            command_name: str,
-            args: Optional[List[Any]] = None,
-            kwargs: Optional[Dict[str, Any]] = None,
-            force=False):
+    def accept(self,
+               command_id: int,
+               command_name: str,
+               args: Optional[List[Any]] = None,
+               kwargs: Optional[Dict[str, Any]] = None,
+               force=False):
         """Accept command (add event to queue)."""
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+
         self.state = const.Event.ACCEPTED
         self.command_id = command_id
         self.command_name = command_name
