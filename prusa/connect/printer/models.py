@@ -116,7 +116,6 @@ class Event(LoopObject):
     needs_token = True
     data: Dict[str, Any]
 
-    # pylint: disable=too-many-arguments
     def __init__(self,
                  event: const.Event,
                  source: const.Source,
@@ -128,6 +127,9 @@ class Event(LoopObject):
                  state: Optional[const.State] = None,
                  dialog_id: Optional[int] = None,
                  **kwargs):
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+
         super().__init__(timestamp=timestamp)
         self.event = event
         self.source = source
@@ -146,10 +148,7 @@ class Event(LoopObject):
             "source": self.source.value,
             "data": filter_null(self.data),
         }
-        for attr in ('command_id',
-                     'job_id',
-                     'transfer_id',
-                     'reason',
+        for attr in ('command_id', 'job_id', 'transfer_id', 'reason',
                      'dialog_id'):
             value = getattr(self, attr)
             if value:
