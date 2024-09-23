@@ -30,13 +30,15 @@ class CameraConfigurator:
     for the instance.
     """
 
-    # pylint: disable=too-many-arguments
     def __init__(self,
                  camera_controller: CameraController,
                  config: ConfigParser,
                  config_file_path: str,
                  drivers: List[Type[CameraDriver]],
                  auto_detect=True) -> None:
+        # pylint: disable=too-many-positional-arguments
+        # pylint: disable=too-many-arguments
+
         self.camera_controller = camera_controller
         self.config = config
         self.config_file_path = config_file_path

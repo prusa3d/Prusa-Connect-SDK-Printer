@@ -39,7 +39,7 @@ packages = ["prusa.connect.printer"]
 "prusa.connect.printer" = ["py.typed"]
 
 [tool.ruff]
-select = [
+lint.select = [
     "F",    # pyflakes
     "E",    # pycodestyle
     "W",    # pycodestyle
@@ -89,7 +89,7 @@ select = [
     "NPY",  # NumPy-specific rules
     "RUF",  # Ruff-specific rules
 ]
-ignore = [
+lint.ignore = [
     "S101",     # Use of `assert` detected
     "S105",     # Possible hardcoded password assigned to: "TOKEN"
     "Q000",     # Single quotes found but double quotes preferred

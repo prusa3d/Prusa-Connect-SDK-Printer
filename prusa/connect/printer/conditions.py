@@ -26,7 +26,6 @@ class CondState(Enum):
     NOK = False
 
 
-# pylint: disable=too-many-arguments
 class Condition:
     """A more detailed condition for state tracking"""
 
@@ -36,6 +35,9 @@ class Condition:
                  parent: Optional[Condition] = None,
                  short_msg: Optional[str] = None,
                  priority: int = 0):
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+
         self.name: str = name
         self.long_msg: str = long_msg
         self.short_msg: str = short_msg or name

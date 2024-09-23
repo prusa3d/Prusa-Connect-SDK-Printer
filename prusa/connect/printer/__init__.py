@@ -95,6 +95,7 @@ class Printer:
                  fingerprint: Optional[str] = None,
                  max_retries: int = 1,
                  mmu_supported: bool = True):
+        # pylint: disable=too-many-positional-arguments
         self.__type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint

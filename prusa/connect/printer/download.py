@@ -140,6 +140,8 @@ class Transfer:
               team_id: Optional[int] = None) -> dict:
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+
         filename = basename(path)
 
         if forbidden_characters(filename):
@@ -254,6 +256,8 @@ class DownloadMgr:
                  printed_file_cb: Callable, download_finished_cb: Callable):
         # pylint: disable=invalid-name
         # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+
         self.buffer_size = self.BIG_BUFFER
         self.throttle = 0
         self.fs = fs
@@ -279,6 +283,7 @@ class DownloadMgr:
         (:class:prusa.connect.printer.files.Filesystem)
         """
         # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         # Check if no other transfer is running
         retval = {}
         try:
