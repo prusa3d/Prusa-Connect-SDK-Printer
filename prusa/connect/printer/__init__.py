@@ -12,9 +12,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from gcode_metadata import get_metadata
 from requests import RequestException, Response, Session  # type: ignore
-
-# pylint: disable=redefined-builtin
-from requests.exceptions import ConnectionError  # type: ignore
+from requests.exceptions import (
+    ConnectionError as RequestsConnectionError,  # type: ignore
+)
 from urllib3.exceptions import ReadTimeoutError  # type: ignore
 
 from . import const, errors
@@ -793,7 +793,7 @@ class Printer:
             errors.HTTP.ok = False
             HTTP.state = CondState.NOK
             log.error("Experiencing connect communication problems - %s", err)
-        except ConnectionError as err:
+        except RequestsConnectionError as err:
             errors.HTTP.ok = False
             HTTP.state = CondState.NOK
             log.error(err)
