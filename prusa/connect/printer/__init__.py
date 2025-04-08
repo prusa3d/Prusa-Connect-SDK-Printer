@@ -367,7 +367,7 @@ class Printer:
         config.read(path)
 
         host = config['service::connect']['hostname']
-        tls = config['service::connect'].getboolean('tls')
+        tls = config['service::connect'].getboolean('tls', fallback=False)
         port = config['service::connect'].getint('port', fallback=0)
 
         server = Printer.connect_url(host, tls, port)
