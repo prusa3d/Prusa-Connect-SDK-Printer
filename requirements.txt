@@ -1,5 +1,5 @@
 py-gcode-metadata>=0.2.0
-requests>=2.31.0
+requests>=2.32.3
 inotify_simple~=1.3.5
 mypy-extensions~=1.0.0
 urllib3>=1.21.1,<3
