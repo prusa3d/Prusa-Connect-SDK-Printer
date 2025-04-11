@@ -113,7 +113,6 @@ lint.ignore = [
     "SIM201",   # Use ` != ` instead of `not ==`
     "PT015",    # Assertion always fails, replace with `pytest.fail()`
     "SLF001",   # Private member accessed: `_running_loop`
-    "PT004",    # Fixture `gcode` does not return anything, add leading underscore
     "ISC003",   # Explicitly concatenated string should be implicitly concatenated
     "PLR0915",  # Too many statements (63 > 50)
     "ARG005",   # Unused lambda argument
