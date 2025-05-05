@@ -1,5 +1,10 @@
 ChangeLog
 =========
+0.8.2 (2025-05-05)
+    * Bump requests to 2.32.3
+    * Set TLS config value fallabck to False
+    * Python 3.11 and 3.12 check
+
 0.8.1 (2024-06-25)
     * Skip hidden sub-directories
     * Sync files upon Transfer finish
