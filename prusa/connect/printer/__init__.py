@@ -652,8 +652,9 @@ class Printer:
         """
         if res.status_code == 200:
             command_id: Optional[int] = None
+            command_id_string: str
             try:
-                command_id_string = res.headers.get("Command-Id", default="")
+                command_id_string = res.headers.get("Command-Id", "")
                 command_id = int(command_id_string)
             except (TypeError, ValueError):
                 log.error("Invalid Command-Id header. Headers: %s",
@@ -668,7 +669,7 @@ class Printer:
                               command_id=command_id,
                               reason=self.NOT_INITIALISED_MSG)
                 return res
-            content_type = res.headers.get("content-type", default="")
+            content_type = res.headers.get("content-type", "")
             log.debug("parse_command res: %s", res.text)
             try:
                 if content_type.startswith("application/json"):

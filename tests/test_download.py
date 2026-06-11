@@ -19,16 +19,18 @@ GCODE_URL = ("https://files.printables.com/media/prints/27216/gcodes/"
 DST = '/sdcard/my_example.gcode'
 
 
-@responses.activate
 @pytest.fixture
-def gcode(printer):
+def gcode(printer):  # noqa: PT004
     # pylint: disable=unused-argument
-    responses.add(responses.GET,
-                  GCODE_URL,
-                  body=os.urandom(1024 * 1024),
-                  status=200,
-                  content_type="application/octet-stream",
-                  stream=True)
+    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
+        rsps.add(responses.GET,
+                 GCODE_URL,
+                 body=os.urandom(1024 * 1024),
+                 status=200,
+                 content_type="application/octet-stream",
+                 headers={"Content-Length": str(1024 * 1024)},
+                 stream=True)
+        yield
 
 
 @pytest.fixture
@@ -207,7 +209,7 @@ def test_telemetry_sends_download_info(printer, gcode, download_mgr):
         assert 0, "test failed, `break` was not reached"
 
 
-def test_printed_file_cb(download_mgr, printer):
+def test_printed_file_cb(download_mgr, printer, gcode):
     """Transfer will be aborted if currently printed file is the same"""
     printer.queue.get_nowait()  # MEDIUM_INSERTED from attaching `tmp`
     download_mgr.printed_file_cb = lambda: \
@@ -283,7 +285,7 @@ def test_download_mgr_os_path(download_mgr):
         download_mgr.to_os_path('/sdcard/../foo/one')
 
 
-def test_download_finished_cb(download_mgr, printer):
+def test_download_finished_cb(download_mgr, printer, gcode):
     res = {}
 
     def download_finished_cb(transfer):

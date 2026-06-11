@@ -6,7 +6,6 @@ from typing import ClassVar
 from unittest.mock import Mock
 
 import pytest
-from _pytest.python_api import raises
 
 from prusa.connect.printer import get_timestamp
 from prusa.connect.printer.camera import Camera, Resolution, Snapshot
@@ -182,7 +181,7 @@ def test_humpty_function():
     driver = DummyDriver(id1, available[id1], Mock())
     driver.connect()
     del driver._config[CapabilityType.RESOLUTION.value]
-    with raises(AttributeError):
+    with pytest.raises(AttributeError):
         camera = Camera(driver)
     driver = DummyDriver(id1, available[id1], Mock())
     driver.connect()
@@ -218,7 +217,7 @@ def test_humpty_function():
     assert camera.scheme_cb.call_args.args[1] == TriggerScheme.THIRTY_SEC
     assert camera.scheme_cb.call_args.args[2] == TriggerScheme.EACH_LAYER
 
-    with raises(NotSupported):
+    with pytest.raises(NotSupported):
         camera.rotation = 90
 
     driver.disconnected_cb.assert_not_called()
@@ -228,7 +227,7 @@ def test_humpty_function():
     driver = DummyDriver(id1, available[id1], Mock())
     driver.connect()
     driver._capabilities.add(CapabilityType.EXPOSURE)
-    with raises(DriverError):
+    with pytest.raises(DriverError):
         camera = Camera(driver)
         camera.exposure = 1
 
@@ -240,7 +239,7 @@ def test_humpty_function():
         }, Mock())
     driver.connect()
     assert driver.is_connected
-    with raises(RuntimeError):
+    with pytest.raises(RuntimeError):
         driver.set_resolution(Resolution(5, 5))
 
     driver = DummyDriver(
@@ -396,7 +395,7 @@ def test_configurator_remove_detected():
                                       drivers=[DummyDriver])
     id1 = CameraDriver.make_hash("id1")
     assert id1 in configurator.loaded
-    with raises(RuntimeError):
+    with pytest.raises(RuntimeError):
         configurator.remove_camera(id1)
 
 
