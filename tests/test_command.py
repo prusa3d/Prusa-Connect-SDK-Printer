@@ -20,6 +20,7 @@ def queue():
 
 @pytest.fixture
 def command(queue):
+
     def create_event(event: const.Event,
                      source: const.Source,
                      timestamp: Optional[float] = None,
@@ -88,6 +89,7 @@ def test_finish(command, queue):
 
 
 def test_call(command, queue):
+
     def handler(caller):
         assert len(caller.args) == 0, caller.args
         return dict(event=const.Event.INFO, source=const.Source.CONNECT, x='x')
@@ -117,6 +119,7 @@ def test_call_not_implemented(command, queue):
 
 
 def test_call_exception(command, queue):
+
     def handler(caller):
         raise RuntimeError(str(caller.args))
 
@@ -141,6 +144,7 @@ def test_unknown(command, queue):
 
 
 def test_command_recall(command, queue):
+
     def handler(caller):
         assert len(caller.args) == 0, caller.args
         return dict(event=const.Event.INFO, source=const.Source.CONNECT, x='x')

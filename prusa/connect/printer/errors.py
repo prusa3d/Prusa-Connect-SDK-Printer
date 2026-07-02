@@ -31,6 +31,7 @@ class ErrorState:
     >>> str(leaf)
     'leaf: True'
     """
+
     def __init__(self, name, long_msg, prev=None, short_msg=None):
         self.name = name
         self.prev = prev

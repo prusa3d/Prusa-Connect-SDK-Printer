@@ -35,7 +35,7 @@ from .models import (
 )
 from .util import RetryingSession, get_timestamp
 
-__version__ = "0.8.2"
+__version__ = "0.9.0dev0"
 __date__ = "5 May 2025"  # version date
 __copyright__ = "(c) 2025 Prusa 3D"
 __author_name__ = "Prusa Link Developers"

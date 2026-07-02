@@ -17,19 +17,23 @@ log = getLogger("connect-printer")
 
 CODE_TIMEOUT = 60 * 30  # 30 min
 
-EventCallback = Callable[[
-    Arg(const.Event, 'event'),  # noqa
-    Arg(const.Source, 'source'),  # noqa
-    DefaultArg(Optional[float], 'timestamp'),  # noqa
-    DefaultArg(Optional[int], 'command_id'),  # noqa
-    KwArg(Any),
-], None]
+EventCallback = Callable[
+    [
+        Arg(const.Event, 'event'),  # noqa
+        Arg(const.Source, 'source'),  # noqa
+        DefaultArg(Optional[float], 'timestamp'),  # noqa
+        DefaultArg(Optional[int], 'command_id'),  # noqa
+        KwArg(Any),
+    ],
+    None]
 
-TelemetryCallback = Callable[[
-    Arg(const.State, 'state'),  # noqa
-    DefaultArg(Optional[float], 'timestamp'),  # noqa
-    KwArg(Any),
-], None]
+TelemetryCallback = Callable[
+    [
+        Arg(const.State, 'state'),  # noqa
+        DefaultArg(Optional[float], 'timestamp'),  # noqa
+        KwArg(Any),
+    ],
+    None]
 
 
 def filter_null(obj):

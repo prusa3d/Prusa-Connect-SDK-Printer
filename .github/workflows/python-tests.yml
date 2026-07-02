@@ -32,7 +32,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -U -r requirements.txt
         pip install -U types-requests
-        pip install -U ruff pytest pytest-pylint pytest-doctestplus
+        pip install -U ruff pytest pytest-doctestplus pylint
         pip install -U requests_mock pytest-mypy func-timeout responses
 
     - name: Lint with ruff
@@ -40,7 +40,10 @@ jobs:
         ruff check .
     - name: Lint with pylint
       run: |
-        pytest -v --mypy --pylint --doctest-plus --doctest-rst prusa/connect/printer
+        pylint prusa/connect/printer
+    - name: Type check and doctest
+      run: |
+        pytest -v --mypy --doctest-plus --doctest-rst prusa/connect/printer
     - name: Tests
       run: |
         TZ=Europe/Prague pytest -v --mypy tests --log-cli-level=10
