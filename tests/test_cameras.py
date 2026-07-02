@@ -91,6 +91,7 @@ class DummyDriver(CameraDriver):
 
 
 class AdditionalCamera:
+
     def __enter__(self):
         """Adds a camera to a scan"""
         DummyDriver.scanned_cameras["extra"] = {
@@ -157,6 +158,7 @@ class EventSetMock(Mock):
     """
     Sets its built in event when called, otherwise it's a regular mock
     """
+
     def __init__(self, *args, side_effect=None, **kwargs):
         if side_effect is not None:
             raise AttributeError("Do not provide a side effect to this mock, "

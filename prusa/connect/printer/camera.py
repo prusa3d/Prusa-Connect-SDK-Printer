@@ -80,6 +80,7 @@ class Snapshot:
 
 class Resolution:
     """A class to represent a camera resolution"""
+
     def __init__(self, width: int, height: int) -> None:
         self.width: int = width
         self.height: int = height
@@ -130,7 +131,9 @@ class Resolution:
 def value_setter(capability_type):
     """A decorator for methods setting a camera option while making sure
     it is valid"""
+
     def value_setter_decorator(func):
+
         def inner(camera: "Camera", value):
             # pylint: disable=protected-access
             old_value = camera.get_value(capability_type)
@@ -159,7 +162,9 @@ def value_setter(capability_type):
 
 def value_getter(capability_type):
     """A decorator for methods getting a camera option"""
+
     def value_getter_decorator(func):
+
         def inner(camera: "Camera"):
             if not camera.supports(capability_type):
                 raise NotSupported(

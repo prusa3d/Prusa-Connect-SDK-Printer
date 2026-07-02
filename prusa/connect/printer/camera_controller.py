@@ -25,6 +25,7 @@ class CameraController:
     """This component harbors functioning cameras, triggers them, sends out
     images to connect and should contain functionality needed for operating
     with functional cameras"""
+
     def __init__(self, session: Session, server: Optional[str],
                  send_cb: Callable[[LoopObject], None]) -> None:
         """

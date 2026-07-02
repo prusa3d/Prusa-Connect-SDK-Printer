@@ -33,6 +33,7 @@ class RetryingSession(requests.Session):
     #  Consider it a working fix until the problem is investigated more deeply
     #  and an eventually cleaner solution is found.
     """
+
     def __init__(self, max_retries=3):
         # pylint: disable=missing-function-docstring
         super().__init__()
