@@ -1,7 +1,7 @@
 import pytest
 
 from prusa.connect.printer import Printer, __version__, const, errors
-from tests.util import FINGERPRINT, SERVER, SN, TOKEN
+from tests.util import FINGERPRINT, SERVER, SN, TOKEN, FakeWS
 
 
 @pytest.fixture()
@@ -10,6 +10,7 @@ def printer():
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.set_connection(SERVER, TOKEN)
     printer.software = __version__
+    printer.ws = FakeWS(printer.handle_ws_message)
     yield printer
     errors.INTERNET.ok = False
     errors.TOKEN.ok = False

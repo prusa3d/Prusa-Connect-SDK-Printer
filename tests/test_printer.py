@@ -1,6 +1,5 @@
 """Test for Printer object."""
 import io
-import json
 import os
 import queue
 import tempfile
@@ -8,7 +7,6 @@ import time
 from typing import Any
 
 import pytest  # type: ignore
-import requests  # type: ignore
 from func_timeout import FunctionTimedOut, func_timeout  # type: ignore
 
 from prusa.connect.printer import Command, Printer, Register, const, errors
@@ -21,7 +19,11 @@ from tests.util import (
     SERVER,
     SN,
     TOKEN,
+    FakeWS,
     run_loop,
+    ws_force_gcode_command,
+    ws_gcode_command,
+    ws_json_command,
 )
 
 # pylint: disable=missing-function-docstring
@@ -81,6 +83,7 @@ def printer_no_fp():
     printer = Printer(const.PrinterType.I3MK3S, SN)
     printer.server = SERVER
     printer.token = TOKEN
+    printer.ws = FakeWS(printer.handle_ws_message)
     return printer
 
 
@@ -90,6 +93,7 @@ def printer_sdcard():
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.server = SERVER
     printer.token = TOKEN
+    printer.ws = FakeWS(printer.handle_ws_message)
     tmp_dir = tempfile.TemporaryDirectory()
     printer.attach(tmp_dir.name, "sdcard")
     printer.queue.get_nowait()  # consume MEDIUM_INSERTED event
@@ -127,10 +131,7 @@ class TestPrinter:
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'BUSY'}
 
-    def test_telemetry_headers(self, requests_mock, printer):
-        requests_mock.post(SERVER + "/p/telemetry", status_code=204)
-        printer.telemetry()
-
+    def test_telemetry_headers(self, printer):
         headers = printer.make_headers()
         assert headers["Fingerprint"] == printer.fingerprint
         assert headers["User-Agent"].startswith("Prusa-Connect-SDK-Printer/")
@@ -138,16 +139,12 @@ class TestPrinter:
         assert headers["User-Agent-Version"] == printer.software
         assert headers["Token"] == printer.token
 
-        item = printer.queue.get_nowait()
-        item.send(printer.conn, printer.server, headers)
-
-        req = requests_mock.request_history[0]
-        assert str(req) == f"POST {SERVER}/p/telemetry"
-        assert req.headers["Fingerprint"] == printer.fingerprint
-        assert req.headers["User-Agent"] == headers["User-Agent"]
-        assert req.headers["User-Agent-Printer"] == str(printer.type)
-        assert req.headers["User-Agent-Version"] == printer.software
-        assert req.headers["Token"] == printer.token
+        # WS connect must use the same headers
+        printer.ensure_ws_connected()
+        assert printer.ws.connect_calls
+        _, ws_headers = printer.ws.connect_calls[0]
+        assert ws_headers["Fingerprint"] == printer.fingerprint
+        assert ws_headers["Token"] == printer.token
 
     def test_telemetry_no_fingerprint(self, printer_no_fp):
         printer_no_fp.telemetry(temp_bed=1, temp_nozzle=2)
@@ -155,12 +152,9 @@ class TestPrinter:
         assert isinstance(item, Telemetry)
         assert item.to_payload() == {'state': 'BUSY'}
 
-    def test_parse_command_no_fingerprint(self, printer_no_fp):
-        res_mock = requests.Response()
-        res_mock.status_code = 200
-        res_mock.headers['Command-Id'] = 42
-
-        printer_no_fp.parse_command(res_mock)
+    def test_handle_ws_message_no_fingerprint(self, printer_no_fp):
+        printer_no_fp.ws.simulate_message(
+            ws_json_command(42, {"command": "SEND_INFO"}))
         item = printer_no_fp.queue.get_nowait()
         assert isinstance(item, Event)
         event_obj = item.to_payload()
@@ -203,8 +197,7 @@ class TestPrinter:
         event_obj = item.to_payload()
         assert event_obj['state'] == 'FINISHED'
 
-    def test_loop(self, requests_mock, printer):
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+    def test_loop(self, printer):
         printer.event_cb(const.Event.INFO, const.Source.WUI)
 
         try:
@@ -212,16 +205,12 @@ class TestPrinter:
         except FunctionTimedOut:
             pass
 
-        assert (str(
-            requests_mock.request_history[0]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[0].json()
-        assert info["event"] == "INFO"
-        assert info["source"] == "WUI"
+        assert printer.ws.sent
+        sent = printer.ws.sent[0]
+        assert sent["event"] == "INFO"
+        assert sent["source"] == "WUI"
 
-    def test_loop_exception(self, requests_mock, printer):
-        requests_mock.post(SERVER + "/p/events",
-                           status_code=400,
-                           json={'message': 'No Way'})
+    def test_loop_exception(self, printer):
         printer.event_cb(const.Event.INFO, const.Source.WUI)
 
         try:
@@ -229,16 +218,25 @@ class TestPrinter:
         except FunctionTimedOut:
             pass
 
-        requests_mock.post(SERVER + "/p/events",
-                           exc=requests.exceptions.ConnectTimeout)
+        # Simulate WS send failure (connected but send fails) → HTTP error
+        printer.ws.fail_send = True
         printer.event_cb(const.Event.INFO, const.Source.WUI)
 
         run_loop(printer.loop)
 
-        assert errors.INTERNET.ok is True
-        assert INTERNET.state is CondState.OK
         assert errors.HTTP.ok is False
         assert HTTP.state is CondState.NOK
+
+    def test_ws_not_connected(self, printer):
+        """WS connection not established at all → INTERNET error."""
+        printer.ws.fail_connect = True  # simulate unreachable server
+        printer.ws.disconnect()
+        printer.event_cb(const.Event.INFO, const.Source.WUI)
+
+        run_loop(printer.loop)
+
+        assert errors.INTERNET.ok is False
+        assert INTERNET.state is CondState.NOK
 
     def test_set_handler(self, printer):
 
@@ -259,35 +257,32 @@ class TestPrinter:
         assert printer.command.handlers[const.Command.GCODE] == gcode
 
     def test_send_info(self, requests_mock, printer):
-        """Test parsing telemetry and call builtin handler."""
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text='{"command":"SEND_INFO"}',
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
+        """Test parsing WS command and call builtin handler."""
         requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry()
 
         run_loop(printer.loop)
 
+        # Simulate server pushing SEND_INFO command over WS
+        printer.ws.simulate_message(
+            ws_json_command(42, {"command": "SEND_INFO"}))
+
+        run_loop(printer.loop)  # flush ACCEPTED event from queue to WS
+
         assert printer.command.state == const.Event.ACCEPTED
-        assert (str(
-            requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[1].json()
-        assert info["event"] == "ACCEPTED"
-        assert info["source"] == "CONNECT"
-        assert info["command_id"] == 42
+
+        # ACCEPTED event goes over WS
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "ACCEPTED"
+        assert accepted["source"] == "CONNECT"
+        assert accepted["command_id"] == 42
 
         printer.command()
 
         run_loop(printer.loop)
 
-        assert (str(
-            requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[2].json()
+        info = printer.ws.sent[-1]
         assert info["event"] == "INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
@@ -315,8 +310,8 @@ class TestPrinter:
             'children': [],
         }
 
-        # MEDIUM_INSERTED event resulting from ataching
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+        # MEDIUM_INSERTED event resulting from attaching goes over WS
+        run_loop(printer.loop)
 
         cmd = {
             "command": "DELETE_DIRECTORY",
@@ -324,27 +319,20 @@ class TestPrinter:
                 "path": "/test/test_dir",
             },
         }
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry()
         printer.inotify_handler()
 
         run_loop(printer.loop)
 
+        # Simulate server pushing DELETE_DIRECTORY command
+        printer.ws.simulate_message(ws_json_command(42, cmd))
+
         assert printer.command.state == const.Event.ACCEPTED
 
-        assert str(requests_mock.request_history[2]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[2].json()
-        assert info["event"] == "FILE_CHANGED"
-        assert info["source"] == "WUI"
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "FILE_CHANGED"
+        assert accepted["source"] == "WUI"
 
         # check file structure without children
         file_system = storage.tree.to_dict(include_children=False)
@@ -419,8 +407,8 @@ class TestPrinter:
             'children': [],
         }
 
-        # MEDIUM_INSERTED event resulting from attaching
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+        # MEDIUM_INSERTED event goes over WS
+        run_loop(printer.loop)
 
         cmd = {
             "command": "DELETE_FILE",
@@ -428,25 +416,18 @@ class TestPrinter:
                 "path": "/test/test-file.hex",
             },
         }
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry()
         printer.inotify_handler()
 
         run_loop(printer.loop)
 
-        assert str(requests_mock.request_history[2]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[2].json()
-        assert info["event"] == "FILE_CHANGED"
-        assert info["source"] == "WUI"
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "FILE_CHANGED"
+        assert accepted["source"] == "WUI"
+
+        # Simulate server pushing DELETE_FILE command
+        printer.ws.simulate_message(ws_json_command(42, cmd))
 
         # check file structure
         file_system = storage.tree.to_dict()
@@ -492,8 +473,9 @@ class TestPrinter:
         # get storage for test purpose
         storage = printer.inotify_handler.fs.storage_dict["test"]
 
-        # MEDIUM_INSERTED event resulting from attaching
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+        # MEDIUM_INSERTED event goes over WS
+        run_loop(printer.loop)
+
         dir_name = "test_dir"
         path = os.path.join(tmp_dir.name, dir_name)
 
@@ -514,27 +496,22 @@ class TestPrinter:
                 "path": "/test/test_dir",
             },
         }
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         printer.telemetry()
         printer.inotify_handler()
 
         run_loop(printer.loop)
 
+        # Simulate server pushing CREATE_FOLDER command
+        printer.ws.simulate_message(ws_json_command(42, cmd))
+
+        run_loop(printer.loop)  # flush ACCEPTED from queue to WS
+
         assert printer.command.state == const.Event.ACCEPTED
 
-        assert str(requests_mock.request_history[2]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[2].json()
-        assert info["event"] == "ACCEPTED"
-        assert info["source"] == "CONNECT"
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "ACCEPTED"
+        assert accepted["source"] == "CONNECT"
 
         # check file structure
         file_system = storage.tree.to_dict()
@@ -584,7 +561,7 @@ class TestPrinter:
         }
         assert os.path.exists(path) is True
 
-    def test_loop_no_server(self, requests_mock, printer):
+    def test_loop_no_server(self, printer):
         printer.server = None
 
         # put an item to queue
@@ -592,20 +569,11 @@ class TestPrinter:
 
         run_loop(printer.loop)
 
-        # check that no request has been made while server is not set
-        assert not requests_mock.request_history
+        # no WS messages sent while server is not set
+        assert not printer.ws.sent
 
-    def test_gcode(self, requests_mock, printer):
-        """Test parsing telemetry and call GCODE handler."""
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text='G1 X10.0',
-                           headers={
-                               "Command-Id": "1",
-                               "Content-Type": "text/x.gcode",
-                               "Force": "1",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+    def test_gcode(self, printer):
+        """Test parsing WS GCODE command."""
 
         # pylint: disable=unused-variable, unused-argument
         @printer.handler(const.Command.GCODE)
@@ -613,23 +581,49 @@ class TestPrinter:
             return dict(source=const.Source.MARLIN)
 
         printer.telemetry()
+        run_loop(printer.loop)
+
+        # Simulate server pushing GCODE command (low-level, G prefix)
+        printer.ws.simulate_message(ws_gcode_command(1, "G1 X10.0"))
+
+        run_loop(printer.loop)  # flush ACCEPTED from queue to WS
+
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "ACCEPTED", accepted
+
+        printer.command()
 
         run_loop(printer.loop)
 
-        assert (str(
-            requests_mock.request_history[1]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[1].json()
-        assert info["event"] == "ACCEPTED", info
+        finished = printer.ws.sent[-1]
+        assert finished["event"] == "FINISHED", finished
+
+    def test_gcode_force(self, printer):
+        """Test WS forced GCode command (F prefix → command.force=True)."""
+
+        # pylint: disable=unused-variable, unused-argument
+        @printer.handler(const.Command.GCODE)
+        def gcode(caller: Command):
+            return dict(source=const.Source.MARLIN)
+
+        printer.telemetry()
+        run_loop(printer.loop)
+
+        # Simulate server pushing forced GCODE command (F prefix)
+        printer.ws.simulate_message(ws_force_gcode_command(1, "G1 X10.0"))
+
+        run_loop(printer.loop)  # flush ACCEPTED from queue to WS
+
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "ACCEPTED", accepted
         assert printer.command.force
 
         printer.command()
 
         run_loop(printer.loop)
 
-        assert (str(
-            requests_mock.request_history[2]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[2].json()
-        assert info["event"] == "FINISHED", info
+        finished = printer.ws.sent[-1]
+        assert finished["event"] == "FINISHED", finished
 
     def test_register(self, requests_mock):
         mock_tmp_code = "f4c8996fb9"
@@ -757,50 +751,7 @@ class TestPrinter:
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 
-    @staticmethod
-    def _send_file_info(dirpath, filename, requests_mock, printer, accept_req):
-        # accept_req is to determine, which request is ACCEPTED, in case of
-        # FILE_CHANGE event appearing
-        printer.attach(dirpath, "test")
-        # MEDIUM_INSERTED event resulting from attaching
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-
-        cmd = {"command": "SEND_FILE_INFO", "kwargs": {"path": filename}}
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-
-        printer.telemetry()
-
-        run_loop(printer.loop)
-
-        assert printer.command.state == const.Event.ACCEPTED
-
-        assert str(requests_mock.request_history[accept_req]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[accept_req].json()
-        assert info["event"] == "ACCEPTED"
-        assert info["source"] == "CONNECT"
-        assert info["command_id"] == 42
-
-        printer.command()  # exec SEND_FILE_INFO
-
-        run_loop(printer.loop)
-
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-        assert (str(
-            requests_mock.request_history[accept_req +
-                                          1]) == f"POST {SERVER}/p/events")
-        info = requests_mock.request_history[accept_req + 1].json()
-        assert info['command_id'] == 42
-        return info
-
-    def test_send_file_info(self, requests_mock, printer):
+    def test_send_file_info(self, printer):
         # create directory to be attached with some content
         dir = tempfile.TemporaryDirectory()
         with open(f"{dir.name}/hello.gcode", "w") as f:
@@ -820,29 +771,66 @@ class TestPrinter:
             f.write("; thin_walls = 0\n")
 
         filename = '/test/hello.gcode'
-        info = self._send_file_info(dir.name,
-                                    filename,
-                                    requests_mock,
-                                    printer,
-                                    accept_req=2)
+
+        # Attach first so MEDIUM_INSERTED is flushed before the command arrives
+        printer.attach(dir.name, "test")
+        run_loop(printer.loop)  # flush MEDIUM_INSERTED
+
+        # Simulate server pushing SEND_FILE_INFO command
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "SEND_FILE_INFO",
+                "kwargs": {
+                    "path": filename,
+                },
+            }))
+
+        run_loop(printer.loop)  # flush ACCEPTED
+
+        assert printer.command.state == const.Event.ACCEPTED
+
+        accepted = printer.ws.sent[-1]
+        assert accepted["event"] == "ACCEPTED"
+        assert accepted["source"] == "CONNECT"
+        assert accepted["command_id"] == 42
+
+        printer.command()  # exec SEND_FILE_INFO
+        run_loop(printer.loop)
+
+        info = printer.ws.sent[-1]
         assert info["event"] == "FILE_INFO"
         assert info["source"] == "CONNECT"
         assert info["data"]['path'] == filename
         assert info["data"]['size'] == 628
         assert "m_timestamp" in info['data']
 
-        # now test for metadata and one valid thumbnail (temperature)
+        # metadata and thumbnail
         assert info['data']['temperature'] == 250
         assert len(info['data']['preview']) == 524
 
-    def test_send_file_info_does_not_exist(self, requests_mock, printer):
-        directory = tempfile.TemporaryDirectory()
+    def test_send_file_info_does_not_exist(self, printer):
         filename = '/N/A/file.txt'
-        info = self._send_file_info(directory.name,
-                                    filename,
-                                    requests_mock,
-                                    printer,
-                                    accept_req=2)
+        directory = tempfile.TemporaryDirectory()
+
+        printer.attach(directory.name, "test")
+        run_loop(printer.loop)  # flush MEDIUM_INSERTED
+
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "SEND_FILE_INFO",
+                "kwargs": {
+                    "path": filename,
+                },
+            }))
+
+        run_loop(printer.loop)  # flush ACCEPTED
+
+        assert printer.command.state == const.Event.ACCEPTED
+
+        printer.command()
+        run_loop(printer.loop)
+
+        info = printer.ws.sent[-1]
         assert info['event'] == 'FAILED'
         assert info['source'] == 'WUI'
         assert info['reason'] == 'Command error'
@@ -860,22 +848,18 @@ class TestPrinter:
             "selecting": True,
             "printing": False,
         }
-        cmd = {"command": "START_URL_DOWNLOAD", "kwargs": kwargs}
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
         requests_mock.get(url,
                           body=io.BytesIO(os.urandom(16)),
                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        # get the command from telemetry
         printer = printer_sdcard
-        printer.telemetry()
+
+        # Simulate server pushing START_URL_DOWNLOAD command
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "START_URL_DOWNLOAD",
+                "kwargs": kwargs,
+            }))
 
         run_loop(printer.loop)
 
@@ -891,11 +875,8 @@ class TestPrinter:
 
         run_loop(printer.loop)
 
-        assert str(requests_mock.request_history[3]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[3].json()
-
-        assert info["event"] == "TRANSFER_INFO"
+        info = next(m for m in printer.ws.sent
+                    if m.get("event") == "TRANSFER_INFO")
         assert info["source"] == "CONNECT"
         assert info["data"]["start_cmd_id"] == 42
 
@@ -903,22 +884,18 @@ class TestPrinter:
         path = "/sdcard/my.gcode"
         kwargs = {"path": path, "team_id": 321, "hash": '0123456789abcdef'}
         uri = "/p/teams/{team_id}/files/{hash}/raw".format(**kwargs)
-        cmd = {"command": "START_CONNECT_DOWNLOAD", "kwargs": kwargs}
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
         requests_mock.get(SERVER + uri,
                           body=io.BytesIO(os.urandom(16)),
                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        # get the command from telemetry
         printer = printer_sdcard
-        printer.telemetry()
+
+        # Simulate server pushing START_CONNECT_DOWNLOAD command
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "START_CONNECT_DOWNLOAD",
+                "kwargs": kwargs,
+            }))
 
         run_loop(printer.loop)
 
@@ -934,31 +911,19 @@ class TestPrinter:
 
         run_loop(printer.loop)
 
-        assert str(requests_mock.request_history[3]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[3].json()
-
-        assert info["event"] == "TRANSFER_INFO"
+        info = next(m for m in printer.ws.sent
+                    if m.get("event") == "TRANSFER_INFO")
         assert info["source"] == "CONNECT"
         assert info["data"]["start_cmd_id"] == 42
 
-    def test_transfer_info(self, printer_sdcard, requests_mock):
-        # prepare command and mocks
+    def test_transfer_info(self, printer_sdcard):
         printer = printer_sdcard
         path = '/sdcard/test-download-info.gcode'
         url = "http://prusaprinters.org/my.gcode"
-        cmd = '{"command":"SEND_TRANSFER_INFO"}'
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
-        # send telemetry - obtain download info command
-        printer.telemetry()
+        # Simulate server pushing SEND_TRANSFER_INFO command
+        printer.ws.simulate_message(
+            ws_json_command(42, {"command": "SEND_TRANSFER_INFO"}))
 
         run_loop(printer.loop)
 
@@ -979,10 +944,7 @@ class TestPrinter:
         printer.command()
         run_loop(printer.loop)
 
-        assert str(requests_mock.request_history[2]) == \
-               f"POST {SERVER}/p/events"
-        info = requests_mock.request_history[2].json()
-
+        info = printer.ws.sent[-1]
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
@@ -991,12 +953,10 @@ class TestPrinter:
         assert info["data"]['time_remaining'] > 0
         assert info["data"]['to_print'] is False
 
-    def test_transfer_info_id(self, printer_sdcard, requests_mock):
-        # prepare command and mocks
+    def test_transfer_info_id(self, printer_sdcard):
         printer = printer_sdcard
         path = '/sdcard/test-download-info.gcode'
         url = "http://prusaprinters.org/my.gcode"
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         run_loop(printer.loop)
 
@@ -1017,47 +977,32 @@ class TestPrinter:
 
         run_loop(printer.loop)
 
-        info = requests_mock.request_history[0].json()
+        info = printer.ws.sent[0]
         transfer_id = info['transfer_id']
-        cmd = {"command": "SEND_TRANSFER_INFO", "transfer_id": transfer_id}
 
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
+        # Simulate server pushing SEND_TRANSFER_INFO with transfer_id
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "SEND_TRANSFER_INFO",
+                "transfer_id": transfer_id,
+            }))
 
-        # send telemetry - obtain download info command
-        printer.telemetry()
         run_loop(printer.loop)
 
         # exec download info
         printer.command()
         run_loop(printer.loop)
 
-        info = requests_mock.request_history[3].json()
+        info = printer.ws.sent[-1]
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
         assert info['transfer_id'] == transfer_id
 
-    def test_transfer_info_failed(self, printer_sdcard, requests_mock):
-        # prepare command and mocks
+    def test_transfer_info_failed(self, printer_sdcard):
         printer = printer_sdcard
         path = '/sdcard/test-download-info.gcode'
         url = "http://prusaprinters.org/my.gcode"
-        cmd = {"command": "SEND_TRANSFER_INFO", "transfer_id": -1}
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=json.dumps(cmd),
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-
-        requests_mock.post(SERVER + "/p/events", status_code=204)
 
         run_loop(printer.loop)
 
@@ -1078,35 +1023,28 @@ class TestPrinter:
 
         run_loop(printer.loop)
 
-        # send telemetry - obtain download info command
-        printer.telemetry()
+        # Simulate server pushing SEND_TRANSFER_INFO with wrong transfer_id
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "SEND_TRANSFER_INFO",
+                "transfer_id": -1,
+            }))
+
         run_loop(printer.loop)
 
         # exec download info
         printer.command()
         run_loop(printer.loop)
 
-        info = requests_mock.request_history[3].json()
+        info = printer.ws.sent[-1]
         assert info["event"] == "TRANSFER_INFO"
         assert info["source"] == "CONNECT"
         assert info["command_id"] == 42
 
-    def test_download_stop(self, printer_sdcard, requests_mock):
-        # post telemetry - obtain command
+    def test_download_stop(self, printer_sdcard):
         printer = printer_sdcard
         path = '/sdcard/test-download-stop.gcode'
         url = "http://prusaprinters.org/my.gcode"
-        cmd = '{"command":"STOP_TRANSFER"}'
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-
-        printer.telemetry()
 
         # pretend we're downloading
         printer.download_mgr.start(TYPE,
@@ -1116,14 +1054,17 @@ class TestPrinter:
                                    to_select=False)
         assert not printer.download_mgr.transfer.stop_ts
 
+        # Simulate server pushing STOP_TRANSFER command
+        printer.ws.simulate_message(
+            ws_json_command(42, {"command": "STOP_TRANSFER"}))
+
         run_loop(printer.loop)
 
-        # exec the command from telemetry - `cmd
+        # exec the command
         printer.command()
         assert printer.download_mgr.transfer.stop_ts
 
-    def test_download_stop_with_id(self, printer_sdcard, requests_mock):
-        # post telemetry - obtain command
+    def test_download_stop_with_id(self, printer_sdcard):
         printer = printer_sdcard
         path = '/sdcard/test-download-stop.gcode'
         url = "http://prusaprinters.org/my.gcode"
@@ -1136,27 +1077,22 @@ class TestPrinter:
                                    to_select=False)
         assert not printer.download_mgr.transfer.stop_ts
 
-        cmd = ('{"command":"STOP_TRANSFER", "transfer_id": %s}' %
-               printer.transfer.transfer_id)
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-
-        printer.telemetry()
+        printer.ws.simulate_message(
+            ws_json_command(
+                42, {
+                    "command": "STOP_TRANSFER",
+                    "kwargs": {
+                        "transfer_id": printer.transfer.transfer_id,
+                    },
+                }))
 
         run_loop(printer.loop)
 
-        # exec the command from telemetry - `cmd
+        # exec the command
         printer.command()
         assert printer.download_mgr.transfer.stop_ts
 
-    def test_download_stop_wrong_id(self, printer_sdcard, requests_mock):
-        # post telemetry - obtain command
+    def test_download_stop_wrong_id(self, printer_sdcard):
         printer = printer_sdcard
         path = '/sdcard/test-download-stop.gcode'
         url = "http://prusaprinters.org/my.gcode"
@@ -1169,21 +1105,17 @@ class TestPrinter:
                                    to_select=False)
         assert not printer.download_mgr.transfer.stop_ts
 
-        cmd = '{"command":"STOP_TRANSFER", "kwargs": {"transfer_id": 666}}'
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-
-        printer.telemetry()
+        printer.ws.simulate_message(
+            ws_json_command(42, {
+                "command": "STOP_TRANSFER",
+                "kwargs": {
+                    "transfer_id": 666,
+                },
+            }))
 
         run_loop(printer.loop)
 
-        # exec the command from telemetry - `cmd
+        # exec the command
         printer.command()
         assert not printer.download_mgr.transfer.stop_ts
 
@@ -1264,67 +1196,41 @@ class TestPrinter:
         with pytest.raises(queue.Empty):
             printer.queue.get_nowait()
 
-    def test_set_printer_ready(self, printer, requests_mock):
-        cmd = '{"command":"SET_PRINTER_READY"}'
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+    def test_set_printer_ready(self, printer):
+        printer.ws.simulate_message(
+            ws_json_command(42, {"command": "SET_PRINTER_READY"}))
 
-        printer.telemetry()
         run_loop(printer.loop)
 
         printer.command()
         run_loop(printer.loop, timeout=0.2)
 
         assert printer.state == const.State.READY
-        assert str(requests_mock.request_history[2]) == \
-               f"POST {SERVER}/p/events"
-        event = requests_mock.request_history[2].json()
-        assert event["event"] == "STATE_CHANGED"
-        assert event["state"] == "READY"
+        state_evt = next(m for m in printer.ws.sent
+                         if m.get("event") == "STATE_CHANGED")
+        assert state_evt["state"] == "READY"
 
-        event = requests_mock.request_history[3].json()
-        assert event["event"] == "FINISHED"
+        finished = next(m for m in printer.ws.sent
+                        if m.get("event") == "FINISHED")
+        assert finished
 
-    def test_cancel_printer_ready(self, printer, requests_mock):
-        cmd = '{"command":"SET_PRINTER_READY"}'
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd,
-                           headers={
-                               "Command-Id": "42",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
+    def test_cancel_printer_ready(self, printer):
+        printer.ws.simulate_message(
+            ws_json_command(42, {"command": "SET_PRINTER_READY"}))
 
-        printer.telemetry()
         run_loop(printer.loop)
 
         printer.command()
         run_loop(printer.loop, timeout=0.2)
 
         assert printer.state == const.State.READY
-        assert str(requests_mock.request_history[2]) == \
-               f"POST {SERVER}/p/events"
-        event = requests_mock.request_history[2].json()
-        assert event["event"] == "STATE_CHANGED"
-        assert event["state"] == "READY"
+        state_evt = next(m for m in printer.ws.sent
+                         if m.get("event") == "STATE_CHANGED")
+        assert state_evt["state"] == "READY"
 
-        cmd_cancel = '{"command":"CANCEL_PRINTER_READY"}'
-        requests_mock.post(SERVER + "/p/telemetry",
-                           text=cmd_cancel,
-                           headers={
-                               "Command-Id": "43",
-                               "Content-Type": "application/json",
-                           },
-                           status_code=200)
-        requests_mock.post(SERVER + "/p/events", status_code=204)
-        printer.telemetry()
+        printer.ws.simulate_message(
+            ws_json_command(43, {"command": "CANCEL_PRINTER_READY"}))
+
         run_loop(printer.loop)
 
         assert printer.state == const.State.READY

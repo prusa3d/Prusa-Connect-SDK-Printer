@@ -1,7 +1,8 @@
 ChangeLog
 =========
 0.9.0dev0
-    * linters update
+    * Linters update
+    * Switch telemetry and events transport from HTTP to WebSocket
 
 0.8.2 (2025-05-05)
     * Bump requests to 2.32.3
