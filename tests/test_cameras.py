@@ -170,6 +170,19 @@ class EventSetMock(Mock):
         self.event = Event()
 
 
+def test_get_initial_resolution():
+    available = {Resolution(1600, 1200), Resolution(3280, 2464)}
+    assert CameraDriver._get_initial_resolution(
+        available, {"resolution": "1600x1200"}) == Resolution(1600, 1200)
+    assert CameraDriver._get_initial_resolution(
+        available,
+        {"resolution": "not_a_resolution"}) == Resolution(3280, 2464)
+    assert CameraDriver._get_initial_resolution(
+        available, {"resolution": "1x1"}) == Resolution(3280, 2464)
+    assert CameraDriver._get_initial_resolution(available,
+                                                {}) == Resolution(3280, 2464)
+
+
 def test_humpty_function():
     # Humpty tries to return configs, only one of them has everything needed
     available = DummyDriver.scan()
