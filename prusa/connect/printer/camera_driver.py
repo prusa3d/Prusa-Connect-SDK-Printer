@@ -9,7 +9,7 @@ from types import MappingProxyType
 from typing import Callable, Dict, Iterable, Optional, Set
 
 from . import get_timestamp
-from .camera import Resolution, Snapshot
+from .camera import Camera, Resolution, Snapshot
 from .const import ALWAYS_REQURIED, CameraConfigs, CapabilityType, ConfigError
 
 log = logging.getLogger("camera_driver")
@@ -88,8 +88,13 @@ class CameraDriver:
         """Gets the configured resolution and validates it, if invalid gives
         the highest possible one"""
         highest_resolution = sorted(available_resolutions)[-1]
-        configured_resolution = config.get("resolution",
-                                           str(highest_resolution))
+        configured_resolution = highest_resolution
+        if "resolution" in config:
+            try:
+                configured_resolution = Camera.settings_from_string(
+                    {"resolution": config["resolution"]})["resolution"]
+            except (TypeError, ValueError):
+                configured_resolution = highest_resolution
         if configured_resolution not in available_resolutions:
             configured_resolution = highest_resolution
         return configured_resolution
