@@ -746,15 +746,13 @@ class Printer:
         while self.__running_loop:
             try:
                 self.camera_controller.tick()
-            # pylint: disable=broad-exception-caught
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.exception(
                     "Unexpected exception from the camera module caught in"
                     " SDK loop!")
             try:
                 self.loop_step()
-            # pylint: disable=broad-exception-caught
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 log.exception("Unexpected exception caught in SDK loop!")
 
     def loop_step(self):
