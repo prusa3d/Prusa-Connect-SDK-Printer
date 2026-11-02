@@ -39,6 +39,7 @@ packages = ["prusa.connect.printer"]
 "prusa.connect.printer" = ["py.typed"]
 
 [tool.ruff]
+line-length = 79
 lint.select = [
     "F",    # pyflakes
     "E",    # pycodestyle
