@@ -20,6 +20,18 @@ class CommandFailed(RuntimeError):
     """Exception class for signalling that a command has failed."""
 
 
+class CommandRejected(Exception):
+    """Exception class for rejecting a command with an exact `reason`.
+
+    The reason text is part of the contract with Connect, so it is sent
+    as is in the REJECTED event.
+    """
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
 class Command:
     """Command singleton/state like structure."""
 
@@ -175,6 +187,8 @@ class Command:
         try:
             kwargs = handler(self)
             return self.finish(command_id=command_id, **kwargs)
+        except CommandRejected as err:
+            return self.reject(const.Source.CONNECT, reason=err.reason)
         except Exception as err:  # pylint: disable=broad-except
             log.exception("")
             # Could have accepted another command,
