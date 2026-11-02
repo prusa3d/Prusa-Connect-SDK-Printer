@@ -18,7 +18,6 @@ from inotify_simple import INotify, flags  # type: ignore
 from . import const
 from .models import EventCallback
 
-ROOT = '__ROOT__'
 log = getLogger("connect-printer")
 
 # pylint: disable=fixme
@@ -237,24 +236,6 @@ class File:
 
         return result
 
-    def to_dict_legacy(self):
-        """:return `self` in the format for Connect Backend
-        This is a deprecated legacy code"""
-        file_type = "DIR" if self.is_dir else "FILE"
-
-        result = {
-            "type": file_type,
-            "name": self.name,
-        }
-        for attr in ("read_only", "m_timestamp"):
-            if attr in self.attrs:
-                result[attr] = self.attrs[attr]
-        result['size'] = self.size
-        children = [child.to_dict_legacy() for child in self.children.values()]
-        if self.is_dir:
-            result['children'] = children
-        return result
-
     def __contains__(self, item):
         return item in self.children
 
@@ -284,11 +265,14 @@ class File:
 class Storage:
     """Represent a storage"""
 
+    # pylint: disable=too-many-instance-attributes
     def __init__(self,
                  tree: File,
                  storage: str,
                  abs_path_storage: Optional[str] = None,
-                 use_inotify=True):
+                 use_inotify=True,
+                 storage_type: const.StorageType = const.StorageType.LOCAL,
+                 system_space: Optional[int] = None):
         """
         Initialize a Storage.
 
@@ -296,7 +280,12 @@ class Storage:
         :param storage: storage on the virtual FS
         :param abs_path_storage: absolute path on the physical storage
         :param use_inotify: whether to handle this storage using inotify
+        :param storage_type: type of the storage reported to Connect
+        :param system_space: space (in bytes) taken by files which do not
+            belong to the user, e.g. the application itself
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         if use_inotify:
             if not abs_path_storage:
                 msg = "`use_inotify` requires `abs_path_storage` to be set"
@@ -306,51 +295,39 @@ class Storage:
         self.storage = storage
         self.path_storage = abs_path_storage
         self.use_inotify = use_inotify
+        self.storage_type = storage_type
+        self.system_space = system_space
         self.last_updated = time()
 
     def get_space_info(self):
         """Returns free space of storage in bytes"""
-        if os.path.exists(self.path_storage):
+        if self.path_storage and os.path.exists(self.path_storage):
             path_ = os.statvfs(self.path_storage)
             free_space = path_.f_bavail * path_.f_bsize
             total_space = path_.f_blocks * path_.f_bsize
 
             space_info = {"free_space": free_space, "total_space": total_space}
+            if self.system_space is not None:
+                space_info["system_space"] = self.system_space
             return space_info
         return {}
 
     def to_dict(self):
-        """Returns tree in a format for Connect. Add attributes free_space and
-        total_space to tree, if available"""
-        if self.tree:
-            tree = self.tree.to_dict(self.storage)
-        else:
-            tree = {}
-        space_info = self.get_space_info()
-        free_space = space_info.get("free_space")
-        total_space = space_info.get("total_space")
-        if free_space:
-            tree["free_space"] = free_space
-        if total_space:
-            tree["total_space"] = total_space
-        return tree
+        """Returns the description of the storage in the format for Connect.
 
-    def to_dict_legacy(self):
-        """Returns tree in a format for Connect. Add attributes free_space and
-        total_space to tree, if available
-        This is a deprecated legacy code"""
-        if self.tree:
-            tree = self.tree.to_dict_legacy()
-        else:
-            tree = {}
-        space_info = self.get_space_info()
-        free_space = space_info.get("free_space")
-        total_space = space_info.get("total_space")
-        if free_space:
-            tree["free_space"] = free_space
-        if total_space:
-            tree["total_space"] = total_space
-        return tree
+        The description contains no files, Connect asks for them by
+        SEND_FILE_INFO command.
+        """
+        result = {
+            "mountpoint": f"/{self.storage}",
+            "name": self.storage,
+            "type": self.storage_type.value,
+            "is_sfn": False,
+        }
+        if self.path_storage:
+            result["read_only"] = not access(self.path_storage, W_OK)
+        result.update(self.get_space_info())
+        return result
 
     def __str__(self):
         return f"Storage({self.storage} -> {self.path_storage})"
@@ -390,23 +367,26 @@ class Filesystem:
                name: str,
                tree: File,
                storage_path: str = "",
-               use_inotify=True):
+               use_inotify=True,
+               storage_type: const.StorageType = const.StorageType.LOCAL,
+               system_space: Optional[int] = None):
         """Attach the tree under a storage.
 
         :param name: The storage
         :param tree: The tree of `File` instances to be attached
         :param storage_path: Path on storage
         :param use_inotify: Whether to use inotify on this storage or not
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space taken by files not belonging to the user
         :raises InvalidStorageError
         : If the storage is already used,
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         if not name:
             raise InvalidStorageError("Storage cannot be empty")
-
-        if name == '/':
-            name = ROOT
 
         if self.sep in name:
             msg = f"Storage cannot contain {self.sep}"
@@ -416,14 +396,12 @@ class Filesystem:
             raise InvalidStorageError(f"`{name}` is already used")
 
         self.storage_dict[name] = Storage(tree, name, storage_path,
-                                          use_inotify)
+                                          use_inotify, storage_type,
+                                          system_space)
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
-            payload = {
-                "root": f"{self.sep}{name}",
-                "files": self.storage_dict[name].to_dict_legacy(),
-            }
+            payload = self.storage_dict[name].to_dict()
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
     def detach(self, name: str):
@@ -441,9 +419,7 @@ class Filesystem:
 
         # send MEDIUM_EJECTED event
         if self.event_cb:
-            payload = {
-                "root": f"{self.sep}{name}",
-            }
+            payload = {"mountpoint": f"{self.sep}{name}"}
             self.connect_event(const.Event.MEDIUM_EJECTED, payload)
 
     def get(self, abs_path: str):
@@ -455,12 +431,7 @@ class Filesystem:
         abs_path = abs_path.strip(self.sep)
         storage, *parts = abs_path.split(self.sep)
 
-        if ROOT in self.storage_dict:
-            abs_path = '/'.join([ROOT, abs_path])
-            storage, *parts = abs_path.split(self.sep)
-            if storage not in self.storage_dict:
-                return None
-        elif storage not in self.storage_dict:
+        if storage not in self.storage_dict:
             return None
 
         return self.storage_dict[storage].tree.get(parts)
@@ -497,50 +468,28 @@ class Filesystem:
         storage = self.storage_dict[storage_name]
         return file.abs_path(storage.path_storage)
 
-    def to_dict(self):
-        """Returns all the tree in the representation Connect requires
+    def storages(self) -> typing.List[dict]:
+        """Returns descriptions of all storages in the format for Connect.
 
-        :return: dictionary representation of the Filesystem.
+        It doesn't touch files, so it is fast regardless of the amount of
+        files on the storages.
         """
-        root = {
-            "type": "FOLDER",
-            "name": "/",
-            "read_only": True,
-            "children": [],
-        }
+        return [storage.to_dict() for storage in self.storage_dict.values()]
 
-        if ROOT in self.storage_dict:
-            root = self.storage_dict[ROOT].to_dict()
-
-        root["children"].extend([
-            v.to_dict()["name"] for k, v in self.storage_dict.items()
-            if k != ROOT
-        ])
-        return root
-
-    def to_dict_legacy(self):
-        """Returns all the tree in the representation Connect requires
-        This is a deprecated legacy code
-
-        :return: dictionary representation of the Filesystem.
-        """
-        root = {"type": "DIR", "name": "/", "read_only": True, "children": []}
-
-        if ROOT in self.storage_dict:
-            root = self.storage_dict[ROOT].to_dict_legacy()
-
-        root["children"].extend([
-            v.to_dict_legacy() for k, v in self.storage_dict.items()
-            if k != ROOT
-        ])
-        return root
-
-    def from_dir(self, dirpath: str, storage: str):
+    def from_dir(self,
+                 dirpath: str,
+                 storage: str,
+                 storage_type: const.StorageType = const.StorageType.LOCAL,
+                 system_space: Optional[int] = None):
         """Initialize a (File) tree from `dirpath` and attach it.
 
         :param dirpath: The folder on store from which to create the FS
         :param storage: Storage
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space taken by files not belonging to the user
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         # normalize dirpath
         dirpath = path.abspath(dirpath)
         if not dirpath.endswith(path.sep):
@@ -568,7 +517,7 @@ class Filesystem:
                 node = parent.add(name)
                 node.fill_attrs(path.join(abs_dir, name))
 
-        self.attach(storage, root, dirpath)
+        self.attach(storage, root, dirpath, True, storage_type, system_space)
 
     def connect_event(self, event: const.Event, data: dict):
         """Send an event to connect if `self.events` is set"""

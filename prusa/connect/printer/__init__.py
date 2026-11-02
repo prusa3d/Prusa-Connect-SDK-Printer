@@ -406,7 +406,7 @@ class Printer:
             "sdk": __version__,
             "network_info": self.network_info,
             "api_key": self.api_key,
-            "files": self.fs.to_dict_legacy(),
+            "storages": self.fs.storages(),
             "sn": self.sn,
             "fingerprint": self.fingerprint,
             "mbl": self.mbl,
@@ -853,12 +853,22 @@ class Printer:
         """Set internal variable, to stop the loop method."""
         self.__running_loop = False
 
-    def attach(self, folderpath: str, storage: str):
+    def attach(self,
+               folderpath: str,
+               storage: str,
+               storage_type: const.StorageType = const.StorageType.LOCAL,
+               system_space: Optional[int] = None):
         """Create a listing of `folderpath` and attach it under `storage`.
+
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space (in bytes) taken by files which do not
+            belong to the user, e.g. the application itself
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.from_dir(folderpath, storage)
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+        self.fs.from_dir(folderpath, storage, storage_type, system_space)
         self.inotify_handler = InotifyHandler(self.fs)
 
     def detach(self, storage: str):
