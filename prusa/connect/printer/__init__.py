@@ -691,7 +691,7 @@ class Printer:
                                             force=force)
                 else:
                     raise ValueError("Invalid command content type")
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 log.exception("")
                 self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
@@ -746,14 +746,14 @@ class Printer:
         while self.__running_loop:
             try:
                 self.camera_controller.tick()
-            # pylint: disable=broad-except
+            # pylint: disable=broad-exception-caught
             except Exception:
                 log.exception(
                     "Unexpected exception from the camera module caught in"
                     " SDK loop!")
             try:
                 self.loop_step()
-            # pylint: disable=broad-except
+            # pylint: disable=broad-exception-caught
             except Exception:
                 log.exception("Unexpected exception caught in SDK loop!")
 
@@ -802,7 +802,7 @@ class Printer:
             errors.INTERNET.ok = False
             INTERNET.state = CondState.NOK
             log.error(err)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-exception-caught
             errors.INTERNET.ok = False
             INTERNET.state = CondState.NOK
             log.exception('Unhandled error')

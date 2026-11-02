@@ -145,7 +145,8 @@ def value_setter(capability_type):
             camera._become_busy()
             try:
                 func(camera, value)
-            except Exception as exception:  # pylint: disable=broad-except
+            # pylint: disable=broad-exception-caught
+            except Exception as exception:
                 log.exception("Exception while setting %s",
                               capability_type.name)
                 camera.disconnect()
