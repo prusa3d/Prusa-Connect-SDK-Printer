@@ -843,13 +843,9 @@ class TestPrinter:
                                     requests_mock,
                                     printer,
                                     accept_req=2)
-        assert info['event'] == 'FAILED'
-        assert info['source'] == 'WUI'
-        assert info['reason'] == 'Command error'
-        assert info['data'] == {
-            'error': "ValueError('File does not exist: "
-            "/N/A/file.txt')",
-        }
+        assert info['event'] == 'REJECTED'
+        assert info['source'] == 'CONNECT'
+        assert info['reason'] == 'File not found'
 
     def test_url_download(self, requests_mock, printer_sdcard):
         url = "http://prusaprinters.org/my.gcode"

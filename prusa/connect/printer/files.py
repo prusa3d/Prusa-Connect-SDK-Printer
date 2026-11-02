@@ -15,7 +15,14 @@ from typing import Optional
 from gcode_metadata import UnknownGcodeFileType, get_metadata
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import const
+from . import const, fileinfo
+from .command import CommandRejected
+from .fileinfo import (
+    REASON_FORBIDDEN,
+    REASON_NOT_FOUND,
+    get_type_by_name,
+    is_inside,
+)
 from .models import EventCallback
 
 log = getLogger("connect-printer")
@@ -63,17 +70,7 @@ def delete(abs_path, is_dir, force=False):
 
 def get_file_type(file):
     """Return file type of file/folder"""
-    if file.is_dir:
-        return const.FileType.FOLDER
-
-    filename = file.name.lower()
-    if filename.endswith(const.GCODE_EXTENSIONS):
-        return const.FileType.PRINT_FILE
-
-    if filename.endswith(const.FIRMWARE_EXTENSION):
-        return const.FileType.FIRMWARE
-
-    return const.FileType.FILE
+    return get_type_by_name(file.name, file.is_dir)
 
 
 class File:
@@ -475,6 +472,57 @@ class Filesystem:
         files on the storages.
         """
         return [storage.to_dict() for storage in self.storage_dict.values()]
+
+    def resolve(self, abs_path: str) -> typing.Tuple[str, Storage, str]:
+        """Translate a path on the virtual FS to the path on the disk.
+
+        Unlike `get`, it doesn't use the cached tree, the result is checked
+        against the real disk.
+
+        :param abs_path: Absolute path on the virtual FS, starting with
+            the mountpoint of a storage
+        :return: tuple of the normalized virtual path, the storage and
+            the path on the disk
+        :raises CommandRejected: with `Forbidden path` if the path leads
+            outside of the storage, with `File not found` if the storage or
+            the path doesn't exist
+        """
+        parts = [part for part in abs_path.split(self.sep) if part]
+        if ".." in parts:
+            raise CommandRejected(REASON_FORBIDDEN)
+        if not parts or any(part.startswith(".") for part in parts):
+            raise CommandRejected(REASON_NOT_FOUND)
+
+        storage = self.storage_dict.get(parts[0])
+        if storage is None or not storage.path_storage:
+            raise CommandRejected(REASON_NOT_FOUND)
+
+        os_path = path.join(storage.path_storage, *parts[1:])
+        if not path.lexists(os_path):
+            raise CommandRejected(REASON_NOT_FOUND)
+        if not is_inside(os_path, storage.path_storage):
+            raise CommandRejected(REASON_FORBIDDEN)
+        return self.sep + self.sep.join(parts), storage, os_path
+
+    def file_info(self, abs_path: str) -> dict:
+        """Return the data of FILE_INFO event for a file or a folder.
+
+        The data are always read from the disk. For a folder, only its
+        direct children are listed.
+
+        :param abs_path: Absolute path on the virtual FS
+        :raises CommandRejected: see `resolve`, `Oversized command` is
+            raised if the folder has more than `MAX_FOLDER_ITEMS` items
+        """
+        virtual_path, storage, os_path = self.resolve(abs_path)
+        try:
+            stats = stat(os_path)
+            if os.path.isdir(os_path):
+                return fileinfo.folder_info(virtual_path, storage.path_storage
+                                            or "", os_path, stats)
+            return fileinfo.file_info(virtual_path, os_path, stats)
+        except (FileNotFoundError, NotADirectoryError) as err:
+            raise CommandRejected(REASON_NOT_FOUND) from err
 
     def from_dir(self,
                  dirpath: str,
