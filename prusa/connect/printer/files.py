@@ -953,20 +953,25 @@ class InotifyHandler:
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
 
     def send_rescan(self, changed_paths: typing.List[str]):
-        """Send one FILE_CHANGED with `rescan` instead of many events.
+        """Send FILE_CHANGED with `rescan` instead of many events.
 
-        The event refers to the nearest folder containing all the changes.
+        There is one event for each storage with changes, because every
+        path in the protocol has to start with a mountpoint. The event refers
+        to the nearest folder containing all the changes in the storage.
         """
-        folders = [path_.rsplit(self.fs.sep, 1)[0] for path_ in changed_paths]
-        common = os.path.commonpath(
-            [folder or self.fs.sep for folder in folders])
-        storage_name = common.strip(self.fs.sep).split(self.fs.sep)[0]
-        storage = self.fs.storage_dict.get(storage_name)
-        if storage is None:  # the storage is gone, nothing to synchronize
-            return
-        self.send_file_changed(new_path=common,
-                               space_info=storage.get_space_info(),
-                               rescan=True)
+        by_storage: typing.Dict[str, typing.List[str]] = {}
+        for changed in changed_paths:
+            folder = changed.rsplit(self.fs.sep, 1)[0] or self.fs.sep
+            storage_name = folder.strip(self.fs.sep).split(self.fs.sep)[0]
+            by_storage.setdefault(storage_name, []).append(folder)
+
+        for storage_name, folders in by_storage.items():
+            storage = self.fs.storage_dict.get(storage_name)
+            if storage is None:  # the storage is gone, nothing to sync
+                continue
+            self.send_file_changed(new_path=os.path.commonpath(folders),
+                                   space_info=storage.get_space_info(),
+                                   rescan=True)
 
     # handlers for inotify file events
     HANDLERS = MappingProxyType({

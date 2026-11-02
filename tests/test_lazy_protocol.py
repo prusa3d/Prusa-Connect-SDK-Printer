@@ -350,6 +350,23 @@ class TestFileChanged:
         assert event.data["new_path"] == "/PrusaLink gcodes"
         assert event.data["rescan"] is True
 
+    def test_burst_in_more_storages(self, handler, queue, storage_dir):
+        """One rescan for each storage, never for the root"""
+        with tempfile.TemporaryDirectory() as other_dir:
+            handler.fs.from_dir(other_dir, "usb", const.StorageType.USB)
+            handler = InotifyHandler(handler.fs)
+            drain(queue)
+            for i in range(RESCAN_THRESHOLD):
+                for dir_ in (storage_dir, other_dir):
+                    open(os.path.join(dir_, f"{i}.gcode"), "w").close()
+            handler()
+            events = drain(queue)
+        assert {(e.data["new_path"], e.data["rescan"])
+                for e in events} == {
+                    ("/PrusaLink gcodes", True),
+                    ("/usb", True),
+                }
+
     def test_small_change_is_not_rescan(self, handler, queue, storage_dir):
         for i in range(5):
             open(os.path.join(storage_dir, f"{i}.gcode"), "w").close()
