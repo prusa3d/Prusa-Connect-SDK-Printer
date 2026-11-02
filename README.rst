@@ -86,6 +86,31 @@ Printer must send telemetry to Connect at least once per second. Because obtaini
         printer.telemetry(const.State.READY, temp_nozzle=24.1, temp_bed=23.2)
         sleep(1)
 
+Files and storages
+------------------
+The SDK uses the *Lazy File Protocol*. The file tree is never sent to Connect
+as a whole:
+
+- ``INFO``, ``MEDIUM_INSERTED`` and ``MEDIUM_EJECTED`` describe only storages
+  (mountpoint, type, free and total space), never files.
+- Connect asks for the content of a folder one level at a time with the
+  ``SEND_FILE_INFO`` command. The SDK answers with ``FILE_INFO`` read from
+  the disk. A command for a missing, forbidden or too big folder is rejected
+  with the reason ``File not found``, ``Forbidden path`` or
+  ``Oversized command``.
+- Changes on the disk are reported by ``FILE_CHANGED``. A lot of changes at
+  once is reported as one event with ``rescan``.
+
+.. code:: python
+
+    # a storage is mounted as /usb, system_space is the space taken by files
+    # which do not belong to the user
+    printer.attach("/media/usb", "usb", const.StorageType.USB,
+                   system_space=1024 * 1024)
+
+A storage is always mounted one level under the root, so the storage name
+can't be ``/`` or contain ``/``.
+
 Events
 ------
 Events are a way to send information about the printer to Connect.

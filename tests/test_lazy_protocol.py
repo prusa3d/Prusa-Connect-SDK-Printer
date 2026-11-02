@@ -2,6 +2,7 @@
 import os
 import tempfile
 from queue import Queue
+from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import patch
 
@@ -356,3 +357,49 @@ class TestFileChanged:
         events = drain(queue)
         assert len(events) == 5
         assert all("rescan" not in event.data for event in events)
+
+
+class TestInfo:
+    """The INFO event of the printer"""
+
+    def test_info_has_storages_only(self, printer, storage_dir):
+        printer.attach(storage_dir, "usb", const.StorageType.USB)
+        info = printer.get_info()
+        assert "files" not in info
+        assert [s["mountpoint"] for s in info["storages"]] == ["/usb"]
+        assert info["storages"][0]["type"] == "USB"
+
+    def test_info_without_storage(self, printer):
+        assert printer.get_info()["storages"] == []
+
+    def test_info_does_not_walk_the_disk(self, printer, storage_dir):
+        printer.attach(storage_dir, "usb")
+        with patch("prusa.connect.printer.files.walk") as walk, \
+                patch("os.walk") as os_walk, \
+                patch("os.scandir") as scandir:
+            printer.get_info()
+        assert not walk.called
+        assert not os_walk.called
+        assert not scandir.called
+
+    def test_no_legacy_events(self, printer, storage_dir):
+        """No event contains the old protocol keys"""
+        printer.attach(storage_dir, "usb")
+        printer.detach("usb")
+        events = drain(printer.queue)
+        assert {e.event
+                for e in events
+                } >= {const.Event.MEDIUM_INSERTED, const.Event.MEDIUM_EJECTED}
+        for event in events:
+            assert "files" not in event.data
+            assert "root" not in event.data
+
+    def test_send_file_info_command(self, printer, storage_dir):
+        os.mkdir(os.path.join(storage_dir, "folder"))
+        printer.attach(storage_dir, "usb")
+
+        caller = SimpleNamespace(kwargs={"path": "/usb"})
+        info = printer.get_file_info(caller)
+        assert info["event"] == const.Event.FILE_INFO
+        assert info["type"] == "FOLDER"
+        assert info["children"][0]["name"] == "folder"
