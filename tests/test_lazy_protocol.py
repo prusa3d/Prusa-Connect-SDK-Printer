@@ -9,7 +9,12 @@ import pytest  # type: ignore
 
 from prusa.connect.printer import const
 from prusa.connect.printer.command import CommandRejected
-from prusa.connect.printer.files import Filesystem, InvalidStorageError
+from prusa.connect.printer.files import (
+    RESCAN_THRESHOLD,
+    Filesystem,
+    InotifyHandler,
+    InvalidStorageError,
+)
 from prusa.connect.printer.models import Event
 
 # pylint: disable=missing-function-docstring
@@ -247,3 +252,107 @@ class TestFileInfo:
         first = fs.file_info("/PrusaLink gcodes/models")
         assert fs.file_info("/PrusaLink gcodes/models") == first
         assert queue.empty()
+
+
+def drain(queue):
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    return events
+
+
+@pytest.fixture
+def handler(fs, queue):
+    """Inotify handler of the storage, the MEDIUM_INSERTED is consumed"""
+    queue.get_nowait()
+    return InotifyHandler(fs)
+
+
+class TestFileChanged:
+    """FILE_CHANGED carries what Connect needs to keep its cache fresh"""
+
+    def test_created_file(self, handler, queue, storage_dir):
+        open(os.path.join(storage_dir, "a.gcode"), "w").close()
+        handler()
+        event, = drain(queue)
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.data["new_path"] == "/PrusaLink gcodes/a.gcode"
+        assert event.data["old_path"] is None
+        assert event.data["file"]["type"] == "PRINT_FILE"
+        assert "rescan" not in event.data
+
+    def test_created_folder_has_no_children(self, handler, queue, storage_dir):
+        os.mkdir(os.path.join(storage_dir, "folder"))
+        handler()
+        event = drain(queue)[0]
+        assert event.data["new_path"] == "/PrusaLink gcodes/folder"
+        assert event.data["file"]["type"] == "FOLDER"
+        assert "children" not in event.data["file"]
+
+    def test_space_info(self, handler, queue, storage_dir):
+        open(os.path.join(storage_dir, "a.gcode"), "w").close()
+        handler()
+        event, = drain(queue)
+        assert event.data["free_space"] > 0
+        assert event.data["total_space"] > 0
+        assert event.data["system_space"] == 1024
+
+    def test_deleted_file(self, handler, queue, storage_dir):
+        path = os.path.join(storage_dir, "a.gcode")
+        open(path, "w").close()
+        handler()
+        drain(queue)
+        os.unlink(path)
+        handler()
+        event, = drain(queue)
+        assert event.data["old_path"] == "/PrusaLink gcodes/a.gcode"
+        assert event.data["new_path"] is None
+        assert "file" not in event.data
+
+    def test_renamed_file(self, handler, queue, storage_dir):
+        path = os.path.join(storage_dir, "a.gcode")
+        open(path, "w").close()
+        handler()
+        drain(queue)
+        os.rename(path, os.path.join(storage_dir, "b.gcode"))
+        handler()
+        events = drain(queue)
+        paths = {(e.data["old_path"], e.data["new_path"]) for e in events}
+        assert ("/PrusaLink gcodes/a.gcode", None) in paths
+        assert (None, "/PrusaLink gcodes/b.gcode") in paths
+
+    def test_burst_is_one_rescan(self, handler, queue, storage_dir):
+        folder = os.path.join(storage_dir, "bulk")
+        os.mkdir(folder)
+        handler()
+        drain(queue)
+        for i in range(RESCAN_THRESHOLD + 5):
+            open(os.path.join(folder, f"{i}.gcode"), "w").close()
+        handler()
+        event, = drain(queue)
+        assert event.event == const.Event.FILE_CHANGED
+        assert event.data["new_path"] == "/PrusaLink gcodes/bulk"
+        assert event.data["rescan"] is True
+        assert event.data["free_space"] > 0
+
+    def test_burst_in_more_folders(self, handler, queue, storage_dir):
+        for name in ("one", "two"):
+            os.mkdir(os.path.join(storage_dir, name))
+        handler()
+        drain(queue)
+        for i in range(RESCAN_THRESHOLD):
+            for name in ("one", "two"):
+                open(os.path.join(storage_dir, name, f"{i}.gcode"),
+                     "w").close()
+        handler()
+        event, = drain(queue)
+        assert event.data["new_path"] == "/PrusaLink gcodes"
+        assert event.data["rescan"] is True
+
+    def test_small_change_is_not_rescan(self, handler, queue, storage_dir):
+        for i in range(5):
+            open(os.path.join(storage_dir, f"{i}.gcode"), "w").close()
+        handler()
+        events = drain(queue)
+        assert len(events) == 5
+        assert all("rescan" not in event.data for event in events)

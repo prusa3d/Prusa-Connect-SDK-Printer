@@ -10,7 +10,7 @@ from os import W_OK, access, path, stat, walk
 from shutil import rmtree
 from time import sleep, time
 from types import MappingProxyType
-from typing import Optional
+from typing import Optional, cast
 
 from gcode_metadata import UnknownGcodeFileType, get_metadata
 from inotify_simple import INotify, flags  # type: ignore
@@ -26,6 +26,10 @@ from .fileinfo import (
 from .models import EventCallback
 
 log = getLogger("connect-printer")
+
+# More inotify events than this in one batch are reported to Connect as
+# one change with `rescan`, instead of FILE_CHANGED for each of them.
+RESCAN_THRESHOLD = 20
 
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
@@ -593,6 +597,8 @@ class InotifyHandler:
         # pylint: disable=invalid-name
         self.fs = fs
         self.inotify = INotify()
+        # paths changed during one burst of events, None if not collecting
+        self.changed_paths: Optional[typing.List[str]] = None
         self.wds: typing.Dict[int, str] = {}  # watch descriptors
         # init storage watches
         for storage in self.fs.storage_dict.values():
@@ -724,6 +730,22 @@ class InotifyHandler:
         """
         events = self.inotify.read(timeout=timeout)
         events = self.filter_delete_events(events)
+        # A lot of changes at once (e.g. copying a folder) is reported as
+        # one change which asks Connect for rescan of the affected folder.
+        if len(events) > RESCAN_THRESHOLD:
+            self.changed_paths = []
+            try:
+                self.process_events(events)
+                changed_paths, self.changed_paths = self.changed_paths, None
+            finally:
+                self.changed_paths = None
+            if changed_paths:
+                self.send_rescan(changed_paths)
+        else:
+            self.process_events(events)
+
+    def process_events(self, events):
+        """Process the list of inotify events"""
         for event in events:
             # Ignore hidden files .<filename>
             if event.name.startswith("."):
@@ -846,10 +868,10 @@ class InotifyHandler:
             self.create_cache(node.abs_path(base_storage.storage))
 
         if is_dir or not dir_only:
-            self.send_file_changed(
-                file=node,
-                new_path=node.abs_path(base_storage.storage),
-                free_space=base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(file=node,
+                                   new_path=node.abs_path(
+                                       base_storage.storage),
+                                   space_info=base_storage.get_space_info())
 
     def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
@@ -867,20 +889,18 @@ class InotifyHandler:
             self.delete_cache(path_)
             # TODO: Why is this there?
             # self.create_cache(path_)
-            self.send_file_changed(
-                old_path=path_,
-                new_path=path_,
-                file=node,
-                free_space=base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(old_path=path_,
+                                   new_path=path_,
+                                   file=node,
+                                   space_info=base_storage.get_space_info())
         else:
             # some watched folder other than top level was deleted
             node = base_storage.tree.get(parts)
             node.delete()
             path_ = node.abs_path(base_storage.storage)
             self.delete_cache(path_)
-            self.send_file_changed(
-                old_path=path_,
-                free_space=base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(old_path=path_,
+                                   space_info=base_storage.get_space_info())
 
     def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
@@ -892,33 +912,61 @@ class InotifyHandler:
         node = base_storage.tree.get(parts)
         node.fill_attrs(abs_path)
         path_ = node.abs_path(base_storage.storage)
-        self.send_file_changed(
-            old_path=path_,
-            new_path=path_,
-            file=node,
-            free_space=base_storage.get_space_info().get("free_space"))
+        self.send_file_changed(old_path=path_,
+                               new_path=path_,
+                               file=node,
+                               space_info=base_storage.get_space_info())
 
     def send_file_changed(self,
                           old_path: Optional[str] = None,
                           new_path: Optional[str] = None,
                           file: Optional[File] = None,
-                          free_space=None):
+                          space_info: Optional[dict] = None,
+                          rescan: bool = False):
         """If self.fs.events is set, put FIlE_CHANGED event to event queue.
 
+        :param space_info: `free_space`, `total_space` and `system_space`
+            of the storage, which are sent along with the event
+        :param rescan: Tell Connect to drop everything it knows about
+            `new_path` and to synchronize it again
         :raises ValueError: if both old_path and new_path are not set
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         if not old_path and not new_path:
             msg = "At least one of (old_path, new_path) must be set"
             raise ValueError(msg)
-        data = {
+        if self.changed_paths is not None:  # collecting a burst of changes
+            self.changed_paths.append(cast("str", new_path or old_path))
+            return
+        data: typing.Dict[str, typing.Any] = {
             "old_path": old_path,
             "new_path": new_path,
         }
         if file:
-            data["file"] = file.to_dict()
-        if free_space is not None:
-            data["free_space"] = free_space
+            # Connect asks for the content of a folder itself
+            data["file"] = file.to_dict(include_children=False)
+        if space_info:
+            data.update(space_info)
+        if rescan:
+            data["rescan"] = True
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
+
+    def send_rescan(self, changed_paths: typing.List[str]):
+        """Send one FILE_CHANGED with `rescan` instead of many events.
+
+        The event refers to the nearest folder containing all the changes.
+        """
+        folders = [path_.rsplit(self.fs.sep, 1)[0] for path_ in changed_paths]
+        common = os.path.commonpath(
+            [folder or self.fs.sep for folder in folders])
+        storage_name = common.strip(self.fs.sep).split(self.fs.sep)[0]
+        storage = self.fs.storage_dict.get(storage_name)
+        if storage is None:  # the storage is gone, nothing to synchronize
+            return
+        self.send_file_changed(new_path=common,
+                               space_info=storage.get_space_info(),
+                               rescan=True)
 
     # handlers for inotify file events
     HANDLERS = MappingProxyType({
