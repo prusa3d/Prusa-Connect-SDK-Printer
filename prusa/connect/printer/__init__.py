@@ -10,7 +10,6 @@ from queue import Empty, Queue
 from time import sleep, time
 from typing import Any, Callable, Dict, List, Optional
 
-from gcode_metadata import get_metadata
 from requests import RequestException, Response, Session  # type: ignore
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,  # type: ignore
@@ -406,7 +405,7 @@ class Printer:
             "sdk": __version__,
             "network_info": self.network_info,
             "api_key": self.api_key,
-            "files": self.fs.to_dict_legacy(),
+            "storages": self.fs.storages(),
             "sn": self.sn,
             "fingerprint": self.fingerprint,
             "mbl": self.mbl,
@@ -525,37 +524,11 @@ class Printer:
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError("SEND_FILE_INFO requires kwargs")
 
-        path = caller.kwargs["path"]
-        node = self.fs.get(path)
-        if node is None:
-            raise ValueError(f"File does not exist: {path}")
-
-        if node.is_dir:
-            raise ValueError("FILE_INFO doesn't work for folders")
-
         info = {
             "source": const.Source.CONNECT,
             "event": const.Event.FILE_INFO,
-            "path": path,
         }
-
-        try:
-            path_ = os.path.split(self.fs.get_os_path(path))
-            if not path_[1].startswith("."):
-                meta = get_metadata(self.fs.get_os_path(path))
-                info.update(node.attrs)
-                info.update(meta.data)
-
-                # include the biggest thumbnail, if available
-                if meta.thumbnails:
-                    biggest = b""
-                    for _, data in meta.thumbnails.items():
-                        if len(data) > len(biggest):
-                            biggest = data
-                    info['preview'] = biggest.decode()
-        except FileNotFoundError:
-            log.debug("File not found: %s", path)
-
+        info.update(self.fs.file_info(caller.kwargs["path"]))
         return info
 
     def get_state_info(self, caller: Command) -> Dict[str, Any]:
@@ -853,12 +826,22 @@ class Printer:
         """Set internal variable, to stop the loop method."""
         self.__running_loop = False
 
-    def attach(self, folderpath: str, storage: str):
+    def attach(self,
+               folderpath: str,
+               storage: str,
+               storage_type: const.StorageType = const.StorageType.LOCAL,
+               system_space: Optional[int] = None):
         """Create a listing of `folderpath` and attach it under `storage`.
+
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space (in bytes) taken by files which do not
+            belong to the user, e.g. the application itself
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.from_dir(folderpath, storage)
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+        self.fs.from_dir(folderpath, storage, storage_type, system_space)
         self.inotify_handler = InotifyHandler(self.fs)
 
     def detach(self, storage: str):
