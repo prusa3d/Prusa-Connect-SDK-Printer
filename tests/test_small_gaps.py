@@ -27,6 +27,7 @@ from prusa.connect.printer.const import (
 from prusa.connect.printer.errors import ErrorState
 from prusa.connect.printer.models import Event
 from tests.test_cameras import DummyDriver, GoodDriver
+from tests.util import run_loop
 
 
 def test_condition_misc():
@@ -150,8 +151,10 @@ def test_controller_loop_survives_exception():
         controller.stop()
         raise ValueError
 
-    controller.snapshot_queue.put(Mock(send=fail))
-    controller.snapshot_loop()
+    item = Mock(send=Mock(side_effect=fail))
+    controller.snapshot_queue.put(item)
+    run_loop(controller.snapshot_loop, timeout=2)
+    item.send.assert_called_once()
 
 
 def test_configurator_second_load():
@@ -221,6 +224,8 @@ def test_configurator_reset_failure(monkeypatch):
     camera_id = next(iter(configurator.loaded))
     monkeypatch.setattr(configurator, "add_camera", Mock(side_effect=OSError))
     configurator.reset_to_defaults(camera_id)
+    configurator.add_camera.assert_called_once()
+    assert camera_id not in configurator.loaded
 
 
 def test_configurator_order_keeps_rest():
@@ -244,4 +249,5 @@ def test_controller_loop_idle():
         raise Empty
 
     controller.snapshot_queue.get = empty
-    controller.snapshot_loop()
+    run_loop(controller.snapshot_loop, timeout=2)
+    assert not controller._running
