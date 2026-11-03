@@ -6,7 +6,7 @@ from typing import Optional
 import pytest
 
 from prusa.connect.printer import const
-from prusa.connect.printer.command import Command
+from prusa.connect.printer.command import Command, CommandRejected
 from prusa.connect.printer.models import Event
 
 # pylint: disable=missing-function-docstring
@@ -180,3 +180,27 @@ def test_priority_command(command, queue):
     assert command.check_state(25, const.Command.RESET_PRINTER.value)
     event.wait()
     check_event(queue, const.Event.FAILED, command_id=24, timeout=0.1)
+
+
+class TestCommandRejected:
+    """A handler can reject a command with an exact reason"""
+
+    def test_reject_reason(self):
+        events = []
+
+        def event_cb(event, source, **kwargs):
+            events.append((event, kwargs))
+
+        command = Command(event_cb)
+
+        def handler(caller):
+            raise CommandRejected("File not found")
+
+        command.handlers[const.Command.SEND_FILE_INFO] = handler
+        command.accept(42, const.Command.SEND_FILE_INFO.value, kwargs={})
+        command()
+        event, kwargs = events[-1]
+        assert event == const.Event.REJECTED
+        assert kwargs["reason"] == "File not found"
+        assert kwargs["command_id"] == 42
+        assert command.state is None

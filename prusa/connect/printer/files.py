@@ -10,16 +10,21 @@ from os import W_OK, access, path, stat, walk
 from shutil import rmtree
 from time import sleep, time
 from types import MappingProxyType
-from typing import Optional
+from typing import Optional, cast
 
 from gcode_metadata import UnknownGcodeFileType, get_metadata
 from inotify_simple import INotify, flags  # type: ignore
 
-from . import const
+from . import const, fileinfo
+from .command import CommandRejected
+from .fileinfo import REASON_NOT_FOUND, get_type_by_name
 from .models import EventCallback
 
-ROOT = '__ROOT__'
 log = getLogger("connect-printer")
+
+# More inotify events than this in one batch are reported to Connect as
+# one change with `rescan`, instead of FILE_CHANGED for each of them.
+RESCAN_THRESHOLD = 20
 
 # pylint: disable=fixme
 # pylint: disable=too-few-public-methods
@@ -64,17 +69,7 @@ def delete(abs_path, is_dir, force=False):
 
 def get_file_type(file):
     """Return file type of file/folder"""
-    if file.is_dir:
-        return const.FileType.FOLDER
-
-    filename = file.name.lower()
-    if filename.endswith(const.GCODE_EXTENSIONS):
-        return const.FileType.PRINT_FILE
-
-    if filename.endswith(const.FIRMWARE_EXTENSION):
-        return const.FileType.FIRMWARE
-
-    return const.FileType.FILE
+    return get_type_by_name(file.name, file.is_dir)
 
 
 class File:
@@ -237,24 +232,6 @@ class File:
 
         return result
 
-    def to_dict_legacy(self):
-        """:return `self` in the format for Connect Backend
-        This is a deprecated legacy code"""
-        file_type = "DIR" if self.is_dir else "FILE"
-
-        result = {
-            "type": file_type,
-            "name": self.name,
-        }
-        for attr in ("read_only", "m_timestamp"):
-            if attr in self.attrs:
-                result[attr] = self.attrs[attr]
-        result['size'] = self.size
-        children = [child.to_dict_legacy() for child in self.children.values()]
-        if self.is_dir:
-            result['children'] = children
-        return result
-
     def __contains__(self, item):
         return item in self.children
 
@@ -284,11 +261,14 @@ class File:
 class Storage:
     """Represent a storage"""
 
+    # pylint: disable=too-many-instance-attributes
     def __init__(self,
                  tree: File,
                  storage: str,
                  abs_path_storage: Optional[str] = None,
-                 use_inotify=True):
+                 use_inotify=True,
+                 storage_type: const.StorageType = const.StorageType.LOCAL,
+                 system_space: Optional[int] = None):
         """
         Initialize a Storage.
 
@@ -296,7 +276,12 @@ class Storage:
         :param storage: storage on the virtual FS
         :param abs_path_storage: absolute path on the physical storage
         :param use_inotify: whether to handle this storage using inotify
+        :param storage_type: type of the storage reported to Connect
+        :param system_space: space (in bytes) taken by files which do not
+            belong to the user, e.g. the application itself
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         if use_inotify:
             if not abs_path_storage:
                 msg = "`use_inotify` requires `abs_path_storage` to be set"
@@ -306,51 +291,39 @@ class Storage:
         self.storage = storage
         self.path_storage = abs_path_storage
         self.use_inotify = use_inotify
+        self.storage_type = storage_type
+        self.system_space = system_space
         self.last_updated = time()
 
     def get_space_info(self):
         """Returns free space of storage in bytes"""
-        if os.path.exists(self.path_storage):
+        if self.path_storage and os.path.exists(self.path_storage):
             path_ = os.statvfs(self.path_storage)
             free_space = path_.f_bavail * path_.f_bsize
             total_space = path_.f_blocks * path_.f_bsize
 
             space_info = {"free_space": free_space, "total_space": total_space}
+            if self.system_space is not None:
+                space_info["system_space"] = self.system_space
             return space_info
         return {}
 
     def to_dict(self):
-        """Returns tree in a format for Connect. Add attributes free_space and
-        total_space to tree, if available"""
-        if self.tree:
-            tree = self.tree.to_dict(self.storage)
-        else:
-            tree = {}
-        space_info = self.get_space_info()
-        free_space = space_info.get("free_space")
-        total_space = space_info.get("total_space")
-        if free_space:
-            tree["free_space"] = free_space
-        if total_space:
-            tree["total_space"] = total_space
-        return tree
+        """Returns the description of the storage in the format for Connect.
 
-    def to_dict_legacy(self):
-        """Returns tree in a format for Connect. Add attributes free_space and
-        total_space to tree, if available
-        This is a deprecated legacy code"""
-        if self.tree:
-            tree = self.tree.to_dict_legacy()
-        else:
-            tree = {}
-        space_info = self.get_space_info()
-        free_space = space_info.get("free_space")
-        total_space = space_info.get("total_space")
-        if free_space:
-            tree["free_space"] = free_space
-        if total_space:
-            tree["total_space"] = total_space
-        return tree
+        The description contains no files, Connect asks for them by
+        SEND_FILE_INFO command.
+        """
+        result = {
+            "mountpoint": f"/{self.storage}",
+            "name": self.storage,
+            "type": self.storage_type.value,
+            "is_sfn": False,
+        }
+        if self.path_storage:
+            result["read_only"] = not access(self.path_storage, W_OK)
+        result.update(self.get_space_info())
+        return result
 
     def __str__(self):
         return f"Storage({self.storage} -> {self.path_storage})"
@@ -390,23 +363,26 @@ class Filesystem:
                name: str,
                tree: File,
                storage_path: str = "",
-               use_inotify=True):
+               use_inotify=True,
+               storage_type: const.StorageType = const.StorageType.LOCAL,
+               system_space: Optional[int] = None):
         """Attach the tree under a storage.
 
         :param name: The storage
         :param tree: The tree of `File` instances to be attached
         :param storage_path: Path on storage
         :param use_inotify: Whether to use inotify on this storage or not
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space taken by files not belonging to the user
         :raises InvalidStorageError
         : If the storage is already used,
             or when it contains `self.sep` or when the `name` is empty or
             `self.sep` only.
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         if not name:
             raise InvalidStorageError("Storage cannot be empty")
-
-        if name == '/':
-            name = ROOT
 
         if self.sep in name:
             msg = f"Storage cannot contain {self.sep}"
@@ -416,14 +392,12 @@ class Filesystem:
             raise InvalidStorageError(f"`{name}` is already used")
 
         self.storage_dict[name] = Storage(tree, name, storage_path,
-                                          use_inotify)
+                                          use_inotify, storage_type,
+                                          system_space)
 
         # send MEDIUM_INSERTED event
         if self.event_cb:
-            payload = {
-                "root": f"{self.sep}{name}",
-                "files": self.storage_dict[name].to_dict_legacy(),
-            }
+            payload = self.storage_dict[name].to_dict()
             self.connect_event(const.Event.MEDIUM_INSERTED, payload)
 
     def detach(self, name: str):
@@ -441,9 +415,7 @@ class Filesystem:
 
         # send MEDIUM_EJECTED event
         if self.event_cb:
-            payload = {
-                "root": f"{self.sep}{name}",
-            }
+            payload = {"mountpoint": f"{self.sep}{name}"}
             self.connect_event(const.Event.MEDIUM_EJECTED, payload)
 
     def get(self, abs_path: str):
@@ -455,12 +427,7 @@ class Filesystem:
         abs_path = abs_path.strip(self.sep)
         storage, *parts = abs_path.split(self.sep)
 
-        if ROOT in self.storage_dict:
-            abs_path = '/'.join([ROOT, abs_path])
-            storage, *parts = abs_path.split(self.sep)
-            if storage not in self.storage_dict:
-                return None
-        elif storage not in self.storage_dict:
+        if storage not in self.storage_dict:
             return None
 
         return self.storage_dict[storage].tree.get(parts)
@@ -497,50 +464,63 @@ class Filesystem:
         storage = self.storage_dict[storage_name]
         return file.abs_path(storage.path_storage)
 
-    def to_dict(self):
-        """Returns all the tree in the representation Connect requires
+    def storages(self) -> typing.List[dict]:
+        """Returns descriptions of all storages in the format for Connect.
 
-        :return: dictionary representation of the Filesystem.
+        It doesn't touch files, so it is fast regardless of the amount of
+        files on the storages.
         """
-        root = {
-            "type": "FOLDER",
-            "name": "/",
-            "read_only": True,
-            "children": [],
-        }
+        return [storage.to_dict() for storage in self.storage_dict.values()]
 
-        if ROOT in self.storage_dict:
-            root = self.storage_dict[ROOT].to_dict()
+    def resolve(self, abs_path: str) -> typing.Tuple[str, Storage, str]:
+        """Translate a path on the virtual FS to the path on the disk.
 
-        root["children"].extend([
-            v.to_dict()["name"] for k, v in self.storage_dict.items()
-            if k != ROOT
-        ])
-        return root
-
-    def to_dict_legacy(self):
-        """Returns all the tree in the representation Connect requires
-        This is a deprecated legacy code
-
-        :return: dictionary representation of the Filesystem.
+        See `fileinfo.resolve`.
         """
-        root = {"type": "DIR", "name": "/", "read_only": True, "children": []}
+        return fileinfo.resolve(self.storage_dict, self.sep, abs_path)
 
-        if ROOT in self.storage_dict:
-            root = self.storage_dict[ROOT].to_dict_legacy()
+    def file_info(self, abs_path: str) -> dict:
+        """Return the data of FILE_INFO event for a file or a folder.
 
-        root["children"].extend([
-            v.to_dict_legacy() for k, v in self.storage_dict.items()
-            if k != ROOT
-        ])
-        return root
+        The data are read from the disk. For a folder, only its direct
+        children are listed.
 
-    def from_dir(self, dirpath: str, storage: str):
+        A storage attached without the path on the disk (e.g. an SD card
+        of a printer, which is not accessible as a folder) has nothing to
+        read, so it is answered from its tree. The owner of the storage
+        keeps the tree up to date.
+
+        :param abs_path: Absolute path on the virtual FS
+        :raises CommandRejected: see `resolve`, `Oversized command` is
+            raised if the folder has more than `MAX_FOLDER_ITEMS` items
+        """
+        virtual_path, storage, os_path = self.resolve(abs_path)
+        if not storage.path_storage:
+            node = storage.tree.get(virtual_path.split(self.sep)[2:])
+            return fileinfo.node_info(virtual_path, node)
+        try:
+            stats = stat(os_path)
+            if os.path.isdir(os_path):
+                return fileinfo.folder_info(virtual_path, storage.path_storage
+                                            or "", os_path, stats)
+            return fileinfo.file_info(virtual_path, os_path, stats)
+        except (FileNotFoundError, NotADirectoryError) as err:
+            raise CommandRejected(REASON_NOT_FOUND) from err
+
+    def from_dir(self,
+                 dirpath: str,
+                 storage: str,
+                 storage_type: const.StorageType = const.StorageType.LOCAL,
+                 system_space: Optional[int] = None):
         """Initialize a (File) tree from `dirpath` and attach it.
 
         :param dirpath: The folder on store from which to create the FS
         :param storage: Storage
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space taken by files not belonging to the user
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         # normalize dirpath
         dirpath = path.abspath(dirpath)
         if not dirpath.endswith(path.sep):
@@ -568,7 +548,7 @@ class Filesystem:
                 node = parent.add(name)
                 node.fill_attrs(path.join(abs_dir, name))
 
-        self.attach(storage, root, dirpath)
+        self.attach(storage, root, dirpath, True, storage_type, system_space)
 
     def connect_event(self, event: const.Event, data: dict):
         """Send an event to connect if `self.events` is set"""
@@ -596,6 +576,8 @@ class InotifyHandler:
         # pylint: disable=invalid-name
         self.fs = fs
         self.inotify = INotify()
+        # paths changed during one burst of events, None if not collecting
+        self.changed_paths: Optional[typing.List[str]] = None
         self.wds: typing.Dict[int, str] = {}  # watch descriptors
         # init storage watches
         for storage in self.fs.storage_dict.values():
@@ -727,6 +709,22 @@ class InotifyHandler:
         """
         events = self.inotify.read(timeout=timeout)
         events = self.filter_delete_events(events)
+        # A lot of changes at once (e.g. copying a folder) is reported as
+        # one change which asks Connect for rescan of the affected folder.
+        if len(events) > RESCAN_THRESHOLD:
+            self.changed_paths = []
+            try:
+                self.process_events(events)
+                changed_paths, self.changed_paths = self.changed_paths, None
+            finally:
+                self.changed_paths = None
+            if changed_paths:
+                self.send_rescan(changed_paths)
+        else:
+            self.process_events(events)
+
+    def process_events(self, events):
+        """Process the list of inotify events"""
         for event in events:
             # Ignore hidden files .<filename>
             if event.name.startswith("."):
@@ -849,10 +847,10 @@ class InotifyHandler:
             self.create_cache(node.abs_path(base_storage.storage))
 
         if is_dir or not dir_only:
-            self.send_file_changed(
-                file=node,
-                new_path=node.abs_path(base_storage.storage),
-                free_space=base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(file=node,
+                                   new_path=node.abs_path(
+                                       base_storage.storage),
+                                   space_info=base_storage.get_space_info())
 
     def process_delete(self, abs_path, is_dir):
         """Handle DELETE inotify signal by deleting the node
@@ -870,20 +868,18 @@ class InotifyHandler:
             self.delete_cache(path_)
             # TODO: Why is this there?
             # self.create_cache(path_)
-            self.send_file_changed(
-                old_path=path_,
-                new_path=path_,
-                file=node,
-                free_space=base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(old_path=path_,
+                                   new_path=path_,
+                                   file=node,
+                                   space_info=base_storage.get_space_info())
         else:
             # some watched folder other than top level was deleted
             node = base_storage.tree.get(parts)
             node.delete()
             path_ = node.abs_path(base_storage.storage)
             self.delete_cache(path_)
-            self.send_file_changed(
-                old_path=path_,
-                free_space=base_storage.get_space_info().get("free_space"))
+            self.send_file_changed(old_path=path_,
+                                   space_info=base_storage.get_space_info())
 
     def process_modify(self, abs_path, is_dir):
         """Process MODIFY inotify signal by updating the
@@ -895,33 +891,66 @@ class InotifyHandler:
         node = base_storage.tree.get(parts)
         node.fill_attrs(abs_path)
         path_ = node.abs_path(base_storage.storage)
-        self.send_file_changed(
-            old_path=path_,
-            new_path=path_,
-            file=node,
-            free_space=base_storage.get_space_info().get("free_space"))
+        self.send_file_changed(old_path=path_,
+                               new_path=path_,
+                               file=node,
+                               space_info=base_storage.get_space_info())
 
     def send_file_changed(self,
                           old_path: Optional[str] = None,
                           new_path: Optional[str] = None,
                           file: Optional[File] = None,
-                          free_space=None):
+                          space_info: Optional[dict] = None,
+                          rescan: bool = False):
         """If self.fs.events is set, put FIlE_CHANGED event to event queue.
 
+        :param space_info: `free_space`, `total_space` and `system_space`
+            of the storage, which are sent along with the event
+        :param rescan: Tell Connect to drop everything it knows about
+            `new_path` and to synchronize it again
         :raises ValueError: if both old_path and new_path are not set
         """
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
         if not old_path and not new_path:
             msg = "At least one of (old_path, new_path) must be set"
             raise ValueError(msg)
-        data = {
+        if self.changed_paths is not None:  # collecting a burst of changes
+            self.changed_paths.append(cast("str", new_path or old_path))
+            return
+        data: typing.Dict[str, typing.Any] = {
             "old_path": old_path,
             "new_path": new_path,
         }
         if file:
-            data["file"] = file.to_dict()
-        if free_space is not None:
-            data["free_space"] = free_space
+            # Connect asks for the content of a folder itself
+            data["file"] = file.to_dict(include_children=False)
+        if space_info:
+            data.update(space_info)
+        if rescan:
+            data["rescan"] = True
         self.fs.connect_event(const.Event.FILE_CHANGED, data)
+
+    def send_rescan(self, changed_paths: typing.List[str]):
+        """Send FILE_CHANGED with `rescan` instead of many events.
+
+        There is one event for each storage with changes, because every
+        path in the protocol has to start with a mountpoint. The event refers
+        to the nearest folder containing all the changes in the storage.
+        """
+        by_storage: typing.Dict[str, typing.List[str]] = {}
+        for changed in changed_paths:
+            folder = changed.rsplit(self.fs.sep, 1)[0] or self.fs.sep
+            storage_name = folder.strip(self.fs.sep).split(self.fs.sep)[0]
+            by_storage.setdefault(storage_name, []).append(folder)
+
+        for storage_name, folders in by_storage.items():
+            storage = self.fs.storage_dict.get(storage_name)
+            if storage is None:  # the storage is gone, nothing to sync
+                continue
+            self.send_file_changed(new_path=os.path.commonpath(folders),
+                                   space_info=storage.get_space_info(),
+                                   rescan=True)
 
     # handlers for inotify file events
     HANDLERS = MappingProxyType({

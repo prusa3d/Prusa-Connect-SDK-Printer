@@ -74,7 +74,10 @@ class StorageType(Enum):
     """Storage Type"""
     LOCAL = 'LOCAL'
     SDCARD = 'SDCARD'
+    SD_CARD = 'SD_CARD'
     USB = 'USB'
+    LINK = 'LINK'
+    OTHER = 'OTHER'
 
 
 class Event(Enum):

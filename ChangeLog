@@ -1,9 +1,20 @@
 ChangeLog
 =========
 0.9.0dev0
+    * Lazy File Protocol is the only file protocol now. The old one with
+      the whole file tree in INFO and MEDIUM_INSERTED is removed.
+        - INFO has storages instead of files
+        - MEDIUM_INSERTED and MEDIUM_EJECTED use mountpoint instead of root
+        - SEND_FILE_INFO works for folders and reads the disk
+        - FILE_CHANGED has total_space, system_space and rescan
+        - Storage mounted as "/" is not supported anymore
+        - Printer.attach has storage_type and system_space
+        - Storage attached without a path (e.g. SD card) is answered
+          from its own tree
     * linters update
     * Fix cameras always starting at their maximum resolution instead of
       the configured one
+    * Switch telemetry and events transport from HTTP to WebSocket
 
 0.8.2 (2025-05-05)
     * Bump requests to 2.32.3

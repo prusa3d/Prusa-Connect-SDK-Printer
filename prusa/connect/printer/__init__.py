@@ -3,6 +3,7 @@
     Copyright (C) 2024 PrusaResearch
 """
 import configparser
+import json
 import os
 import re
 from logging import getLogger
@@ -10,8 +11,7 @@ from queue import Empty, Queue
 from time import sleep, time
 from typing import Any, Callable, Dict, List, Optional
 
-from gcode_metadata import get_metadata
-from requests import RequestException, Response, Session  # type: ignore
+from requests import RequestException, Session  # type: ignore
 from requests.exceptions import (
     ConnectionError as RequestsConnectionError,  # type: ignore
 )
@@ -34,6 +34,7 @@ from .models import (
     Telemetry,
 )
 from .util import RetryingSession, get_timestamp
+from .ws import PrinterWS
 
 __version__ = "0.9.0dev0"
 __date__ = "5 May 2025"  # version date
@@ -96,6 +97,7 @@ class Printer:
                  max_retries: int = 1,
                  mmu_supported: bool = True):
         # pylint: disable=too-many-positional-arguments
+        # pylint: disable=too-many-statements
         self.__type = type_
         self.__sn = sn
         self.__fingerprint = fingerprint
@@ -172,6 +174,8 @@ class Printer:
                                         self.download_finished_cb)
         self.camera_controller = CameraController(self.conn, self.server,
                                                   self.send_cb)
+        self.ws = PrinterWS(self.handle_ws_message)
+        self.__ws_token: Optional[str] = None
         self.__running_loop = False
 
     @staticmethod
@@ -406,7 +410,7 @@ class Printer:
             "sdk": __version__,
             "network_info": self.network_info,
             "api_key": self.api_key,
-            "files": self.fs.to_dict_legacy(),
+            "storages": self.fs.storages(),
             "sn": self.sn,
             "fingerprint": self.fingerprint,
             "mbl": self.mbl,
@@ -525,37 +529,11 @@ class Printer:
         if not caller.kwargs or "path" not in caller.kwargs:
             raise ValueError("SEND_FILE_INFO requires kwargs")
 
-        path = caller.kwargs["path"]
-        node = self.fs.get(path)
-        if node is None:
-            raise ValueError(f"File does not exist: {path}")
-
-        if node.is_dir:
-            raise ValueError("FILE_INFO doesn't work for folders")
-
         info = {
             "source": const.Source.CONNECT,
             "event": const.Event.FILE_INFO,
-            "path": path,
         }
-
-        try:
-            path_ = os.path.split(self.fs.get_os_path(path))
-            if not path_[1].startswith("."):
-                meta = get_metadata(self.fs.get_os_path(path))
-                info.update(node.attrs)
-                info.update(meta.data)
-
-                # include the biggest thumbnail, if available
-                if meta.thumbnails:
-                    biggest = b""
-                    for _, data in meta.thumbnails.items():
-                        if len(data) > len(biggest):
-                            biggest = data
-                    info['preview'] = biggest.decode()
-        except FileNotFoundError:
-            log.debug("File not found: %s", path)
-
+        info.update(self.fs.file_info(caller.kwargs["path"]))
         return info
 
     def get_state_info(self, caller: Command) -> Dict[str, Any]:
@@ -644,65 +622,106 @@ class Printer:
 
         return wrapper
 
-    def parse_command(self, res: Response):
-        """Parse telemetry response.
+    def ws_url(self) -> str:
+        """Return the WebSocket URL derived from self.server."""
+        assert self.server
+        url = self.server.replace("https://", "wss://", 1)
+        return url.replace("http://", "ws://", 1) + "/p/ws"
 
-        When response from connect is command (HTTP Status: 200 OK), it
-        will set a command object, if the printer is initialized properly.
+    def ensure_ws_connected(self) -> None:
+        """Open (or reopen) the WS connection when credentials change."""
+        if not self.server or not self.token:
+            return
+        if self.ws.connected and self.__ws_token == self.token:
+            return
+        self.ws.connect(self.ws_url(), self.make_headers())
+        self.__ws_token = self.token
+
+    def handle_ws_message(self, message: str) -> None:
+        """Process a text frame pushed by the server over the WebSocket.
+
+        Wire format (BuddyEncoder):
+          J{08x command_id}{JSON body}  — high-level JSON command
+          G{08x command_id}{gcode text} — low-level GCode command
+          F{08x command_id}{gcode text} — forced GCode command
+          T…                            — file transfer block (ignored)
         """
-        if res.status_code == 200:
-            command_id: Optional[int] = None
-            command_id_string: str
+        if not message or len(message) < 9:
+            log.error("WS: message too short: %r", message)
+            return
+
+        msg_type = message[0]
+        try:
+            command_id = int(message[1:9], 16)
+        except ValueError:
+            log.error("WS: invalid command_id in: %r", message[:9])
+            self.event_cb(const.Event.REJECTED,
+                          const.Source.CONNECT,
+                          reason="Invalid command_id")
+            return
+
+        body = message[9:]
+
+        if msg_type == 'T':
+            log.debug("WS: file transfer message, ignoring")
+            return
+
+        if not self.is_initialised():
+            self.event_cb(const.Event.REJECTED,
+                          const.Source.WUI,
+                          command_id=command_id,
+                          reason=self.NOT_INITIALISED_MSG)
+            return
+
+        if msg_type in ('G', 'F'):
+            # Low-level GCode command; F prefix means force=True
+            force = msg_type == 'F'
+            command_name = const.Command.GCODE.value
+            log.debug("WS GCode command: id=%s force=%s", command_id, force)
             try:
-                command_id_string = res.headers.get("Command-Id", "")
-                command_id = int(command_id_string)
-            except (TypeError, ValueError):
-                log.error("Invalid Command-Id header. Headers: %s",
-                          res.headers)
-                self.event_cb(const.Event.REJECTED,
-                              const.Source.CONNECT,
-                              reason="Invalid Command-Id header")
-                return res
-            if not self.is_initialised():
-                self.event_cb(const.Event.REJECTED,
-                              const.Source.WUI,
-                              command_id=command_id,
-                              reason=self.NOT_INITIALISED_MSG)
-                return res
-            content_type = res.headers.get("content-type", "")
-            log.debug("parse_command res: %s", res.text)
-            try:
-                if content_type.startswith("application/json"):
-                    data = res.json()
-                    command_name = data.get("command", "")
-                    if self.command.check_state(command_id, command_name):
-                        self.command.accept(command_id,
-                                            command_name=command_name,
-                                            args=data.get("args"),
-                                            kwargs=data.get('kwargs'))
-                elif content_type == "text/x.gcode":
-                    command_name = const.Command.GCODE.value
-                    if self.command.check_state(command_id, command_name):
-                        force = ("Force" in res.headers
-                                 and res.headers["Force"] == "1")
-                        self.command.accept(command_id,
-                                            command_name, [res.text],
-                                            {"gcode": res.text},
-                                            force=force)
-                else:
-                    raise ValueError("Invalid command content type")
-            except Exception as e:  # pylint: disable=broad-exception-caught
+                if self.command.check_state(command_id, command_name):
+                    self.command.accept(command_id,
+                                        command_name=command_name,
+                                        args=[body],
+                                        kwargs={"gcode": body},
+                                        force=force)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
                 log.exception("")
                 self.event_cb(const.Event.REJECTED,
                               const.Source.CONNECT,
                               command_id=command_id,
-                              reason=str(e))
-        elif res.status_code == 204:  # no cmd in telemetry
-            pass
+                              reason=str(exc))
+
+        elif msg_type == 'J':
+            # High-level JSON command — body is raw Connect HTTP response body
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                log.error("WS: invalid JSON body: %r", body)
+                self.event_cb(const.Event.REJECTED,
+                              const.Source.CONNECT,
+                              command_id=command_id,
+                              reason="Invalid JSON body")
+                return
+
+            command_name = data.get("command", "")
+            log.debug("WS JSON command: id=%s cmd=%s", command_id,
+                      command_name)
+            try:
+                if self.command.check_state(command_id, command_name):
+                    self.command.accept(command_id,
+                                        command_name=command_name,
+                                        args=data.get("args"),
+                                        kwargs=data.get("kwargs"))
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                log.exception("")
+                self.event_cb(const.Event.REJECTED,
+                              const.Source.CONNECT,
+                              command_id=command_id,
+                              reason=str(exc))
+
         else:
-            log.info("Got unexpected telemetry response (%s): %s",
-                     res.status_code, res.text)
-        return res
+            log.warning("WS: unknown message type: %r", msg_type)
 
     def register(self):
         """Register the printer with Connect and return a registration
@@ -757,21 +776,19 @@ class Printer:
 
     def loop_step(self):
         """
-        Gets an item LoopObject from queue, sends it and handles the response
-        The LoopObject is either an Event - in which case it's just sent,
-        a Telemetry, in which case the response might contain a command to
-        execute, a Register object in which case the response contains the
-        credentials for further communication.
+        Gets a LoopObject from the queue and sends it.
+
+        Telemetry and Event travel over the persistent WebSocket (/p/ws).
+        Commands from Connect arrive asynchronously via handle_ws_message.
+        Register (/p/register) and CameraRegister (/p/camera) remain HTTP.
         """
         # pylint: disable=too-many-branches
         # pylint: disable=too-many-statements
         try:
-            # Get the item to send
             item = self.queue.get(timeout=const.TIMESTAMP_PRECISION)
         except Empty:
             return
 
-        # Make sure we're able to send it
         if not self.server:
             log.warning("Server is not set, skipping item: %s", item)
             return
@@ -784,7 +801,26 @@ class Printer:
             log.warning("No token, skipping item: %s", item)
             return
 
-        # Send it
+        # --- WebSocket path: Telemetry and Event ---
+        if isinstance(item, (Telemetry, Event)):
+            self.ensure_ws_connected()
+            if not self.ws.connected:
+                # Can't reach server at all — network/internet issue
+                errors.INTERNET.ok = False
+                INTERNET.state = CondState.NOK
+                log.warning("WS not connected, dropping item: %s", item)
+                return
+            sent = self.ws.send(item.to_payload())
+            if sent:
+                errors.API.ok = True
+                API.state = CondState.OK
+            else:
+                # WS connected but send failed — HTTP/WS layer issue
+                errors.HTTP.ok = False
+                HTTP.state = CondState.NOK
+            return
+
+        # --- HTTP path: Register and CameraRegister ---
         headers = self.make_headers(item.timestamp)
         try:
             res = item.send(self.conn, self.server, headers)
@@ -805,10 +841,7 @@ class Printer:
             INTERNET.state = CondState.NOK
             log.exception('Unhandled error')
         else:
-            # Handle the response
-            if isinstance(item, Telemetry):
-                self.parse_command(res)
-            elif isinstance(item, Register):
+            if isinstance(item, Register):
                 if res.status_code == 200:
                     self.token = res.headers["Token"]
                     errors.TOKEN.ok = True
@@ -821,7 +854,6 @@ class Printer:
                     sleep(1)
             elif isinstance(item, CameraRegister):
                 camera = item.camera
-                # pylint: disable=unused-argument
                 if res.status_code == 200:
                     camera_token = res.headers["Token"]
                     camera.set_token(camera_token)
@@ -853,12 +885,22 @@ class Printer:
         """Set internal variable, to stop the loop method."""
         self.__running_loop = False
 
-    def attach(self, folderpath: str, storage: str):
+    def attach(self,
+               folderpath: str,
+               storage: str,
+               storage_type: const.StorageType = const.StorageType.LOCAL,
+               system_space: Optional[int] = None):
         """Create a listing of `folderpath` and attach it under `storage`.
+
+        :param storage_type: Type of the storage reported to Connect
+        :param system_space: Space (in bytes) taken by files which do not
+            belong to the user, e.g. the application itself
 
         This requires linux kernel with inotify support enabled to work.
         """
-        self.fs.from_dir(folderpath, storage)
+        # pylint: disable=too-many-arguments
+        # pylint: disable=too-many-positional-arguments
+        self.fs.from_dir(folderpath, storage, storage_type, system_space)
         self.inotify_handler = InotifyHandler(self.fs)
 
     def detach(self, storage: str):

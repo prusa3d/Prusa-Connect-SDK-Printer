@@ -66,21 +66,6 @@ InotifyFixture = NamedTuple('InotifyFixture', [('path', str),
 
 
 @pytest.fixture
-@patch("prusa.connect.printer.files.stat",
-       return_value=os.stat_result((33188, 267912, 64768, 1, 0, 0, 3044,
-                                    1599740701, 1596120005, 1596120005)))
-@patch("prusa.connect.printer.files.path.abspath", return_value='/a')
-@patch("prusa.connect.printer.files.walk",
-       return_value=[('/a', ['b', 'c'], ['1.gcode']), ('/a/b', [], []),
-                     ('/a/c', [], ['2.sl1', '3.txt'])])
-def root_from_dir(*mocks):
-    # pylint: disable=unused-argument
-    fs = Filesystem()
-    fs.from_dir('/somewhere/on/the/disk/a', '/')
-    return fs
-
-
-@pytest.fixture
 def queue():
     yield Queue()
 
@@ -122,8 +107,11 @@ def inotify(queue, nodes):
     event = queue.get_nowait()
     assert event.event == const.Event.MEDIUM_INSERTED
     assert event.source == const.Source.WUI
-    assert event.data['root'] == '/test'
-    assert len(event.data['files']) == 8
+    assert event.data['mountpoint'] == '/test'
+    assert event.data['name'] == 'test'
+    assert event.data['is_sfn'] is False
+    assert 'files' not in event.data
+    assert 'root' not in event.data
     handler = InotifyHandler(fs)
 
     yield InotifyFixture(tmp_dir.name, handler, fs, queue)
@@ -256,59 +244,6 @@ class TestFile:
             'size': 9132,
         }
 
-    def test_to_dict_legacy(self, fs_from_dir):
-        res = fs_from_dir.get("/a").to_dict_legacy()
-        assert res == {
-            'type':
-            'DIR',
-            'name':
-            'a',
-            'read_only':
-            True,
-            'm_timestamp':
-            1596120005,
-            'size':
-            9132,
-            'children': [{
-                'type': 'DIR',
-                'name': 'b',
-                'read_only': True,
-                'm_timestamp': 1596120005,
-                'size': 0,
-                'children': [],
-            }, {
-                'type':
-                'DIR',
-                'name':
-                'c',
-                'read_only':
-                True,
-                'm_timestamp':
-                1596120005,
-                'size':
-                6088,
-                'children': [{
-                    'type': 'FILE',
-                    'name': '2.sl1',
-                    'read_only': True,
-                    'm_timestamp': 1596120005,
-                    'size': 3044,
-                }, {
-                    'type': 'FILE',
-                    'name': '3.txt',
-                    'read_only': True,
-                    'm_timestamp': 1596120005,
-                    'size': 3044,
-                }],
-            }, {
-                'type': 'FILE',
-                'name': '1.gcode',
-                'read_only': True,
-                'm_timestamp': 1596120005,
-                'size': 3044,
-            }],
-        }
-
     def test_contains(self, nodes):
         assert "a" in nodes
 
@@ -335,11 +270,6 @@ class TestFilesystem:
     def test_storage(self, fs):
         assert len(fs.storage_dict) == 1
         assert "storage" in fs.storage_dict
-
-    def test_attach_root(self, root_from_dir):
-        assert len(root_from_dir.storage_dict) == 1
-        assert root_from_dir.get('/')
-        assert root_from_dir.get('/1.gcode')
 
     def test_attach_empty(self, fs, nodes):
         with pytest.raises(InvalidStorageError):
@@ -426,78 +356,6 @@ class TestFilesystem:
         assert fs.get("storage/a/1.gcode")
         assert fs.get("storage/a/c/2.sl1")
         assert fs.get("storage/a/c/3.txt")
-
-    def test_to_dict(self, fs):
-        fs_dict = fs.to_dict()
-
-        assert fs_dict == {
-            'name': '/',
-            'read_only': True,
-            'type': 'FOLDER',
-            'children': ['storage'],
-        }
-
-    def test_to_dict_legacy(self, fs):
-        fs_dict = fs.to_dict_legacy()
-        assert fs_dict['children'][0]['free_space'] > 0
-        assert fs_dict['children'][0]['total_space'] > 0
-
-        fs_dict['children'][0]['free_space'] = 0
-        fs_dict['children'][0]['total_space'] = 42
-        assert fs_dict == {
-            'name':
-            '/',
-            'read_only':
-            True,
-            'type':
-            'DIR',
-            'children': [{
-                'type':
-                'DIR',
-                'name':
-                'storage',
-                'size':
-                0,
-                'children': [{
-                    'type':
-                    'DIR',
-                    'name':
-                    'a',
-                    'size':
-                    0,
-                    'children': [{
-                        'type': 'FILE',
-                        'name': '1.gcode',
-                        'size': 0,
-                    }, {
-                        'type': 'DIR',
-                        'name': 'b',
-                        'size': 0,
-                        'children': [],
-                    }, {
-                        'type':
-                        'DIR',
-                        'name':
-                        'c',
-                        'size':
-                        0,
-                        'children': [{
-                            'type': 'FILE',
-                            'name': '2.sl1',
-                            'size': 0,
-                        }, {
-                            'type': 'FILE',
-                            'name': '3.txt',
-                            'size': 0,
-                        }],
-                    }],
-                }],
-                'free_space':
-                0,
-                'total_space':
-                42,
-            }],
-        }
 
 
 class TestINotify:
