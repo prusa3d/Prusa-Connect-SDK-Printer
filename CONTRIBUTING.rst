@@ -20,7 +20,7 @@ and 3.13, so do not use syntax or standard library features newer than 3.9
     pip install -r requirements.txt
     pip install types-requests ruff pytest pytest-doctestplus pylint \
         requests_mock pytest-mypy func-timeout responses \
-        pre-commit yapf
+        pre-commit yapf pytest-cov
 
     pre-commit install
 
@@ -66,6 +66,10 @@ push to ``master`` and on every pull request.
 
     # Tests (the timezone matters for time related tests)
     TZ=Europe/Prague pytest -v --mypy tests --log-cli-level=10
+
+The coverage is shown on every pytest run (see ``pyproject.toml``). CI
+prints the table in the run summary and, for pull requests from the same
+repository, posts it as a comment on the pull request.
 
 Pre-commit hooks (``.pre-commit-config.yaml``) run ``yapf``, ``ruff``,
 ``flake8`` and basic checks (valid YAML, end-of-file newline, no trailing
