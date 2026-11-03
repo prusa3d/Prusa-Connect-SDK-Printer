@@ -11,6 +11,11 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write # to comment the coverage table on a pull request
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -36,7 +41,7 @@ jobs:
         pip install -U -r requirements.txt
         pip install -U types-requests
         pip install -U ruff pytest pytest-doctestplus pylint
-        pip install -U requests_mock pytest-mypy func-timeout responses
+        pip install -U requests_mock pytest-mypy func-timeout responses pytest-cov
 
     - name: Lint with ruff
       run: |
@@ -50,3 +55,25 @@ jobs:
     - name: Tests
       run: |
         TZ=Europe/Prague pytest -v --mypy tests --log-cli-level=10
+    - name: Make the coverage table
+      # One Python version is enough, the numbers are the same.
+      if: matrix.python-version == '3.13'
+      run: |
+        {
+          echo "### Test coverage of prusa.connect.printer"
+          echo
+          python -m coverage report --format=markdown --skip-empty
+        } > coverage.md
+        cat coverage.md >> "$GITHUB_STEP_SUMMARY"
+    - name: Comment the table on the pull request
+      # Not for pushes (there is no pull request) and not for forks (their
+      # token cannot write); the summary of the run has the table anyway.
+      if: >
+        matrix.python-version == '3.13' &&
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: >
+        gh pr comment ${{ github.event.pull_request.number }}
+        --edit-last --create-if-none --body-file coverage.md
