@@ -17,12 +17,7 @@ from inotify_simple import INotify, flags  # type: ignore
 
 from . import const, fileinfo
 from .command import CommandRejected
-from .fileinfo import (
-    REASON_FORBIDDEN,
-    REASON_NOT_FOUND,
-    get_type_by_name,
-    is_inside,
-)
+from .fileinfo import REASON_NOT_FOUND, get_type_by_name
 from .models import EventCallback
 
 log = getLogger("connect-printer")
@@ -480,40 +475,9 @@ class Filesystem:
     def resolve(self, abs_path: str) -> typing.Tuple[str, Storage, str]:
         """Translate a path on the virtual FS to the path on the disk.
 
-        Unlike `get`, it doesn't use the cached tree, the result is checked
-        against the real disk. A storage without a path on the disk (see
-        `file_info`) is checked against its tree and the returned path on
-        the disk is empty.
-
-        :param abs_path: Absolute path on the virtual FS, starting with
-            the mountpoint of a storage
-        :return: tuple of the normalized virtual path, the storage and
-            the path on the disk
-        :raises CommandRejected: with `Forbidden path` if the path leads
-            outside of the storage, with `File not found` if the storage or
-            the path doesn't exist
+        See `fileinfo.resolve`.
         """
-        parts = [part for part in abs_path.split(self.sep) if part]
-        if ".." in parts:
-            raise CommandRejected(REASON_FORBIDDEN)
-        if not parts or any(part.startswith(".") for part in parts):
-            raise CommandRejected(REASON_NOT_FOUND)
-
-        storage = self.storage_dict.get(parts[0])
-        if storage is None:
-            raise CommandRejected(REASON_NOT_FOUND)
-
-        if not storage.path_storage:  # the storage lives only in its tree
-            if storage.tree.get(parts[1:]) is None:
-                raise CommandRejected(REASON_NOT_FOUND)
-            return self.sep + self.sep.join(parts), storage, ""
-
-        os_path = path.join(storage.path_storage, *parts[1:])
-        if not path.lexists(os_path):
-            raise CommandRejected(REASON_NOT_FOUND)
-        if not is_inside(os_path, storage.path_storage):
-            raise CommandRejected(REASON_FORBIDDEN)
-        return self.sep + self.sep.join(parts), storage, os_path
+        return fileinfo.resolve(self.storage_dict, self.sep, abs_path)
 
     def file_info(self, abs_path: str) -> dict:
         """Return the data of FILE_INFO event for a file or a folder.
