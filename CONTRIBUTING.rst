@@ -69,7 +69,9 @@ push to ``master`` and on every pull request.
 
 The coverage is shown on every pytest run (see ``pyproject.toml``). CI
 prints the table in the run summary and, for pull requests from the same
-repository, posts it as a comment on the pull request.
+repository, posts it as a comment on the pull request. CI also fails when
+any file of the package is covered by tests from less than 90 % (see
+`Tests`_).
 
 Pre-commit hooks (``.pre-commit-config.yaml``) run ``yapf``, ``ruff``,
 ``flake8`` and basic checks (valid YAML, end-of-file newline, no trailing
@@ -92,6 +94,11 @@ Tests
 - Test G-code files belong in ``tests/gcodes/``.
 - Tests must pass on all supported Python versions and must not depend on
   the local timezone beyond ``TZ=Europe/Prague`` used by CI.
+- Every file of ``prusa/connect/printer`` must be covered by tests at least
+  from **90 %**; the ideal is **100 %**. The coverage of a file should never
+  go down. CI checks the 90 % limit on every pull request. Run ``pytest`` to
+  see the table, or ``pytest --cov-report=term-missing`` to see which lines
+  are not covered.
 - Examples in docstrings and in ``README.rst`` are executed as doctests;
   keep them correct.
 
