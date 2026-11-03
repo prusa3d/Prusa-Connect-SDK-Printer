@@ -69,7 +69,7 @@ def test_loop_step_skips(printer):
 
 
 @pytest.mark.parametrize(("error", "cond"), [
-    (ReadTimeoutError(None, "u", "m"), errors.HTTP),
+    (ReadTimeoutError(Mock(), "u", "m"), errors.HTTP),
     (RequestsConnectionError(), errors.HTTP),
     (requests.RequestException(), errors.INTERNET),
     (RuntimeError(), errors.INTERNET),
