@@ -9,6 +9,8 @@ ChangeLog
         - FILE_CHANGED has total_space, system_space and rescan
         - Storage mounted as "/" is not supported anymore
         - Printer.attach has storage_type and system_space
+        - Storage attached without a path (e.g. SD card) is answered
+          from its own tree
     * linters update
     * Fix cameras always starting at their maximum resolution instead of
       the configured one

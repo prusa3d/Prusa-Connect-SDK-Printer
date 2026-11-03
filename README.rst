@@ -108,6 +108,18 @@ as a whole:
     printer.attach("/media/usb", "usb", const.StorageType.USB,
                    system_space=1024 * 1024)
 
+A storage which is not a folder on the disk (e.g. an SD card read through
+the printer) can be attached with your own tree of ``File`` objects and
+without the path. The SDK then answers ``SEND_FILE_INFO`` from the tree,
+which you keep up to date, and you report its changes by ``FILE_CHANGED``.
+
+.. code:: python
+
+    tree = File("SD Card", is_dir=True)
+    tree.add("a.gcode", size=100)
+    printer.fs.attach("SD Card", tree, "", use_inotify=False,
+                      storage_type=const.StorageType.SD_CARD)
+
 A storage is always mounted one level under the root, so the storage name
 can't be ``/`` or contain ``/``.
 

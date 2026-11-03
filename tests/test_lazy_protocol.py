@@ -12,6 +12,7 @@ from prusa.connect.printer import const
 from prusa.connect.printer.command import CommandRejected
 from prusa.connect.printer.files import (
     RESCAN_THRESHOLD,
+    File,
     Filesystem,
     InotifyHandler,
     InvalidStorageError,
@@ -420,3 +421,95 @@ class TestInfo:
         assert info["event"] == const.Event.FILE_INFO
         assert info["type"] == "FOLDER"
         assert info["children"][0]["name"] == "folder"
+
+
+class TestTreeStorage:
+    """A storage without the path on the disk is answered from its tree"""
+
+    @pytest.fixture
+    def sd(self, queue):
+        filesystem = Filesystem(event_cb=lambda event, source, **kw: queue.put(
+            Event(event, source, **kw)))
+        tree = File("SD Card", is_dir=True)
+        folder = tree.add("folder", is_dir=True, m_timestamp=10)
+        folder.add("a.gcode", size=100, m_timestamp=11, read_only=True)
+        folder.add("b.txt", size=5)
+        folder.add("sub", is_dir=True)
+        tree.add(".hidden.gcode", size=1)
+        filesystem.attach("SD Card",
+                          tree,
+                          "",
+                          use_inotify=False,
+                          storage_type=const.StorageType.SD_CARD)
+        return filesystem
+
+    def test_storage_description(self, sd, queue):
+        storage = sd.storages()[0]
+        assert storage["mountpoint"] == "/SD Card"
+        assert storage["type"] == "SD_CARD"
+        assert storage["is_sfn"] is False
+        assert "read_only" not in storage
+        assert "free_space" not in storage
+        assert queue.get_nowait().data == storage
+
+    def test_root_of_storage(self, sd):
+        info = sd.file_info("/SD Card")
+        assert info["type"] == "FOLDER"
+        assert info["path"] == "/SD Card"
+        assert [c["name"] for c in info["children"]] == ["folder"]
+
+    def test_folder(self, sd):
+        info = sd.file_info("/SD Card/folder")
+        assert info["m_timestamp"] == 10
+        children = {c["name"]: c for c in info["children"]}
+        assert sorted(children) == ["a.gcode", "b.txt", "sub"]
+        assert children["a.gcode"] == {
+            "name": "a.gcode",
+            "type": "PRINT_FILE",
+            "size": 100,
+            "m_timestamp": 11,
+            "read_only": True,
+        }
+        assert children["sub"] == {"name": "sub", "type": "FOLDER"}
+
+    def test_file(self, sd):
+        info = sd.file_info("/SD Card/folder/a.gcode")
+        assert info["type"] == "PRINT_FILE"
+        assert info["size"] == 100
+        assert info["path"] == "/SD Card/folder/a.gcode"
+        assert "children" not in info
+
+    def test_reflects_tree_changes(self, sd):
+        sd.storage_dict["SD Card"].tree.get(["folder"]).add("c.gcode", size=1)
+        names = [
+            c["name"] for c in sd.file_info("/SD Card/folder")["children"]
+        ]
+        assert "c.gcode" in names
+
+    @pytest.mark.parametrize("path", [
+        "/SD Card/missing",
+        "/SD Card/folder/missing",
+        "/SD Card/.hidden.gcode",
+    ])
+    def test_not_found(self, sd, path):
+        with pytest.raises(CommandRejected) as err:
+            sd.file_info(path)
+        assert err.value.reason == "File not found"
+
+    def test_forbidden(self, sd):
+        with pytest.raises(CommandRejected) as err:
+            sd.file_info("/SD Card/../x")
+        assert err.value.reason == "Forbidden path"
+
+    def test_oversized(self, sd):
+        with patch("prusa.connect.printer.fileinfo.MAX_FOLDER_ITEMS", 2):
+            with pytest.raises(CommandRejected) as err:
+                sd.file_info("/SD Card/folder")
+        assert err.value.reason == "Oversized command"
+
+    def test_ejected(self, sd, queue):
+        queue.get_nowait()
+        sd.detach("SD Card")
+        assert queue.get_nowait().data == {"mountpoint": "/SD Card"}
+        with pytest.raises(CommandRejected):
+            sd.file_info("/SD Card")

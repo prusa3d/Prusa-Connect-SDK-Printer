@@ -103,3 +103,38 @@ def file_info(virtual_path: str, os_path: str, stats) -> dict:
                 biggest = data
         info["preview"] = biggest.decode()
     return info
+
+
+def node_info(virtual_path: str, node) -> dict:
+    """Return FILE_INFO data of a node of the tree (`files.File`).
+
+    It is for storages which can't be read from the disk. Only the
+    attributes stored in the node are available, there are no metadata.
+    """
+    info = {
+        "type": get_type_by_name(node.name, node.is_dir).value,
+        "path": virtual_path,
+    }
+    for attr in ("read_only", "m_timestamp"):
+        if attr in node.attrs:
+            info[attr] = node.attrs[attr]
+    if not node.is_dir:
+        info["size"] = node.size
+        return info
+
+    children: list = []
+    for child in node.children.values():
+        if len(children) >= MAX_FOLDER_ITEMS:
+            raise CommandRejected(REASON_OVERSIZED)
+        item = {
+            "name": child.name,
+            "type": get_type_by_name(child.name, child.is_dir).value,
+        }
+        for attr in ("read_only", "m_timestamp"):
+            if attr in child.attrs:
+                item[attr] = child.attrs[attr]
+        if not child.is_dir:
+            item["size"] = child.size
+        children.append(item)
+    info["children"] = children
+    return info

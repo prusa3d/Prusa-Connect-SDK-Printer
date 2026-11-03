@@ -481,7 +481,9 @@ class Filesystem:
         """Translate a path on the virtual FS to the path on the disk.
 
         Unlike `get`, it doesn't use the cached tree, the result is checked
-        against the real disk.
+        against the real disk. A storage without a path on the disk (see
+        `file_info`) is checked against its tree and the returned path on
+        the disk is empty.
 
         :param abs_path: Absolute path on the virtual FS, starting with
             the mountpoint of a storage
@@ -498,8 +500,13 @@ class Filesystem:
             raise CommandRejected(REASON_NOT_FOUND)
 
         storage = self.storage_dict.get(parts[0])
-        if storage is None or not storage.path_storage:
+        if storage is None:
             raise CommandRejected(REASON_NOT_FOUND)
+
+        if not storage.path_storage:  # the storage lives only in its tree
+            if storage.tree.get(parts[1:]) is None:
+                raise CommandRejected(REASON_NOT_FOUND)
+            return self.sep + self.sep.join(parts), storage, ""
 
         os_path = path.join(storage.path_storage, *parts[1:])
         if not path.lexists(os_path):
@@ -511,14 +518,22 @@ class Filesystem:
     def file_info(self, abs_path: str) -> dict:
         """Return the data of FILE_INFO event for a file or a folder.
 
-        The data are always read from the disk. For a folder, only its
-        direct children are listed.
+        The data are read from the disk. For a folder, only its direct
+        children are listed.
+
+        A storage attached without the path on the disk (e.g. an SD card
+        of a printer, which is not accessible as a folder) has nothing to
+        read, so it is answered from its tree. The owner of the storage
+        keeps the tree up to date.
 
         :param abs_path: Absolute path on the virtual FS
         :raises CommandRejected: see `resolve`, `Oversized command` is
             raised if the folder has more than `MAX_FOLDER_ITEMS` items
         """
         virtual_path, storage, os_path = self.resolve(abs_path)
+        if not storage.path_storage:
+            node = storage.tree.get(virtual_path.split(self.sep)[2:])
+            return fileinfo.node_info(virtual_path, node)
         try:
             stats = stat(os_path)
             if os.path.isdir(os_path):
