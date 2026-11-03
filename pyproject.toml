@@ -151,3 +151,13 @@ lint.ignore = [
 
 [mypy]
 namespace_packages = true
+
+[tool.pytest.ini_options]
+# Show the test coverage on every run (needs pytest-cov).
+addopts = "--cov"
+
+[tool.coverage.run]
+source = ["prusa.connect.printer"]
+
+[tool.coverage.report]
+skip_empty = true
