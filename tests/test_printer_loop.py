@@ -9,10 +9,21 @@ from urllib3.exceptions import ReadTimeoutError
 from prusa.connect.printer import Printer, const, errors
 from prusa.connect.printer.models import (
     CameraRegister,
+    Event,
     LoopObject,
     Register,
+    Telemetry,
 )
-from tests.util import FINGERPRINT, SERVER, SN, TOKEN
+from tests.util import (
+    FINGERPRINT,
+    SERVER,
+    SN,
+    TOKEN,
+    FakeWS,
+    ws_force_gcode_command,
+    ws_gcode_command,
+    ws_json_command,
+)
 
 
 class FakeItem(LoopObject):
@@ -45,6 +56,7 @@ def fixture_printer():
     """A printer with the connection set"""
     printer = Printer(const.PrinterType.I3MK3S, SN, FINGERPRINT)
     printer.set_connection(SERVER, TOKEN)
+    printer.ws = FakeWS(printer.handle_ws_message)
     yield printer
     for cond in (errors.INTERNET, errors.TOKEN, errors.API, errors.HTTP):
         cond.ok = False
@@ -149,39 +161,143 @@ def queued_events(printer):
     return events
 
 
-def test_parse_command_ignored(printer):
-    """No command and unexpected statuses produce no event"""
-    assert printer.parse_command(response(204)).status_code == 204
-    printer.parse_command(response(500))
+@pytest.mark.parametrize("message", ["", "J0000002"])
+def test_ws_message_too_short(printer, message):
+    """A frame without the type and 8 digits of id is dropped"""
+    printer.handle_ws_message(message)
     assert queued_events(printer) == []
 
 
-@pytest.mark.parametrize(("headers", "body", "event", "reason"), [
-    ({
-        "Command-Id": "x",
-    }, "", "REJECTED", "Invalid Command-Id header"),
-    ({
-        "Command-Id": "1",
-        "content-type": "image/png",
-    }, "", "REJECTED", "Invalid command content type"),
-    ({
-        "Command-Id": "1",
-        "content-type": "application/json",
-    }, '{"command": "X"}', "ACCEPTED", None),
-    ({
-        "Command-Id": "1",
-        "content-type": "text/x.gcode",
-        "Force": "1",
-    }, "G28", "ACCEPTED", None),
+def test_ws_message_file_transfer_ignored(printer):
+    """File transfer blocks are not supported and silently dropped"""
+    printer.handle_ws_message(f"T{1:08x}data")
+    assert queued_events(printer) == []
+
+
+@pytest.mark.parametrize(("message", "reason"), [
+    ("Jxxxxxxxx{}", "Invalid command_id"),
+    (f"J{1:08x}{{not json", "Invalid JSON body"),
 ])
-def test_parse_command(printer, headers, body, event, reason):
-    """Valid commands are accepted, the invalid ones are rejected"""
-    printer.parse_command(response(200, headers, body))
+def test_ws_message_rejected(printer, message, reason):
+    """Malformed frames are rejected"""
+    printer.handle_ws_message(message)
     events = queued_events(printer)
-    assert [e["event"] for e in events] == [event]
-    assert events[0].get("reason") == reason
-    if event == "ACCEPTED":
-        assert printer.command.command_id == 1
+    assert [e["event"] for e in events] == ["REJECTED"]
+    assert events[0]["reason"] == reason
+
+
+@pytest.mark.parametrize(("message", "force"), [
+    (ws_gcode_command(1, "G28"), False),
+    (ws_force_gcode_command(1, "G28"), True),
+])
+def test_ws_message_gcode(printer, message, force):
+    """GCode frames are accepted, F prefix means force"""
+    printer.handle_ws_message(message)
+    events = queued_events(printer)
+    assert [e["event"] for e in events] == ["ACCEPTED"]
+    assert printer.command.command_id == 1
+    assert printer.command.force is force
+    assert printer.command.kwargs == {"gcode": "G28"}
+
+
+def test_ws_message_json(printer):
+    """JSON frames are accepted with their args and kwargs"""
+    printer.handle_ws_message(
+        ws_json_command(1, {
+            "command": "SEND_INFO",
+            "args": [1],
+            "kwargs": {
+                "a": 2,
+            },
+        }))
+    events = queued_events(printer)
+    assert [e["event"] for e in events] == ["ACCEPTED"]
+    assert printer.command.command_id == 1
+    assert printer.command.args == [1]
+    assert printer.command.kwargs == {"a": 2}
+
+
+@pytest.mark.parametrize("message", [
+    ws_json_command(2, {"command": "SEND_INFO"}),
+    ws_gcode_command(2, "G28"),
+])
+def test_ws_message_busy(printer, message):
+    """A command arriving while another one runs is rejected"""
+    printer.handle_ws_message(ws_json_command(1, {"command": "SEND_INFO"}))
+    queued_events(printer)
+    printer.handle_ws_message(message)
+    events = queued_events(printer)
+    assert [e["event"] for e in events] == ["REJECTED"]
+    assert events[0]["command_id"] == 2
+    assert printer.command.command_id == 1
+
+
+def test_ws_message_accept_error(printer):
+    """An exception in accepting the command rejects it"""
+    printer.command.check_state = Mock(side_effect=RuntimeError("boom"))
+    for message in (ws_json_command(1, {"command": "X"}),
+                    ws_gcode_command(2, "G28")):
+        printer.handle_ws_message(message)
+    events = queued_events(printer)
+    assert [e["event"] for e in events] == ["REJECTED", "REJECTED"]
+    assert [e["reason"] for e in events] == ["boom", "boom"]
+
+
+def test_ws_url(printer):
+    """The WS URL follows the scheme of the server"""
+    printer.server = "https://connect.example"
+    assert printer.ws_url() == "wss://connect.example/p/ws"
+    printer.server = "http://localhost:8000"
+    assert printer.ws_url() == "ws://localhost:8000/p/ws"
+
+
+def test_ensure_ws_connected(printer):
+    """The connection is opened once and reopened with a new token"""
+    printer.ensure_ws_connected()
+    printer.ensure_ws_connected()
+    assert len(printer.ws.connect_calls) == 1
+    assert printer.ws.connect_calls[0][0] == f"{printer.ws_url()}"
+    printer.token = "other"
+    printer.ensure_ws_connected()
+    assert len(printer.ws.connect_calls) == 2
+
+    printer.ws.disconnect()
+    printer.token = None
+    printer.ensure_ws_connected()
+    assert len(printer.ws.connect_calls) == 2
+    printer.token = "other"
+    printer.server = None
+    printer.ensure_ws_connected()
+    assert len(printer.ws.connect_calls) == 2
+
+
+@pytest.mark.parametrize("item", [
+    Telemetry(const.State.IDLE, temp_nozzle=1),
+    Event(const.Event.INFO, const.Source.WUI),
+])
+def test_loop_step_ws(printer, item):
+    """Telemetry and events go over the WebSocket"""
+    errors.API.ok = False
+    step(printer, item)
+    assert printer.ws.sent == [item.to_payload()]
+    assert errors.API.ok
+
+
+def test_loop_step_ws_no_connection(printer):
+    """Items are dropped and INTERNET is set when WS cannot connect"""
+    printer.ws.fail_connect = True
+    errors.INTERNET.ok = True
+    step(printer, Telemetry(const.State.IDLE))
+    assert printer.ws.sent == []
+    assert not errors.INTERNET.ok
+
+
+def test_loop_step_ws_send_failed(printer):
+    """HTTP is set when the connected socket fails to send"""
+    printer.ws.fail_send = True
+    errors.HTTP.ok = True
+    step(printer, Telemetry(const.State.IDLE))
+    assert not errors.HTTP.ok
 
 
 def test_properties_set_once(printer):
