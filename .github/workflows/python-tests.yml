@@ -77,3 +77,16 @@ jobs:
       run: >
         gh pr comment ${{ github.event.pull_request.number }}
         --edit-last --create-if-none --body-file coverage.md
+    - name: Every file must be covered at least from 90 %
+      if: matrix.python-version == '3.13'
+      run: |
+        min=90
+        python -m coverage report --skip-empty | awk -v min="$min" '
+          $1 ~ /^prusa\// {
+            cover = $4; gsub("%", "", cover)
+            if (cover + 0 < min) {
+              printf "::error::%s is covered only from %s %% (minimum %s %%)\n", $1, cover, min
+              failed = 1
+            }
+          }
+          END { exit failed }'
