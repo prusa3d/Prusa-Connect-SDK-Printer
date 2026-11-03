@@ -11,16 +11,19 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write # to comment the coverage table on a pull request
 
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded runs of a pull request, never the runs on master
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
 
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write # to comment the coverage table on a pull request
     strategy:
       fail-fast: false
       matrix:
@@ -80,13 +83,20 @@ jobs:
     - name: Every file must be covered at least from 90 %
       if: matrix.python-version == '3.13'
       run: |
-        min=90
-        python -m coverage report --skip-empty | awk -v min="$min" '
-          $1 ~ /^prusa\// {
-            cover = $4; gsub("%", "", cover)
-            if (cover + 0 < min) {
-              printf "::error::%s is covered only from %s %% (minimum %s %%)\n", $1, cover, min
-              failed = 1
-            }
-          }
-          END { exit failed }'
+        python -m coverage json -o coverage.json
+        python - <<'EOF'
+        import json
+        import sys
+
+        MIN = 90
+        files = json.load(open("coverage.json"))["files"]
+        low = {
+            name: data["summary"]["percent_covered"]
+            for name, data in files.items()
+            if data["summary"]["percent_covered"] < MIN
+        }
+        for name, percent in sorted(low.items()):
+            print(f"::error::{name} is covered only from {percent:.1f} % "
+                  f"(minimum {MIN} %)")
+        sys.exit(bool(low))
+        EOF
