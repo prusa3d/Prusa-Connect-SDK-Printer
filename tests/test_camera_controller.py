@@ -7,6 +7,7 @@ import pytest
 from prusa.connect.printer.camera_controller import CameraController
 from prusa.connect.printer.const import CameraBusy, TriggerScheme
 from prusa.connect.printer.models import CameraRegister
+from tests.util import run_loop
 
 
 def make_camera(camera_id="cam", scheme=TriggerScheme.EACH_LAYER):
@@ -109,7 +110,6 @@ def test_photo_handler(controller):
 def test_snapshot_loop(controller, status):
     """The loop sends a snapshot and resets the token when unauthorized"""
     item = Mock(camera_id="cam")
-    item.send.return_value = Mock(status_code=status, text="t")
     controller.snapshot_queue = Queue()
     controller.snapshot_queue.put(item)
 
@@ -118,9 +118,13 @@ def test_snapshot_loop(controller, status):
         return Mock(status_code=status, text="t")
 
     item.send.side_effect = stop
-    controller.snapshot_loop()
+    run_loop(controller.snapshot_loop, timeout=2)
+    item.send.assert_called_once()
+    set_token = controller.get_camera("cam").set_token
     if status == 401:
-        controller.get_camera("cam").set_token.assert_called_with(None)
+        set_token.assert_called_with(None)
+    else:
+        set_token.assert_not_called()
 
 
 def test_snapshot_loop_exception(controller):
@@ -133,4 +137,6 @@ def test_snapshot_loop_exception(controller):
 
     item.send.side_effect = fail
     controller.snapshot_queue.put(item)
-    controller.snapshot_loop()
+    run_loop(controller.snapshot_loop, timeout=2)
+    item.send.assert_called_once()
+    assert not controller._running

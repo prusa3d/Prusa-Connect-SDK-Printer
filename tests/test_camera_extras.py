@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from prusa.connect.printer.camera import Resolution
+from prusa.connect.printer.camera import Resolution, Snapshot
 from prusa.connect.printer.camera_configurator import CameraConfigurator
 from prusa.connect.printer.camera_controller import CameraController
 from prusa.connect.printer.camera_driver import CameraDriver
@@ -106,13 +106,17 @@ def test_driver_initial_resolution():
 def test_driver_photo_error():
     """A failing photo is logged and disconnects the driver"""
     driver = make_driver()
-    driver._photo_taker(Mock())  # take_a_photo raises NotImplementedError
-    driver.disconnected_cb.assert_not_called()  # it was never connected
+    snapshot = Snapshot()
+    driver._photo_taker(snapshot)  # take_a_photo raises NotImplementedError
+    assert snapshot.data is None
+    assert snapshot.timestamp is None
 
 
 def test_driver_disconnect_error():
     """A failing _disconnect does not raise"""
-    make_driver(BrokenScanDriver).disconnect()
+    driver = make_driver(BrokenScanDriver)
+    driver.disconnect()
+    assert not driver.is_connected
 
 
 def test_driver_invalid_config_hash():
@@ -121,7 +125,8 @@ def test_driver_invalid_config_hash():
     class NeedsOne(BareDriver):
         REQUIRES_SETTINGS = MappingProxyType({"a": "A"})
 
-    NeedsOne.get_config_hash({})
+    assert NeedsOne.get_config_hash({}) == NeedsOne.get_config_hash({})
+    assert NeedsOne.get_config_hash({}) != NeedsOne.get_config_hash({"a": "1"})
 
 
 def test_driver_store_settings():

@@ -9,7 +9,6 @@ from urllib3.exceptions import ReadTimeoutError
 from prusa.connect.printer import Printer, const, errors
 from prusa.connect.printer.models import (
     CameraRegister,
-    Event,
     LoopObject,
     Register,
 )
@@ -62,10 +61,14 @@ def test_loop_step_skips(printer):
     printer.loop_step()  # empty queue
     step(printer, "not a loop object")
     printer.token = None
-    step(printer, FakeItem())
+    item = FakeItem(response())
+    item.send = Mock()
+    step(printer, item)
     assert not errors.TOKEN.ok
+    printer.token = TOKEN
     printer.server = None
-    step(printer, FakeItem())
+    step(printer, item)
+    item.send.assert_not_called()
 
 
 @pytest.mark.parametrize(("error", "cond"), [
@@ -110,11 +113,13 @@ def test_loop_step_camera_register(printer, status):
     step(printer, item)
     if status == 200:
         camera.set_token.assert_called_with("t")
+    else:
+        camera.set_token.assert_not_called()
 
 
 @pytest.mark.parametrize(("status", "cond"), [(403, errors.TOKEN),
                                               (500, errors.API)])
-def test_deduce_state(status, cond):
+def test_deduce_state(printer, status, cond):  # noqa: ARG001
     """Error codes switch the conditions off"""
     cond.ok = True
     Printer.deduce_state_from_code(status)
@@ -129,37 +134,54 @@ def test_loop(printer):
         printer.stop_loop()
         raise RuntimeError
 
-    printer.loop_step = fail
+    printer.loop_step = Mock(side_effect=fail)
     printer.loop()
     assert not printer.running_loop
+    printer.camera_controller.tick.assert_called_once()
+    printer.loop_step.assert_called_once()
 
 
-def test_parse_command(printer):
-    """Responses with bad commands are rejected, no command is ignored"""
-    assert printer.parse_command(response(204)).status_code == 204
-    printer.parse_command(response(500))
-    printer.parse_command(response(200, {"Command-Id": "x"}))
-    cases = [
-        {
-            "Command-Id": "1",
-            "content-type": "application/json",
-        },
-        {
-            "Command-Id": "1",
-            "content-type": "text/x.gcode",
-            "Force": "1",
-        },
-        {
-            "Command-Id": "1",
-            "content-type": "image/png",
-        },
-    ]
-    for headers in cases:
-        printer.parse_command(response(200, headers, '{"command": "X"}'))
+def queued_events(printer):
+    """Payloads of all events waiting in the queue"""
     events = []
     while not printer.queue.empty():
-        events.append(printer.queue.get_nowait())
-    assert all(isinstance(e, Event) for e in events)
+        events.append(printer.queue.get_nowait().to_payload())
+    return events
+
+
+def test_parse_command_ignored(printer):
+    """No command and unexpected statuses produce no event"""
+    assert printer.parse_command(response(204)).status_code == 204
+    printer.parse_command(response(500))
+    assert queued_events(printer) == []
+
+
+@pytest.mark.parametrize(("headers", "body", "event", "reason"), [
+    ({
+        "Command-Id": "x",
+    }, "", "REJECTED", "Invalid Command-Id header"),
+    ({
+        "Command-Id": "1",
+        "content-type": "image/png",
+    }, "", "REJECTED", "Invalid command content type"),
+    ({
+        "Command-Id": "1",
+        "content-type": "application/json",
+    }, '{"command": "X"}', "ACCEPTED", None),
+    ({
+        "Command-Id": "1",
+        "content-type": "text/x.gcode",
+        "Force": "1",
+    }, "G28", "ACCEPTED", None),
+])
+def test_parse_command(printer, headers, body, event, reason):
+    """Valid commands are accepted, the invalid ones are rejected"""
+    printer.parse_command(response(200, headers, body))
+    events = queued_events(printer)
+    assert [e["event"] for e in events] == [event]
+    assert events[0].get("reason") == reason
+    if event == "ACCEPTED":
+        assert printer.command.command_id == 1
 
 
 def test_properties_set_once(printer):
