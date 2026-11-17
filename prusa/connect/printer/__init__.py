@@ -692,11 +692,9 @@ class Printer:
             self.__ws_backoff / 2, self.__ws_backoff)
 
     def handle_ws_binary(self, message: bytes) -> Optional[str]:
-        """Feed a binary T frame to the inline download.
+        """Feed a T frame to the inline download, decode any other frame.
 
-        Returns any other frame decoded as text, None when it was consumed
-        or is unusable.
-        """
+        Returns None when the frame was consumed or is unusable."""
         if message[:1] == b'T':
             try:
                 file_id = int(message[1:9], 16)
@@ -712,10 +710,7 @@ class Printer:
             return None
 
     def send_inline(self, payload: Dict[str, Any]) -> bool:
-        """Send a block request of an inline transfer over the WebSocket.
-
-        It looks up `self.ws` at call time, so a replaced one is used.
-        """
+        """Send an inline block request over the current `self.ws`."""
         return self.ws.send(payload)
 
     def handle_ws_message(self, message: Union[str, bytes]) -> None:
