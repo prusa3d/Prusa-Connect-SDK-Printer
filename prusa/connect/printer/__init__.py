@@ -663,8 +663,10 @@ class Printer:
         Failed attempts back off with jitter up to WS_MAX_BACKOFF, so a
         printer that is offline doesn't block the loop on every item. A
         token Connect refused (401/403) is not retried until it changes.
+        Without a fingerprint Connect refuses the handshake, so it waits
+        until the printer sets one (e.g. PrusaLink reads it from the SN).
         """
-        if not self.server or not self.token:
+        if not self.server or not self.token or not self.fingerprint:
             return
         token_changed = self.__ws_token != self.token
         if self.ws.connected and not token_changed:

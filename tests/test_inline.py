@@ -192,6 +192,15 @@ def test_reconnect_backs_off(printer):
     assert len(printer.ws.connect_calls) == 1
 
 
+def test_waits_for_fingerprint(printer):
+    printer._Printer__fingerprint = None  # pylint: disable=protected-access
+    printer.ensure_ws_connected()
+    assert not printer.ws.connect_calls
+    printer.fingerprint = "late-fingerprint"
+    printer.ensure_ws_connected()
+    assert len(printer.ws.connect_calls) == 1
+
+
 def test_refused_token_is_not_retried(printer):
     errors.TOKEN.ok = True
     printer.ws.fail_connect = True
