@@ -99,7 +99,8 @@ def test_inline_download(printer, mgr):
 
     info = [e for e in events(printer) if e["event"] == "TRANSFER_INFO"]
     # Connect local reads the id the TRANSFER_* events will carry from here
-    assert info and info[0]["command_id"] == 1
+    assert info
+    assert info[0]["command_id"] == 1
     assert info[0]["transfer_id"] == printer.transfer.transfer_id
 
     run_download(mgr)
@@ -119,7 +120,7 @@ def test_inline_retry_after_lost_and_stale_frames(printer, mgr):
             return frames[:-1]  # last frame lost, block times out
         if attempt == 2:
             # A late frame of an abandoned request comes first
-            return [b"T%08x" % 0xdead + b"junk"] + frames
+            return [b"T%08x" % 0xdead + b"junk", *frames]
         return frames
 
     requests = serve(mgr, content, mangle)

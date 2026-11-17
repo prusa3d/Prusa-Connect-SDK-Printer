@@ -178,8 +178,7 @@ class Printer:
         self.camera_controller = CameraController(self.conn, self.server,
                                                   self.send_cb)
         self.ws = PrinterWS(self.handle_ws_message)
-        self.download_mgr.inline_send_cb = lambda payload: self.ws.send(
-            payload)
+        self.download_mgr.inline_send_cb = self.send_inline
         self.__ws_token: Optional[str] = None
         # Reconnect backoff: seconds of the last wait and when to try next
         self.__ws_backoff = 0.0
@@ -712,6 +711,13 @@ class Printer:
             log.error("WS: undecodable frame: %r", message[:9])
             return None
 
+    def send_inline(self, payload: Dict[str, Any]) -> bool:
+        """Send a block request of an inline transfer over the WebSocket.
+
+        It looks up `self.ws` at call time, so a replaced one is used.
+        """
+        return self.ws.send(payload)
+
     def handle_ws_message(self, message: Union[str, bytes]) -> None:
         """Process a frame pushed by the server over the WebSocket.
 
@@ -721,6 +727,7 @@ class Printer:
           F{08x command_id}{gcode text} — forced GCode command
           T{08x file_id}{bytes}         — inline file transfer block (binary)
         """
+        # pylint: disable=too-many-branches
         if not message or len(message) < 9:
             log.error("WS: message too short: %r", message[:9])
             return
