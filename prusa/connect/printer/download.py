@@ -4,8 +4,9 @@ import threading
 import time
 from logging import getLogger
 from os.path import abspath, basename, dirname, normpath
+from queue import Empty, Queue
 from random import randint
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 import requests  # type: ignore
 
@@ -22,6 +23,12 @@ log = getLogger("connect-printer")
 
 DOWNLOAD_TYPES = (TransferType.FROM_WEB, TransferType.FROM_CONNECT,
                   TransferType.FROM_PRINTER)
+
+# Inline transfer over the WebSocket: the frame size we ask Connect for and
+# how long a transfer may go without a single new byte before it is aborted.
+# The stall limit is long enough to ride out a reconnect.
+INLINE_CHUNK = 4096
+INLINE_STALL_TIMEOUT = 60  # seconds
 
 
 class TransferRunningError(Exception):
@@ -137,7 +144,8 @@ class Transfer:
               to_select: Optional[bool] = None,
               start_cmd_id: Optional[int] = None,
               hash_: Optional[str] = None,
-              team_id: Optional[int] = None) -> dict:
+              team_id: Optional[int] = None,
+              size: Optional[int] = None) -> dict:
         """Set a new transfer type, if no transfer is in progress"""
         # pylint: disable=too-many-arguments
         # pylint: disable=too-many-positional-arguments
@@ -168,6 +176,9 @@ class Transfer:
             self.to_select = to_select
             self.hash = hash_
             self.team_id = team_id
+            # Set before the type is visible to the download loop thread,
+            # which reads it right away for an inline transfer
+            self.size = size
             self.started_cb()
 
             retval = self.to_dict()
@@ -269,6 +280,12 @@ class DownloadMgr:
         self.transfer = transfer
         self.download_finished_cb = download_finished_cb
 
+        # Inline transfer: set by Printer to send a block request over the
+        # WebSocket, returns False when it could not be sent
+        self.inline_send_cb: Optional[Callable[[Dict[str, Any]], bool]] = None
+        self._inline_frames: Queue = Queue()
+        self._inline_file_id: Optional[int] = None
+
     def start(self,
               type_: TransferType,
               path: str,
@@ -277,8 +294,12 @@ class DownloadMgr:
               to_select: Optional[bool] = None,
               start_cmd_id: Optional[int] = None,
               hash_: Optional[str] = None,
-              team_id: Optional[int] = None) -> dict:
+              team_id: Optional[int] = None,
+              size: Optional[int] = None) -> dict:
         """Start a download of `url` saving it into the `path`.
+
+        Without `url` the file comes inline over the WebSocket, and `size`
+        (the length Connect announced) is required.
         This `path` is the absolute virtual path in `self.fs`
         (:class:prusa.connect.printer.files.Filesystem)
         """
@@ -288,7 +309,7 @@ class DownloadMgr:
         retval = {}
         try:
             retval = self.transfer.start(type_, path, url, to_print, to_select,
-                                         start_cmd_id, hash_, team_id)
+                                         start_cmd_id, hash_, team_id, size)
         except TransferRunningError:
             return {
                 "event": Event.REJECTED,
@@ -399,6 +420,9 @@ class DownloadMgr:
     def download(self):
         """Execute the download and store the file in `self.tmp_filename()`"""
         self.transfer.start_ts = time.time()
+        if self.transfer.url is None:
+            self.download_inline()
+            return
         server, self.headers = self.conn_details_cb()
 
         # server is not connect server, set token to None
@@ -444,6 +468,102 @@ class DownloadMgr:
 
         if not self.transfer.transferred:
             raise TransferAbortedError("Empty response")
+
+    def feed_inline(self, file_id: int, data: bytes):
+        """Hand a binary T frame from the WebSocket thread to the download.
+
+        Frames addressed to anything but the block being waited for are
+        late answers to an abandoned request and are dropped.
+        """
+        if file_id == self._inline_file_id:
+            self._inline_frames.put(data)
+        else:
+            log.debug("Dropping a transfer frame for file_id %s", file_id)
+
+    def download_inline(self):
+        """Fetch the file from Connect over the WebSocket, block by block.
+
+        The printer asks for a byte range and Connect answers with binary
+        T frames. A block that does not arrive whole is asked for again, so
+        a transfer survives a reconnect; it is aborted only when no byte
+        arrives for INLINE_STALL_TIMEOUT.
+        """
+        transfer = self.transfer
+        if transfer.size is None:
+            raise TransferAbortedError("Inline transfer without a size")
+
+        with open(self.tmp_filename(), 'wb') as f:
+            self.event_cb(Event.TRANSFER_INFO, Source.WUI, **self.info())
+            last_progress = time.monotonic()
+            while transfer.transferred < transfer.size:
+                if transfer.stop_ts > 0:
+                    raise TransferStoppedError("Transfer was stopped")
+                if not self._running_loop:
+                    raise TransferAbortedError("Transfer was aborted")
+
+                start = transfer.transferred
+                end = min(start + self.buffer_size, transfer.size) - 1
+                block = self.fetch_inline_block(start, end)
+                if block is None:
+                    if time.monotonic() - last_progress > INLINE_STALL_TIMEOUT:
+                        raise TransferAbortedError(
+                            "Connect stopped sending the file")
+                    continue
+
+                last_progress = time.monotonic()
+                f.write(block)
+                if self.throttle:
+                    time.sleep(self.throttle)
+                transfer.transferred += len(block)
+            f.flush()
+            os.fsync(f.fileno())
+
+        if not transfer.transferred:
+            raise TransferAbortedError("Empty file")
+
+    def fetch_inline_block(self, start: int, end: int) -> Optional[bytes]:
+        """Ask Connect for bytes `start`..`end` (inclusive) and wait for them.
+
+        Returns None when the block did not arrive whole in time. Each
+        request gets a fresh file_id: Connect binds it to the transfer by
+        the hash, and frames still in flight for an earlier request carry
+        the old id and are dropped.
+        """
+        transfer = self.transfer
+        file_id = generate_transfer_id()
+        self._inline_frames = Queue()
+        self._inline_file_id = file_id
+        request = {
+            "transfer": "inline",
+            "hash": transfer.hash,
+            "team_id": transfer.team_id,
+            "transfer_id": transfer.transfer_id,
+            "file_id": file_id,
+            "chunk": INLINE_CHUNK,
+            "start": start,
+            "end": end,
+        }
+        if self.inline_send_cb is None or not self.inline_send_cb(request):
+            time.sleep(1)  # not connected, give the WebSocket time
+            return None
+
+        want = end - start + 1
+        parts = []
+        received = 0
+        deadline = time.monotonic() + CONNECTION_TIMEOUT
+        while received < want:
+            try:
+                data = self._inline_frames.get(
+                    timeout=max(0.0, deadline - time.monotonic()))
+            except Empty:
+                log.warning("Transfer block %d-%d timed out", start, end)
+                return None
+            if not data:  # an empty frame is Connect saying it cannot serve
+                log.warning("Connect could not serve block %d-%d", start, end)
+                return None
+            parts.append(data)
+            received += len(data)
+        return b"".join(parts)[:want]
 
     def tmp_filename(self):
         """Generate a temporary filename for download based on

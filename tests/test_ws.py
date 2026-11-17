@@ -127,3 +127,20 @@ def test_callbacks(app_cls):
     sock._open_event.clear()  # pylint: disable=protected-access
     callbacks["on_error"](None, OSError("x"))
     assert sock._open_event.is_set()  # pylint: disable=protected-access
+
+
+def test_subprotocol_and_refused_status(app_cls):
+    """The prusa-connect subprotocol is offered; a refused handshake's
+    HTTP status is kept and cleared by the next attempt"""
+    app_cls.opens = False
+    sock = PrinterWS(Mock())
+    sock.connect(URL, {})
+    assert app_cls.instances[-1].callbacks["subprotocols"] == ["prusa-connect"]
+
+    error = Exception("Handshake status 401")
+    error.status_code = 401  # type: ignore[attr-defined]
+    app_cls.instances[-1].callbacks["on_error"](None, error)
+    assert sock.last_status == 401
+
+    sock.connect(URL, {})
+    assert sock.last_status is None

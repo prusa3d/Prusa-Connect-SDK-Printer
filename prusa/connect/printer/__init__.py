@@ -5,11 +5,12 @@
 import configparser
 import json
 import os
+import random
 import re
 from logging import getLogger
 from queue import Empty, Queue
-from time import sleep, time
-from typing import Any, Callable, Dict, List, Optional
+from time import monotonic, sleep, time
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from requests import RequestException, Session  # type: ignore
 from requests.exceptions import (
@@ -147,6 +148,8 @@ class Printer:
                          self.start_url_download)
         self.set_handler(const.Command.START_CONNECT_DOWNLOAD,
                          self.start_connect_download)
+        self.set_handler(const.Command.START_INLINE_DOWNLOAD,
+                         self.start_inline_download)
         self.set_handler(const.Command.STOP_TRANSFER, self.transfer_stop)
         self.set_handler(const.Command.SEND_TRANSFER_INFO, self.transfer_info)
         self.set_handler(const.Command.SET_PRINTER_READY,
@@ -175,7 +178,12 @@ class Printer:
         self.camera_controller = CameraController(self.conn, self.server,
                                                   self.send_cb)
         self.ws = PrinterWS(self.handle_ws_message)
+        self.download_mgr.inline_send_cb = lambda payload: self.ws.send(
+            payload)
         self.__ws_token: Optional[str] = None
+        # Reconnect backoff: seconds of the last wait and when to try next
+        self.__ws_backoff = 0.0
+        self.__ws_retry_at = 0.0
         self.__running_loop = False
 
     @staticmethod
@@ -482,6 +490,28 @@ class Printer:
                 f"{const.Command.START_CONNECT_DOWNLOAD} requires "
                 f"kwarg {err}.") from None
 
+    def start_inline_download(self, caller: Command) -> Dict[str, Any]:
+        """Receive a file from Connect inline over the WebSocket"""
+        if not caller.kwargs:
+            raise ValueError(
+                f"{const.Command.START_INLINE_DOWNLOAD} requires kwargs")
+        try:
+            retval = self.download_mgr.start(
+                const.TransferType.FROM_CONNECT,
+                caller.kwargs["path"],
+                to_print=caller.kwargs.get("printing", False),
+                to_select=caller.kwargs.get("selecting", False),
+                start_cmd_id=caller.command_id,
+                hash_=caller.kwargs["hash"],
+                team_id=int(caller.kwargs["team_id"]),
+                size=int(caller.kwargs["orig_size"]))
+            retval['source'] = const.Source.CONNECT
+            return retval
+        except KeyError as err:
+            raise ValueError(
+                f"{const.Command.START_INLINE_DOWNLOAD} requires "
+                f"kwarg {err}.") from None
+
     def transfer_stop(self, caller: Command) -> Dict[str, Any]:
         """Stop current transfer, if any"""
         # pylint: disable=unused-argument
@@ -629,26 +659,77 @@ class Printer:
         return url.replace("http://", "ws://", 1) + "/p/ws"
 
     def ensure_ws_connected(self) -> None:
-        """Open (or reopen) the WS connection when credentials change."""
+        """Open (or reopen) the WS connection when credentials change.
+
+        Failed attempts back off with jitter up to WS_MAX_BACKOFF, so a
+        printer that is offline doesn't block the loop on every item. A
+        token Connect refused (401/403) is not retried until it changes.
+        """
         if not self.server or not self.token:
             return
-        if self.ws.connected and self.__ws_token == self.token:
+        token_changed = self.__ws_token != self.token
+        if self.ws.connected and not token_changed:
             return
+        if not token_changed:
+            if self.ws.last_status in (401, 403):
+                return
+            if monotonic() < self.__ws_retry_at:
+                return
+
         self.ws.connect(self.ws_url(), self.make_headers())
         self.__ws_token = self.token
+        if self.ws.connected:
+            self.__ws_backoff = 0.0
+            return
 
-    def handle_ws_message(self, message: str) -> None:
-        """Process a text frame pushed by the server over the WebSocket.
+        if self.ws.last_status in (401, 403):
+            errors.TOKEN.ok = False
+            TOKEN.state = CondState.NOK
+            log.error("Connect refused the token (HTTP %s)",
+                      self.ws.last_status)
+        self.__ws_backoff = min(max(self.__ws_backoff * 2, 1.0),
+                                const.WS_MAX_BACKOFF)
+        self.__ws_retry_at = monotonic() + random.uniform(
+            self.__ws_backoff / 2, self.__ws_backoff)
+
+    def handle_ws_binary(self, message: bytes) -> Optional[str]:
+        """Feed a binary T frame to the inline download.
+
+        Returns any other frame decoded as text, None when it was consumed
+        or is unusable.
+        """
+        if message[:1] == b'T':
+            try:
+                file_id = int(message[1:9], 16)
+            except ValueError:
+                log.error("WS: invalid file_id in: %r", message[:9])
+                return None
+            self.download_mgr.feed_inline(file_id, message[9:])
+            return None
+        try:
+            return message.decode("utf-8")
+        except UnicodeDecodeError:
+            log.error("WS: undecodable frame: %r", message[:9])
+            return None
+
+    def handle_ws_message(self, message: Union[str, bytes]) -> None:
+        """Process a frame pushed by the server over the WebSocket.
 
         Wire format (BuddyEncoder):
           J{08x command_id}{JSON body}  — high-level JSON command
           G{08x command_id}{gcode text} — low-level GCode command
           F{08x command_id}{gcode text} — forced GCode command
-          T…                            — file transfer block (ignored)
+          T{08x file_id}{bytes}         — inline file transfer block (binary)
         """
         if not message or len(message) < 9:
-            log.error("WS: message too short: %r", message)
+            log.error("WS: message too short: %r", message[:9])
             return
+
+        if isinstance(message, bytes):
+            decoded = self.handle_ws_binary(message)
+            if decoded is None:
+                return
+            message = decoded
 
         msg_type = message[0]
         try:
@@ -661,10 +742,6 @@ class Printer:
             return
 
         body = message[9:]
-
-        if msg_type == 'T':
-            log.debug("WS: file transfer message, ignoring")
-            return
 
         if not self.is_initialised():
             self.event_cb(const.Event.REJECTED,
@@ -808,7 +885,14 @@ class Printer:
                 # Can't reach server at all — network/internet issue
                 errors.INTERNET.ok = False
                 INTERNET.state = CondState.NOK
-                log.warning("WS not connected, dropping item: %s", item)
+                if isinstance(item, Event):
+                    # Events answer commands and end transfers; keep them
+                    # for when the connection is back. Telemetry is resent
+                    # anyway, so it is dropped.
+                    self.queue.put(item)
+                    sleep(const.TIMESTAMP_PRECISION)
+                else:
+                    log.debug("WS not connected, dropping item: %s", item)
                 return
             sent = self.ws.send(item.to_payload())
             if sent:
