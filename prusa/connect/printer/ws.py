@@ -2,7 +2,7 @@
 import json
 from logging import getLogger
 from threading import Event, Lock, Thread
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import websocket  # type: ignore
 
@@ -20,8 +20,11 @@ class PrinterWS:
     construction (Printer.handle_ws_message).
     """
 
-    def __init__(self, on_message: Callable[[str], None]):
+    def __init__(self, on_message: Callable[[Union[str, bytes]], None]):
         self._on_message = on_message
+        # HTTP status of the last refused handshake, None when the last
+        # attempt opened or failed without one (no network, timeout, ...)
+        self.last_status: Optional[int] = None
         self._ws: Optional[websocket.WebSocketApp] = None
         self._thread: Optional[Thread] = None
         self._open_event = Event()
@@ -41,6 +44,7 @@ class PrinterWS:
         """
         self.disconnect()
         self._open_event.clear()
+        self.last_status = None
 
         header_list = [
             f"{key}: {value}" for key, value in headers.items()
@@ -50,6 +54,7 @@ class PrinterWS:
         self._ws = websocket.WebSocketApp(
             url,
             header=header_list,
+            subprotocols=[const.WS_SUBPROTOCOL],
             on_open=self._handle_open,
             on_message=self._handle_message,
             on_error=self._handle_error,
@@ -101,11 +106,14 @@ class PrinterWS:
         log.debug("WS connection opened")
         self._open_event.set()
 
-    def _handle_message(self, _ws, message: str) -> None:
+    def _handle_message(self, _ws, message: Union[str, bytes]) -> None:
         self._on_message(message)
 
     def _handle_error(self, _ws, error) -> None:
         log.error("WS error: %s", error)
+        status = getattr(error, "status_code", None)
+        if isinstance(status, int):
+            self.last_status = status
         self._open_event.set()  # unblock connect() if still waiting
 
     def _handle_close(self, _ws, close_code, close_msg) -> None:

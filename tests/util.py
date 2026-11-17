@@ -43,6 +43,7 @@ class FakeWS:
         self._connected = False
         self.fail_send = False  # set True to simulate send failure
         self.fail_connect = False  # set True to simulate connection failure
+        self.last_status = None  # handshake status of a refused connect
 
     @property
     def connected(self) -> bool:

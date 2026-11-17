@@ -15,6 +15,10 @@ ChangeLog
     * Fix cameras always starting at their maximum resolution instead of
       the configured one
     * Switch telemetry and events transport from HTTP to WebSocket
+    * Inline file transfer over WebSocket (START_INLINE_DOWNLOAD)
+    * WebSocket reconnects with backoff, events are kept while offline
+    * Refused token (401/403) on WebSocket sets TOKEN to NOK
+    * Offer the prusa-connect WebSocket subprotocol
 
 0.8.2 (2025-05-05)
     * Bump requests to 2.32.3
